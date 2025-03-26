@@ -1,0 +1,13 @@
+__pycache__/
+.idea/
+dist/
+build/
+AR/
+temp/
+database.db
+AR/
+temp/
+ProjetosExternos/
+Teste/
+Errors_Logs.txt
+venv
