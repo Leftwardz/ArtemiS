@@ -101,13 +101,13 @@ class App(ctk.CTk):
 
         printers_list = ['Criar PDF']
         printers_list.extend(db.search_printers())
-        self.printers_list = ctk.CTkComboBox(self.frame_printers, values=printers_list, width=150)
+        self.printers_list = ctk.CTkComboBox(self.frame_printers, values=printers_list, width=210)
         self.printers_list.grid(row=0, column=1, padx=15)
 
         self.lbl_select_group = ctk.CTkLabel(self.frame_printers, text="Selecione Grupo:")
         self.lbl_select_group.grid(row=1, column=0, padx=10)
 
-        self.print_group_list = ctk.CTkComboBox(self.frame_printers, values=db.search_print_group(), width=150)
+        self.print_group_list = ctk.CTkComboBox(self.frame_printers, values=db.search_print_group(), width=210)
         self.print_group_list.grid(row=1, column=1, padx=15, pady=5)
 
         # ######################## Remake Checkbox ##############################
