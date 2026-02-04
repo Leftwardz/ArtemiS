@@ -2581,13 +2581,16 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
                 self.frame.grid(row=0, column=0, padx=10, pady=10)
 
                 tag_type = self.master.canvas.itemcget(self.master.id_selected_item, "tags")
+                print(tag_type)
                 self.is_segment = tag_type.startswith('segment')
+                print(self.is_segment)
                 self.is_barcode = tag_type.startswith('barcode#') or tag_type.startswith('barcode39')
                 self.is_counter = tag_type.startswith('counter')
                 if self.is_barcode:
                     self.barcode_properties = self.master.canvas.gettags(self.master.id_selected_item)
                 elif self.is_segment:
                     tag = self.master.canvas.gettags(self.master.id_selected_item)[0]
+
                     self.segment_itens = self.master.canvas.find_withtag(tag)
                     self.segment_properties = self.master.canvas.gettags(self.master.id_selected_item)
 
@@ -2941,7 +2944,7 @@ class GetBarcodeWindow(ctk.CTkToplevel):
         help_text = 'Selecione a coluna  do arquivo a ser usada no texto variavel'
         ctk.CTkLabel(self, text=help_text).grid(row=5, column=0, columnspan=2, pady=5)
 
-        self.fields = ListBox(self, [f'Coluna_{i}' for i in range(1, 50)])
+        self.fields = ListBox(self, [f'Coluna_{i}' for i in range(1, 100)])
         self.fields.grid(row=6, column=0, columnspan=2)
 
         self.btn_ok = ctk.CTkButton(self, text="OK", width=120, state='disabled', command=self.create_barcode)
@@ -3116,7 +3119,7 @@ class GetSegmentWindow(ctk.CTkToplevel):
                                                    width=100, height=220)
         self.fields_frame.grid(padx=15, pady=15, row=0, column=0, rowspan=4)
 
-        for i in range(1, 50):
+        for i in range(1, 100):
             checkbox = ctk.CTkCheckBox(self.fields_frame, text=f'Coluna_{i}', border_width=1, corner_radius=3,
                                        checkbox_height=20, checkbox_width=20, border_color='white')
             checkbox.configure(command=lambda z=checkbox: self.update_placeholder_frame(z))
