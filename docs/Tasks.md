@@ -33,6 +33,6 @@ Acompanhamento das etapas de modularização do projeto:
  [x] Criar script bootstrap main.py
 
 ---
-Plano detalhado: docs/REFACTOR_PLAN.md
+Plano detalhado: docs/REFACTOR_PLAN.md — **Fases A–E concluídas** (A3 opcional).
 Decisões: docs/DECISIONS.md
 Guia para IAs: docs/AI_CONTEXT.md

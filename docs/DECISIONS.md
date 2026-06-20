@@ -258,3 +258,14 @@ Ao tomar uma nova decisão arquitetural durante a refatoração, adicionar entra
 | **Decisão** | Criar `main.py` com `main()` que atribui `config` e `db` a `sys.modules['__main__']`; `Main.py` delega para `main()` e reexporta janelas admin; `Main.spec` usa `main.py`. |
 | **Motivo** | Entry point explícito sem quebrar quem ainda executa `python Main.py`. |
 | **Impacto esperado** | Fase D concluída; monolito eliminado. |
+
+---
+
+## D-021 — Centralizar estado em `app/runtime.py` (Fase E)
+
+| Campo | Valor |
+|-------|-------|
+| **Data** | 2026-06-20 |
+| **Decisão** | Criar `app/runtime.py` com `config` e `db`; bootstrap inicializa; módulos UI importam `app.runtime` em vez de `sys.modules['__main__']`; `main_app.open_toplevel` importa janelas admin diretamente. |
+| **Motivo** | Eliminar acoplamento frágil ao entry point; `main.py`/`Main.py` idênticos no Windows. |
+| **Impacto esperado** | Zero referências a `_runtime()`; troca de DB atualiza `runtime.db` explicitamente. |

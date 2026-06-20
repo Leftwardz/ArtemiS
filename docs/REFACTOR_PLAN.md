@@ -4,7 +4,7 @@ Documento permanente de acompanhamento da modularização incremental do projeto
 Para contexto funcional do sistema, consulte também `PROJECT_OVERVIEW.md`.  
 Para decisões arquiteturais registradas, consulte `DECISIONS.md`.
 
-**Última atualização:** 2026-06-20 (Fases A1–C1 e D1–D6 concluídas)
+**Última atualização:** 2026-06-20 (Fases A1–C1, D1–D6 e E concluídas)
 
 ---
 
@@ -40,15 +40,14 @@ Main.py                          ← shim legado → main.main()
 
 ### Globals e bootstrap
 
-- `config` e `db` são atribuídos a `sys.modules['__main__']` em `main.main()`.
-- `Main.py` reexporta janelas admin para compatibilidade com `python Main.py`.
+- `config` e `db` vivem em `app/runtime.py`, inicializados por `app/bootstrap.py`.
+- `main.py` / `Main.py` delegam para `app.bootstrap.main()`.
 - PyInstaller (`Main.spec`) aponta para `main.py`.
 
 ### Acoplamento remanescente
 
-- `App` e `LoadingBarFrame` em `app/ui/main_app.py` — acessam `db`/`config` e janelas admin via `sys.modules['__main__']`.
-- `EditWindow` e auxiliares em `app/ui/designer_window.py`; `ConfigWindow` importa `EditWindow` do módulo extraído.
-- Acesso direto ao banco (`db.*`) nos módulos UI via `sys.modules['__main__']` até a Fase E.
+- `App` e janelas UI acessam `db`/`config` via `app.runtime`.
+- Acesso direto ao banco (`db.*`) permanece nas classes UI (sem camada repository).
 
 ---
 
@@ -119,11 +118,10 @@ Main.py                          ← shim legado → main.main()
 5. **`app/ui/config_window.py`** ✅ — `ConfigWindow`, login/registro, import/export, grupos
 6. Bootstrap — `main.py` + `Main.spec` ✅
 
-### Fase E — Infraestrutura transversal (não bloqueante)
+### ~~Fase E — Infraestrutura transversal~~ ✅ Concluída
 
-- Injeção de `db` e `config` (eliminar globals implícitos).
-- Corrigir vazamentos de sessão DB em métodos de impressoras/grupos (documentado em `PROJECT_OVERVIEW.md`).
-- Controle de privilégios de usuário — somente se houver requisito funcional futuro.
+- **`app/runtime.py`** — `config` e `db` centralizados; bootstrap inicializa; UI deixa de usar `sys.modules['__main__']`.
+- **Sessões DB** — métodos de impressoras/grupos em `database_manager.py` já fecham sessão (corrigido na migração para `app/models`).
 
 ### Explicitamente fora do escopo atual
 
@@ -147,15 +145,15 @@ Main.py                          ← shim legado → main.main()
 | I/O filesystem, validação de fila | `production_service` + `App.search_work` (UI de popups) |
 | Orquestração de impressão (thread) | `App.create_pdf` em `main_app.py` (adaptador) |
 | Pós-processamento (mover CSV para `Old/`) | `print_service.finish_print_job` |
-| Acesso direto ao banco | `main_app`, `RemakeWindow`, `ConfigWindow`, `EditWindow` via `__main__` |
+| Acesso direto ao banco | `app.runtime.db` nos módulos UI |
 
 ### ~~`print_service.py` incompleto~~ ✅ Resolvido (A2)
 
 `finish_print_job`, `validate_printer_paper` e `get_printer_paper_error_message` centralizam pós-impressão. `LoadingBarFrame` permanece na UI e passa `exe_index` ao serviço.
 
-### Globals `db` / `config`
+### ~~Globals `db` / `config`~~ ✅ Resolvido (E)
 
-Serviços extraídos herdarão dependência implícita até a fase de bootstrap. Aceitável nas Fases A–C; resolver na Fase D/E.
+Estado compartilhado em `app/runtime.py`; bootstrap atribui após carregar `config.json`.
 
 ### Bugs conhecidos (referência)
 
@@ -232,7 +230,18 @@ Documentados em `PROJECT_OVERVIEW.md` — rotação de imagens no PDF, vazamento
 
 ---
 
-### Fase E — Infraestrutura transversal ← **PRÓXIMO**
+### ~~Fase E — Infraestrutura transversal~~ ✅ Concluída
+
+| Campo | Detalhe |
+|-------|---------|
+| **Objetivo** | Centralizar `config`/`db`; eliminar `_runtime()` / `__main__`. |
+| **Benefício** | Imports explícitos; compatível com Windows (`main.py` = `Main.py`). |
+| **Risco** | Baixo. |
+| **Dependências** | D6 ✅. |
+
+---
+
+### A3 — Limpar imports (opcional) ← **PRÓXIMO OPCIONAL**
 
 | Campo | Detalhe |
 |-------|---------|
@@ -256,8 +265,8 @@ D3  app/ui/main_app                               ✅
 D4  app/ui/designer_window                    ✅
 D5  app/ui/config_window                      ✅
 D6  bootstrap main.py + Main.spec             ✅
-E   Infraestrutura (injeção db/config, bugs DB) ← PRÓXIMO
-A3  Limpar imports (opcional, a qualquer momento)
+E   Infraestrutura (app/runtime.py)              ✅
+A3  Limpar imports (opcional)
 ```
 
 ### Casos de teste manuais obrigatórios após A1/A2/B1

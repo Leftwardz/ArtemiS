@@ -1,10 +1,10 @@
 import os
-import sys
 import traceback
 from threading import Thread
 
 import customtkinter as ctk
 
+from app import runtime
 from app.services.print_service import finish_print_job, get_printer_paper_error_message, validate_printer_paper
 from app.services.production_service import (
     ensure_output_directories,
@@ -20,6 +20,7 @@ from app.services.production_service import (
     is_empty_file as work_is_empty_file,
 )
 from app.ui.components import PopUpWindow
+from app.ui.config_window import ConfigWindow, LoginWindow, RegisterWindow
 from app.ui.constants import (
     APP_NAME,
     BTN_HOVER_RED,
@@ -34,10 +35,6 @@ from app.ui.remake_window import RemakeWindow
 from app.utils.file_parser import FileUtils
 from app.utils.window_geometry import calculate_center_screen
 from pdf_utils import write_text_to_pdf
-
-
-def _runtime():
-    return sys.modules["__main__"]
 
 
 class App(ctk.CTk):
@@ -85,14 +82,14 @@ class App(ctk.CTk):
         self.lbl_select_printer.grid(row=0, column=0, padx=10)
 
         printers_list = ['Criar PDF']
-        printers_list.extend(_runtime().db.search_printers())
+        printers_list.extend(runtime.db.search_printers())
         self.printers_list = ctk.CTkComboBox(self.frame_printers, values=printers_list, width=210)
         self.printers_list.grid(row=0, column=1, padx=15)
 
         self.lbl_select_group = ctk.CTkLabel(self.frame_printers, text="Selecione Grupo:")
         self.lbl_select_group.grid(row=1, column=0, padx=10)
 
-        self.print_group_list = ctk.CTkComboBox(self.frame_printers, values=_runtime().db.search_print_group(), width=210)
+        self.print_group_list = ctk.CTkComboBox(self.frame_printers, values=runtime.db.search_print_group(), width=210)
         self.print_group_list.grid(row=1, column=1, padx=15, pady=5)
 
         # ######################## Remake Checkbox ##############################
@@ -181,19 +178,17 @@ class App(ctk.CTk):
             self.txtbox_ar.delete('0.0', 'end')
 
     def open_toplevel(self):
-        runtime = _runtime()
-
         def open_config():
-            self.config_window = runtime.ConfigWindow(self)
+            self.config_window = ConfigWindow(self)
             self.withdraw()
 
-        if _runtime().db.has_login():
-            runtime.LoginWindow(self, open_config)
+        if runtime.db.has_login():
+            LoginWindow(self, open_config)
         else:
-            runtime.RegisterWindow(self, open_config, first_login=True)
+            RegisterWindow(self, open_config, first_login=True)
 
     def get_paper_size_from_worklist(self):
-        return get_paper_size_from_path(self.works_paths[0], _runtime().db)
+        return get_paper_size_from_path(self.works_paths[0], runtime.db)
 
     def btn_start(self):
         if self.printers_list.get() != 'Criar PDF':
@@ -228,7 +223,7 @@ class App(ctk.CTk):
         # this function must be separeted from btn star, due to the remake window
 
         # setting PDF folder
-        folder_destination = os.path.join(_runtime().config['search_folder'], 'PDFs')
+        folder_destination = os.path.join(runtime.config['search_folder'], 'PDFs')
 
         try:
             self.loading_frame.add_progressbar(printer)
@@ -257,7 +252,7 @@ class App(ctk.CTk):
         self.refresh()
 
     def get_items_and_orientation_from_worklist(self, files):
-        return get_drawings_and_orientations(files, _runtime().db)
+        return get_drawings_and_orientations(files, runtime.db)
 
     def open_files_from_worklist(self, *args):
         return load_worklist_file_lines(self.works_paths)
@@ -293,7 +288,7 @@ class App(ctk.CTk):
         founded_works = [i for i in founded_works if i]
 
         group_flag = normalize_group_flag(self.print_group_list.get())
-        path = resolve_work_search_path(_runtime().config['search_folder'], group_flag, self.checkbox_remake.get())
+        path = resolve_work_search_path(runtime.config['search_folder'], group_flag, self.checkbox_remake.get())
 
         if not os.path.exists(path):
             PopUpWindow(self, 'Erro', f'Caminho "{path}" não existe!')
@@ -307,7 +302,7 @@ class App(ctk.CTk):
                 PopUpWindow(self, 'Work não encontrada', f'Work "{work}" não foi encontrada.\n'
                                                          f'Por favor selecionar o arquivo manualmente\n'
                                                          f'Ou Contactar PreProd\n'
-                                                         f'Caminho: {_runtime().config["search_folder"]}')
+                                                         f'Caminho: {runtime.config["search_folder"]}')
                 return
 
             if self.is_empty_file(full_path):
@@ -315,7 +310,7 @@ class App(ctk.CTk):
                 self.entry_work.delete('0', 'end')
                 return
 
-            work_info = get_work_product_info(full_path, _runtime().db)
+            work_info = get_work_product_info(full_path, runtime.db)
             if work_info is None:
                 client, product = production_get_product_from_file(full_path)
                 PopUpWindow(self, 'Erro',
@@ -392,7 +387,7 @@ class App(ctk.CTk):
 
     @staticmethod
     def verify_directorys():
-        ensure_output_directories(_runtime().config['search_folder'])
+        ensure_output_directories(runtime.config['search_folder'])
 
     def refresh(self, *args):
         self.btn_start.configure(state='disabled')
@@ -401,7 +396,7 @@ class App(ctk.CTk):
 
         # update the printers list, when it's included in the Printer List in configs
         printers_list = ['Criar PDF']
-        printers_list.extend(_runtime().db.search_printers())
+        printers_list.extend(runtime.db.search_printers())
         self.printers_list.configure(values=printers_list)
 
         self.remove_printing_label()

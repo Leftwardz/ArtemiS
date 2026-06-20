@@ -1,5 +1,4 @@
 import os
-import sys
 import traceback
 from datetime import datetime
 
@@ -7,6 +6,7 @@ import customtkinter as ctk
 from tkinter import Canvas
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 
+from app import runtime
 from app.services.designer_service import (
     ORIENTATION_LABELS,
     delete_product as designer_delete_product,
@@ -37,10 +37,6 @@ from app.utils.barcode_generator import (
 from app.utils.text_utils import break_line
 from app.utils.window_geometry import calculate_center_screen_with_monitor, get_monitor
 from pdf_utils import generate_test_pdf
-
-
-def _runtime():
-    return sys.modules["__main__"]
 
 
 class EditWindow(ctk.CTkToplevel):
@@ -109,7 +105,7 @@ class EditWindow(ctk.CTkToplevel):
         self.frame_paper_color = ctk.CTkFrame(self, fg_color='transparent')
         self.frame_paper_color.grid(row=2, column=1, padx=30, sticky='E')
 
-        product = _runtime().db.search_product(self.client, self.product_name)
+        product = runtime.db.search_product(self.client, self.product_name)
         if product:
             product_color = product.paper_color
             product_orientation = product.orientation
@@ -240,7 +236,7 @@ class EditWindow(ctk.CTkToplevel):
             self.paper_size_list.get(),
             self.pass_canvas_to_dict(),
             self.consult_drawings_from_db(),
-            _runtime().db,
+            runtime.db,
         )
 
     def testes(self, *args):
@@ -270,7 +266,7 @@ class EditWindow(ctk.CTkToplevel):
             PopUpWindow(self, 'Erro', traceback.format_exc())
 
     def consult_drawings_from_db(self):
-        return load_product_drawings(self.client, self.product_name, _runtime().db)
+        return load_product_drawings(self.client, self.product_name, runtime.db)
 
     def update_save_button(self, *args):
         if self.verify_changes():
@@ -283,7 +279,7 @@ class EditWindow(ctk.CTkToplevel):
                       self.delete_product)
 
     def delete_product(self):
-        if designer_delete_product(self.client, self.product_name, _runtime().db):
+        if designer_delete_product(self.client, self.product_name, runtime.db):
             self.master.refresh()
             self.exit()
             PopUpWindow(self.master, 'Sucesso', 'Produto deletado com Sucesso!')
@@ -296,7 +292,7 @@ class EditWindow(ctk.CTkToplevel):
             validation_error = validate_product_name(
                 self.product_name,
                 self.entry_name.get(),
-                _runtime().db.search_products(self.client),
+                runtime.db.search_products(self.client),
             )
             if validation_error:
                 raise ValueError(validation_error)
@@ -314,7 +310,7 @@ class EditWindow(ctk.CTkToplevel):
                 orientation_type,
                 paper_size,
                 self.pass_canvas_to_dict(),
-                _runtime().db,
+                runtime.db,
             )
 
             self.product_name = new_name

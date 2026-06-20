@@ -1,5 +1,4 @@
-import sys
-
+from app import runtime
 import customtkinter as ctk
 
 from app.services.print_service import get_printer_paper_error_message, validate_printer_paper
@@ -16,7 +15,7 @@ class RemakeWindow(ctk.CTkToplevel):
         self.title('Remake')
 
         self.master = master
-        self.db = sys.modules['__main__'].db
+        self.db = runtime.db
 
         self.geometry(calculate_center_screen_with_monitor(master, DEFAULT_WIDTH, 550, get_monitor(master)))
         self.minsize(DEFAULT_WIDTH, 550)

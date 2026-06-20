@@ -110,9 +110,8 @@ ArtemiS/
 
 ### Globals importantes
 
-- `config` — dict carregado de `config.json` (instanciado em `Main.py`).
-- `db` — instância de `DataBase` (instanciada em `Main.py`).
-- Ambos são **globais de módulo** — serviços extraídos ainda dependem implicitamente deles.
+- `config` — dict carregado de `config.json` (instanciado em `app/bootstrap.py` → `app/runtime.py`).
+- `db` — instância de `DataBase` (mesmo fluxo).
 
 ---
 
@@ -132,11 +131,12 @@ ArtemiS/
 10. `App` + `LoadingBarFrame` em `app/ui/main_app.py` **(D3)**.
 11. Designer em `app/ui/designer_window.py` **(D4)**.
 12. Config/admin em `app/ui/config_window.py` **(D5)**.
-13. Bootstrap em `main.py`; `Main.py` shim **(D6)**.
+13. Bootstrap em `app/bootstrap.py`; entry `main.py` **(D6)**.
+14. Estado em `app/runtime.py` **(Fase E)**.
 
-### Próximo passo recomendado 🎯
+### Próximo passo opcional
 
-**Fase E — Infraestrutura** (injeção de `db`/`config`, bugs DB documentados) — ver `REFACTOR_PLAN.md`.
+**A3** — substituir wildcards legados (`utils.py`, pontes) por imports explícitos onde ainda restarem.
 
 ### Explicitamente fora do escopo imediato 🚫
 
@@ -225,7 +225,8 @@ D3  app/ui/main_app               ✅
 D4  app/ui/designer_window         ✅
 D5  app/ui/config_window          ✅
 D6  bootstrap main.py + Main.spec ✅
-E   infraestrutura (injeção db/config, bugs) ← PRÓXIMO
+E   infraestrutura (app/runtime.py) ✅
+A3  limpar imports (opcional)
 E   infraestrutura (injeção db/config, bugs)
 A3  limpar imports (opcional)
 ```
@@ -241,5 +242,5 @@ Detalhes completos, riscos e dependências: **`docs/REFACTOR_PLAN.md`**.
 | Criar `auth_controller`? | **Não** (D-003) |
 | Criar controlador só por padrão MVC? | **Não** (D-004) |
 | Mover UI agora? | **Incremental** — serviços primeiro (D-007); UI em D1–D6 |
-| O que fazer primeiro? | **Fase E** — injeção `db`/`config` (opcional A3) |
+| O que fazer primeiro? | **Plano concluído** — A3 opcional; bugs funcionais em `PROJECT_OVERVIEW.md` |
 | Onde colocar orquestração? | `app/services/`, não `app/controllers/` (D-004, D-005, D-006) |
