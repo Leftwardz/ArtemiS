@@ -139,7 +139,13 @@ def generate_test_pdf(items=None, path="temp/text.pdf", orientation='Default'):
     pdf.save()
 
 
-def write_text_to_pdf(items, files_lines, master, orientation_list, path, is_remake=False, printer=None):
+def _report_progress(on_progress, printer, progress, text):
+    if on_progress:
+        on_progress(printer, progress, text)
+
+
+def write_text_to_pdf(items, files_lines, orientation_list, path, is_remake=False, printer=None,
+                      on_progress=None, on_error=None, on_complete=None):
     completed_pdfs = []
     files_to_move = []
     total = len(files_lines)
@@ -157,24 +163,28 @@ def write_text_to_pdf(items, files_lines, master, orientation_list, path, is_rem
             lines = lines[:-1]
 
             if orientation_list[i] == '0':
-                configure_3vertical_ar(pdf, lines, items, master, i, total, printer, filename)
+                configure_3vertical_ar(pdf, lines, items, i, total, printer, filename, on_progress)
             elif orientation_list[i] == '1':
-                configure_horizontal_ar(pdf, lines, items, master, i, total, printer, filename)
+                configure_horizontal_ar(pdf, lines, items, i, total, printer, filename, on_progress)
             elif orientation_list[i] == '2':
-                configure_full_A4_ar(pdf, lines, items, master, i, total, printer, filename)
+                configure_full_A4_ar(pdf, lines, items, i, total, printer, filename, on_progress)
             elif orientation_list[i] == '3':
-                configure_2vertical_ar(pdf, lines, items, master, i, total, printer, filename)
+                configure_2vertical_ar(pdf, lines, items, i, total, printer, filename, on_progress)
 
             pdf.save()
             files_to_move.append(original_filepath)
             completed_pdfs.append(complete_path)
-            master.loading_frame.update_progressbar(printer, 1, 'Finalizando PDF')
+            _report_progress(on_progress, printer, 1, 'Finalizando PDF')
 
-        except Exception as e:
-            master.loading_frame.show_error(printer, traceback.format_exc())
+        except Exception:
+            if on_error:
+                on_error(printer, traceback.format_exc())
             break
 
-    master.loading_frame.update_progressbar(printer, 1, 'Juntando PDFs')
+    if not completed_pdfs:
+        return
+
+    _report_progress(on_progress, printer, 1, 'Juntando PDFs')
     first_pdf = completed_pdfs[0].replace('.pdf', '')[-6:]
     last_pdf = completed_pdfs[-1].replace('.pdf', '')[-6:]
     date = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -183,10 +193,11 @@ def write_text_to_pdf(items, files_lines, master, orientation_list, path, is_rem
 
     join_pdfs(completed_pdfs, joined_pdf_filepath)
 
-    master.open_or_print_pdf(joined_pdf_filepath, files_to_move, is_remake, printer)
+    if on_complete:
+        on_complete(joined_pdf_filepath, files_to_move, is_remake, printer)
 
 
-def configure_3vertical_ar(pdf, filelines, items, master, current_index, total, printer, filename):
+def configure_3vertical_ar(pdf, filelines, items, current_index, total, printer, filename, on_progress=None):
     qtd_pages = math.ceil(len(filelines) / 3)
 
     first_ar = filelines[0:qtd_pages]
@@ -217,11 +228,10 @@ def configure_3vertical_ar(pdf, filelines, items, master, current_index, total, 
         pdf.showPage()
         progress = (page + 1) / qtd_pages
         text = f'{current_index + 1}/{total}'
-        master.loading_frame.update_progressbar(printer, progress, text)
-        master.update_idletasks()
+        _report_progress(on_progress, printer, progress, text)
 
 
-def configure_2vertical_ar(pdf, filelines, items, master, current_index, total, printer, filename):
+def configure_2vertical_ar(pdf, filelines, items, current_index, total, printer, filename, on_progress=None):
     qtd_pages = math.ceil(len(filelines) / 2)
 
     first_ar = filelines[0:qtd_pages]
@@ -247,11 +257,10 @@ def configure_2vertical_ar(pdf, filelines, items, master, current_index, total, 
         pdf.showPage()
         progress = (page + 1) / qtd_pages
         text = f'{current_index + 1}/{total}'
-        master.loading_frame.update_progressbar(printer, progress, text)
-        master.update_idletasks()
+        _report_progress(on_progress, printer, progress, text)
 
 
-def configure_horizontal_ar(pdf, filelines, items, master, current_index, total, printer, filename):
+def configure_horizontal_ar(pdf, filelines, items, current_index, total, printer, filename, on_progress=None):
     qtd_pages = math.ceil(len(filelines) / 2)
 
     first_ar = filelines[0:qtd_pages]
@@ -277,11 +286,10 @@ def configure_horizontal_ar(pdf, filelines, items, master, current_index, total,
         pdf.showPage()
         progress = (page + 1) / qtd_pages
         text = f'{current_index + 1}/{total}'
-        master.loading_frame.update_progressbar(printer, progress, text)
-        master.update_idletasks()
+        _report_progress(on_progress, printer, progress, text)
 
 
-def configure_full_A4_ar(pdf, filelines, items, master, current_index, total, printer, filename):
+def configure_full_A4_ar(pdf, filelines, items, current_index, total, printer, filename, on_progress=None):
     qtd_pages = len(filelines)
 
     first_ar = filelines[0:qtd_pages]
@@ -293,8 +301,7 @@ def configure_full_A4_ar(pdf, filelines, items, master, current_index, total, pr
         pdf.showPage()
         progress = (page + 1) / qtd_pages
         text = f'{current_index + 1}/{total}'
-        master.loading_frame.update_progressbar(printer, progress, text)
-        master.update_idletasks()
+        _report_progress(on_progress, printer, progress, text)
 
 
 def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offset_y=0, is_test=False, filename='Test'):

@@ -7,6 +7,21 @@ from tkinter import Canvas
 from tkinter import ttk
 from Database import *
 from pdf_utils import *
+from app.services.print_service import finish_print_job, validate_printer_paper, get_printer_paper_error_message
+from app.services.production_service import (
+    normalize_group_flag,
+    resolve_work_search_path,
+    ensure_output_directories,
+    is_empty_file as work_is_empty_file,
+    get_product_from_file as production_get_product_from_file,
+    find_work_in_directory,
+    get_work_product_info,
+    validate_queue_consistency,
+    load_worklist_file_lines,
+    get_drawings_and_orientations,
+    get_paper_size_from_path,
+    build_remake_file_lines,
+)
 from threading import Thread
 import tkinter
 import traceback
@@ -206,24 +221,36 @@ class App(ctk.CTk):
             RegisterWindow(self, open_config, first_login=True)
 
     def get_paper_size_from_worklist(self):
-        path = self.works_paths[0]
-        client, product = self.get_product_from_file(path)
-        product = db.search_product(client, product)
-
-        if product:
-            return product.paper_size
+        return get_paper_size_from_path(self.works_paths[0], db)
 
     def btn_start(self):
         if self.printers_list.get() != 'Criar PDF':
             paper_size = self.get_paper_size_from_worklist()
-            if not is_papersize_a4(self.printers_list.get(), paper_size):
-                PopUpWindow(self, 'Erro', f'Impressora não está definida com papel configurado no produto: {paper_size}\nInformar Equipe de Suporte')
+            if not validate_printer_paper(self.printers_list.get(), paper_size):
+                PopUpWindow(self, 'Erro', get_printer_paper_error_message(paper_size))
                 return
 
         lines = self.open_files_from_worklist()
         items, orientations = self.get_items_and_orientation_from_worklist(lines)
 
         self.create_pdf(lines, items, orientations, self.checkbox_remake.get(), printer=self.printers_list.get())
+
+    def _build_pdf_callbacks(self, printer):
+        def on_progress(printer_name, progress, text):
+            self.after(0, lambda: self._on_pdf_progress(printer_name, progress, text))
+
+        def on_error(printer_name, error_traceback):
+            self.after(0, lambda: self.loading_frame.show_error(printer_name, error_traceback))
+
+        def on_complete(joined_pdf_filepath, files_to_move, is_remake_flag, printer_name):
+            self.after(0, lambda: self.open_or_print_pdf(
+                joined_pdf_filepath, files_to_move, is_remake_flag, printer_name))
+
+        return on_progress, on_error, on_complete
+
+    def _on_pdf_progress(self, printer, progress, text):
+        self.loading_frame.update_progressbar(printer, progress, text)
+        self.update_idletasks()
 
     def create_pdf(self, lines, items, orientations, is_remake=False, printer=None):
         # this function must be separeted from btn star, due to the remake window
@@ -237,42 +264,31 @@ class App(ctk.CTk):
             PopUpWindow(self, "Erro", e)
             return
 
-        args = (items, lines, self, orientations, folder_destination, is_remake, printer)
+        on_progress, on_error, on_complete = self._build_pdf_callbacks(printer)
 
-        t = Thread(target=write_text_to_pdf, args=args)
+        t = Thread(
+            target=write_text_to_pdf,
+            kwargs={
+                'items': items,
+                'files_lines': lines,
+                'orientation_list': orientations,
+                'path': folder_destination,
+                'is_remake': is_remake,
+                'printer': printer,
+                'on_progress': on_progress,
+                'on_error': on_error,
+                'on_complete': on_complete,
+            }
+        )
         t.start()
 
         self.refresh()
 
     def get_items_and_orientation_from_worklist(self, files):
-        all_items = []
-        orientations = []
-        for file in files:
-            canvas_id = file[0][1][0].split('-')
-            client = canvas_id[0].strip()
-            product = canvas_id[1].strip()
-
-            # Get items
-            items = db.consult_drawings_from_product(client, product)
-            all_items.append(items)
-
-            # Get orientation
-            product = db.search_product(client, product)
-            orientations.append(product.orientation)
-
-        return all_items, orientations
+        return get_drawings_and_orientations(files, db)
 
     def open_files_from_worklist(self, *args):
-        files_lines = []
-
-        for work_path in self.works_paths:
-            file = FileUtils(work_path)
-            lines = file.return_filelines()
-            lines.append(work_path)  # insert file path in the end of the list
-
-            files_lines.append(lines)
-
-        return files_lines
+        return load_worklist_file_lines(self.works_paths)
 
     def clean_worklist(self):
         self.worklist.configure(state='normal')
@@ -286,14 +302,10 @@ class App(ctk.CTk):
         self.entry_work.focus()
 
     def is_empty_file(self, path):
-        return os.path.getsize(path) == 0
+        return work_is_empty_file(path)
 
     def get_product_from_file(self, path):
-        file = FileUtils(path)
-        client = file.get_first_line_column(0).split('-')[0].strip()
-        product = file.get_first_line_column(0).split('-')[1].strip()
-
-        return client, product
+        return production_get_product_from_file(path)
 
     def search_work(self, *args):
         # If entry is empty, do nothing
@@ -308,89 +320,68 @@ class App(ctk.CTk):
         founded_works = self.worklist.get('0.0', 'end').split('\n')
         founded_works = [i for i in founded_works if i]
 
-        group_flag = self.print_group_list.get()
-        # Tratativa para evitar um trabalho de trocar todas as Bat's para o caminho novo
-        if group_flag == 'AR':
-            group_flag = ''
-        else:
-            group_flag = f'\\{group_flag}'
-
-        if self.checkbox_remake.get():
-            path = config['search_folder'] + group_flag +'\Old'
-        else:
-            path = config['search_folder'] + group_flag
+        group_flag = normalize_group_flag(self.print_group_list.get())
+        path = resolve_work_search_path(config['search_folder'], group_flag, self.checkbox_remake.get())
 
         if not os.path.exists(path):
             PopUpWindow(self, 'Erro', f'Caminho "{path}" não existe!')
             return
 
         if work not in founded_works:
-            found_file = False
-            with os.scandir(path) as files:
-                for file in files:
-                    if file.is_file() and work.upper() in file.name.upper():
-                        full_path = os.path.join(path, file)
+            full_path = find_work_in_directory(path, work)
 
-                        if self.is_empty_file(full_path):
-                            PopUpWindow(self, 'Erro', 'Arquivo encontrado está vazio - Verificar')
-                            self.entry_work.delete('0', 'end')
-                            return
+            if full_path is None:
+                self.entry_work.delete('0', 'end')
+                PopUpWindow(self, 'Work não encontrada', f'Work "{work}" não foi encontrada.\n'
+                                                         f'Por favor selecionar o arquivo manualmente\n'
+                                                         f'Ou Contactar PreProd\n'
+                                                         f'Caminho: {config["search_folder"]}')
+                return
 
-                        client, product = self.get_product_from_file(full_path)
+            if self.is_empty_file(full_path):
+                PopUpWindow(self, 'Erro', 'Arquivo encontrado está vazio - Verificar')
+                self.entry_work.delete('0', 'end')
+                return
 
-                        if not db.product_exists(client, product):
-                            PopUpWindow(self, 'Erro',
-                                        f'Cliente: "{client}" e Produto: "{product}" não existem no banco')
-                            return
+            work_info = get_work_product_info(full_path, db)
+            if work_info is None:
+                client, product = production_get_product_from_file(full_path)
+                PopUpWindow(self, 'Erro',
+                            f'Cliente: "{client}" e Produto: "{product}" não existem no banco')
+                return
 
-                        product = db.search_product(client, product)
+            consistency = validate_queue_consistency(
+                work_info.paper_size,
+                work_info.color,
+                self.defined_paper_size,
+                self.defined_color,
+            )
+            if not consistency.ok:
+                self.entry_work.delete('0', 'end')
+                PopUpWindow(self, consistency.error.title, consistency.error.message)
+                return
 
-                        color = product.paper_color
-                        paper_size = product.paper_size
+            self.defined_paper_size = consistency.defined_paper_size
+            self.defined_color = consistency.defined_color
+            if consistency.show_color:
+                self.show_color(consistency.defined_color)
 
-                        if not self.defined_paper_size:
-                            self.defined_paper_size = paper_size
-                        else:
-                            if paper_size != self.defined_paper_size:
-                                self.entry_work.delete('0', 'end')
-                                PopUpWindow(self, 'Erro', f'Work com Tamanho de Papel diferente dos que estão na lista - Tamanho: {paper_size}')
-                                return
-
-                        if not self.defined_color:
-                            self.defined_color = color
-                            self.show_color(color)
-                        else:
-                            if color != self.defined_color:
-                                self.entry_work.delete('0', 'end')
-                                PopUpWindow(self, 'Erro', f'Work com papel diferente das works da lista - Cor: {color}')
-                                return
-
-                        if full_path not in self.works_paths:
-                            self.works_paths.append(full_path)
-
-                        found_file = True
-                        founded_works.append(work)
-                        break
+            if full_path not in self.works_paths:
+                self.works_paths.append(full_path)
 
             self.entry_work.delete('0', 'end')
 
             self.worklist.configure(state='normal')
             self.worklist.delete('0.0', 'end')
+            founded_works.append(work)
             self.worklist.insert('0.0', '\n'.join(founded_works))
             self.worklist.configure(state='disabled')
             if self.worklist.get('0.0', 'end').strip():
                 self.btn_start.configure(state='normal')
-            if found_file:
-                self.btn_start.configure(state='normal')
-                if self.checkbox_remake.get() and not self.checkbox_remake_refazer.get():
-                    RemakeWindow(self, full_path, work.upper(), self.defined_color, self.printers_list.get())
-                    self.withdraw()
-
-            else:
-                PopUpWindow(self, 'Work não encontrada', f'Work "{work}" não foi encontrada.\n'
-                                                         f'Por favor selecionar o arquivo manualmente\n'
-                                                         f'Ou Contactar PreProd\n'
-                                                         f'Caminho: {config["search_folder"]}')
+            self.btn_start.configure(state='normal')
+            if self.checkbox_remake.get() and not self.checkbox_remake_refazer.get():
+                RemakeWindow(self, full_path, work.upper(), self.defined_color, self.printers_list.get())
+                self.withdraw()
         else:
             PopUpWindow(self, 'Erro', 'Work já está na lista')
             self.entry_work.delete('0', 'end')
@@ -399,28 +390,13 @@ class App(ctk.CTk):
         try:
             self.loading_frame.update_progressbar(printer, 1, 'Imprimindo...')
 
-            if printer == 'Criar PDF':
-                os.startfile(os.path.abspath(filename))
-            else:
-                path = os.path.abspath(filename)
-                print_pdf_file(path, printer, self.loading_frame.get_exe_index(printer))
+            exe_index = None
+            if printer != 'Criar PDF':
+                exe_index = self.loading_frame.get_exe_index(printer)
 
-            for file in file_to_move:
-                try:
-                    filename = os.path.basename(file)
-                    directory = os.path.dirname(file)  # Obtém o diretório do arquivo
-                    old_path = os.path.join(directory, 'Old')  # Adiciona a subpasta "Old"
-
-                    path_to_verify = os.path.join(old_path, filename)
-                    if os.path.exists(path_to_verify) and not is_remake:
-                        os.remove(path_to_verify)
-                    if not is_remake:
-                        shutil.move(file, old_path)
-                except shutil.Error:
-                    pass
-
+            finish_print_job(filename, file_to_move, is_remake, printer, exe_index)
             self.loading_frame.remove_progressbar(printer)
-        except Exception as e:
+        except Exception:
             self.loading_frame.show_error(printer, traceback.format_exc())
 
     def create_progress_bar(self):
@@ -444,15 +420,7 @@ class App(ctk.CTk):
 
     @staticmethod
     def verify_directorys():
-        search_folder = config['search_folder']
-        old_path = os.path.join(search_folder, 'Old')
-        pdfs_path = os.path.join(search_folder, 'PDFs')
-
-        if not os.path.exists(old_path):
-            os.mkdir(old_path)
-
-        if not os.path.exists(pdfs_path):
-            os.mkdir(pdfs_path)
+        ensure_output_directories(config['search_folder'])
 
     def refresh(self, *args):
         self.btn_start.configure(state='disabled')
@@ -723,11 +691,7 @@ class RemakeWindow(ctk.CTkToplevel):
             for item in items_to_remake:
                 position_list.append(int(item[0]))
 
-            lines_to_remake = sorted(self.file.search_by_rangelist(position_list))
-
-            lines_to_remake.append(self.filepath)
-
-            return lines_to_remake
+            return build_remake_file_lines(self.file, self.filepath, position_list)
 
     def btn_start(self):
         lines = [self.get_lines_to_remake()]
@@ -735,8 +699,11 @@ class RemakeWindow(ctk.CTkToplevel):
         product = db.search_product(self.client, self.product)
 
         if self.printers_list.get() != 'Criar PDF':
-            if not is_papersize_a4(self.printers_list.get(), product.paper_size):
-                PopUpWindow(self, 'Erro', f'Impressora não está definida com o papel cadastrado no produto: {product.paper_size}\nInformar Equipe de Suporte')
+            if not validate_printer_paper(self.printers_list.get(), product.paper_size):
+                PopUpWindow(
+                    self, 'Erro',
+                    get_printer_paper_error_message(product.paper_size, wording='cadastrado')
+                )
                 return
 
         db_orientation = [product.orientation]  # The function receive a list, in this case is only one orientation
