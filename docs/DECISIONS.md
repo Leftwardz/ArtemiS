@@ -206,11 +206,11 @@ Ao tomar uma nova decisão arquitetural durante a refatoração, adicionar entra
 
 ---
 
-## D-015 — Extração de componentes UI para `app/ui/components` (D1)
+## D-016 — Extração de `RemakeWindow` para `app/ui/remake_window.py` (D2)
 
 | Campo | Valor |
 |-------|-------|
 | **Data** | 2026-06-20 |
-| **Decisão** | Mover `Table`, `ListBox`, `SpinBox`, `Tooltip`, `PopUpWindow` e `ConfirmWindow` para `app/ui/components/`. Constantes visuais em `app/ui/constants.py`. |
-| **Motivo** | Primeiro passo da Fase D; widgets reutilizáveis sem lógica de negócio, baixo risco, reduz `Main.py`. |
-| **Impacto esperado** | ~250 linhas removidas de `Main.py`; janelas futuras importam componentes de um único pacote. |
+| **Decisão** | Mover `RemakeWindow` para módulo dedicado; ampliar `app/ui/constants.py` com `PAPER_COLOR_LIST` e dimensões padrão. |
+| **Motivo** | Janela relativamente isolada; valida padrão de extração de telas antes de `main_app`. |
+| **Impacto esperado** | ~210 linhas removidas de `Main.py`; remake importável independentemente. |

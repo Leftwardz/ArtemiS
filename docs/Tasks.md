@@ -26,7 +26,7 @@ Acompanhamento das etapas de modularização do projeto:
   [-] auth_controller.py — NÃO CRIAR (decisão D-003)
 [ ] Etapa 6: Divisão e Organização da Interface Gráfica (app/ui)
  (x) Separar widgets reutilizados (Table, SpinBox, ListBox, Tooltip, popups) em app/ui/components
- [ ] Mover RemakeWindow para app/ui/remake_window.py
+ (x) Mover RemakeWindow para app/ui/remake_window.py
  [ ] Mover App e LoadingBarFrame para app/ui/main_app.py
  [ ] Mover EditWindow e auxiliares para app/ui/designer_window.py
  [ ] Mover ConfigWindow e admin para app/ui/config_window.py

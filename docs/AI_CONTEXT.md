@@ -3,7 +3,7 @@
 Documento de onboarding para qualquer agente de IA (Cursor, Codex, Antigravity ou outro) que trabalhe neste repositório.  
 **Leia este arquivo antes de propor ou implementar alterações.**
 
-**Última atualização:** 2026-06-20 (Fases A1–C1 e D1 concluídas)
+**Última atualização:** 2026-06-20 (Fases A1–C1, D1 e D2 concluídas)
 
 ---
 
@@ -73,6 +73,7 @@ ArtemiS/
     └── ui/
         ├── constants.py        # ICON, FONT, cores de botão
         └── components/         # Table, ListBox, SpinBox, Tooltip, popups
+    ├── remake_window.py      # RemakeWindow
 ```
 
 ### Responsabilidades por camada
@@ -119,14 +120,11 @@ ArtemiS/
 6. `production_service.py` — fila de WO e remake **(B1)**.
 7. `designer_service.py` — editor de layouts **(C1)**.
 8. Componentes UI em `app/ui/components/` **(D1)**.
-
-### Em andamento 🔄
-
-- Imports parciais em `Main.py` (serviços e componentes via `app.*`; utils/Database ainda wildcard).
+9. `RemakeWindow` em `app/ui/remake_window.py` **(D2)**.
 
 ### Próximo passo recomendado 🎯
 
-**D2 — Migrar `RemakeWindow` para `app/ui/remake_window.py`** (ver `REFACTOR_PLAN.md`).
+**D3 — Migrar `App` + `LoadingBarFrame` para `app/ui/main_app.py`** (ver `REFACTOR_PLAN.md`).
 
 ### Explicitamente fora do escopo imediato 🚫
 
@@ -210,8 +208,8 @@ A2  print_service completo         ✅
 B1  production_service             ✅
 C1  designer_service              ✅
 D1  app/ui/components             ✅
-D2  app/ui/remake_window          ← PRÓXIMO
-D3  app/ui/main_app
+D2  app/ui/remake_window          ✅
+D3  app/ui/main_app               ← PRÓXIMO
 D4  app/ui/designer_window
 D5  app/ui/config_window
 D6  bootstrap main.py
@@ -230,5 +228,5 @@ Detalhes completos, riscos e dependências: **`docs/REFACTOR_PLAN.md`**.
 | Criar `auth_controller`? | **Não** (D-003) |
 | Criar controlador só por padrão MVC? | **Não** (D-004) |
 | Mover UI agora? | **Não** — extrair lógica primeiro (D-007) |
-| O que fazer primeiro? | **D2** — `app/ui/remake_window` |
+| O que fazer primeiro? | **D3** — `app/ui/main_app` |
 | Onde colocar orquestração? | `app/services/`, não `app/controllers/` (D-004, D-005, D-006) |
