@@ -3,7 +3,7 @@
 Documento de onboarding para qualquer agente de IA (Cursor, Codex, Antigravity ou outro) que trabalhe neste repositório.  
 **Leia este arquivo antes de propor ou implementar alterações.**
 
-**Última atualização:** 2026-06-20 (Fases A1, A2, B1 e C1 concluídas)
+**Última atualização:** 2026-06-20 (Fases A1–C1 e D1 concluídas)
 
 ---
 
@@ -70,7 +70,9 @@ ArtemiS/
     │   ├── production_service.py # Fila de WO, validações, payload produção/remake
     │   └── designer_service.py   # Validação, serialização canvas, import/export
     ├── controllers/            # VAZIO — não criar controladores artificiais
-    └── ui/                     # VAZIO — migração futura (Fase D)
+    └── ui/
+        ├── constants.py        # ICON, FONT, cores de botão
+        └── components/         # Table, ListBox, SpinBox, Tooltip, popups
 ```
 
 ### Responsabilidades por camada
@@ -116,16 +118,15 @@ ArtemiS/
 5. `print_service.py` — pós-impressão e validação de papel **(A2)**.
 6. `production_service.py` — fila de WO e remake **(B1)**.
 7. `designer_service.py` — editor de layouts **(C1)**.
+8. Componentes UI em `app/ui/components/` **(D1)**.
 
 ### Em andamento 🔄
 
-- Imports parciais em `Main.py` (serviços via `app.services`; utils/Database ainda wildcard).
+- Imports parciais em `Main.py` (serviços e componentes via `app.*`; utils/Database ainda wildcard).
 
 ### Próximo passo recomendado 🎯
 
-**D1 — Migrar componentes para `app/ui/components/`** (ver `REFACTOR_PLAN.md`).
-
-Widgets reutilizáveis: `Table`, `ListBox`, `SpinBox`, `Tooltip`, `PopUpWindow`, `ConfirmWindow`.
+**D2 — Migrar `RemakeWindow` para `app/ui/remake_window.py`** (ver `REFACTOR_PLAN.md`).
 
 ### Explicitamente fora do escopo imediato 🚫
 
@@ -208,7 +209,12 @@ A1  pdf_service callbacks          ✅
 A2  print_service completo         ✅
 B1  production_service             ✅
 C1  designer_service              ✅
-D1  app/ui/components             ← PRÓXIMO
+D1  app/ui/components             ✅
+D2  app/ui/remake_window          ← PRÓXIMO
+D3  app/ui/main_app
+D4  app/ui/designer_window
+D5  app/ui/config_window
+D6  bootstrap main.py
 E   infraestrutura (injeção db/config, bugs)
 A3  limpar imports (opcional)
 ```
@@ -224,5 +230,5 @@ Detalhes completos, riscos e dependências: **`docs/REFACTOR_PLAN.md`**.
 | Criar `auth_controller`? | **Não** (D-003) |
 | Criar controlador só por padrão MVC? | **Não** (D-004) |
 | Mover UI agora? | **Não** — extrair lógica primeiro (D-007) |
-| O que fazer primeiro? | **D1** — `app/ui/components` |
+| O que fazer primeiro? | **D2** — `app/ui/remake_window` |
 | Onde colocar orquestração? | `app/services/`, não `app/controllers/` (D-004, D-005, D-006) |

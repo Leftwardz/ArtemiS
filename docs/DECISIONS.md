@@ -3,7 +3,7 @@
 Registro permanente de decisões tomadas durante a refatoração incremental.  
 Consulte `REFACTOR_PLAN.md` para o plano de execução atual e `AI_CONTEXT.md` para o processo de trabalho.
 
-**Última atualização:** 2026-06-20 (Fases A1, A2, B1 e C1 implementadas)
+**Última atualização:** 2026-06-20 (Fases A1–C1 e D1 implementadas)
 
 ---
 
@@ -192,3 +192,25 @@ Ao tomar uma nova decisão arquitetural durante a refatoração, adicionar entra
 - `validate_product_name`, `serialize_canvas_to_dict`, `save_product_with_drawings`
 - `build_export_payload`, `parse_import_file`, funções de import/replace
 - `duplicate_product`, `has_unsaved_changes`, `ORIENTATION_LABELS`
+
+---
+
+## D-015 — Extração de componentes UI para `app/ui/components` (D1)
+
+| Campo | Valor |
+|-------|-------|
+| **Data** | 2026-06-20 |
+| **Decisão** | Mover `Table`, `ListBox`, `SpinBox`, `Tooltip`, `PopUpWindow` e `ConfirmWindow` para `app/ui/components/`. Constantes visuais em `app/ui/constants.py`. |
+| **Motivo** | Primeiro passo da Fase D; widgets reutilizáveis sem lógica de negócio, baixo risco, reduz `Main.py`. |
+| **Impacto esperado** | ~250 linhas removidas de `Main.py`; janelas futuras importam componentes de um único pacote. |
+
+---
+
+## D-015 — Extração de componentes UI para `app/ui/components` (D1)
+
+| Campo | Valor |
+|-------|-------|
+| **Data** | 2026-06-20 |
+| **Decisão** | Mover `Table`, `ListBox`, `SpinBox`, `Tooltip`, `PopUpWindow` e `ConfirmWindow` para `app/ui/components/`. Constantes visuais em `app/ui/constants.py`. |
+| **Motivo** | Primeiro passo da Fase D; widgets reutilizáveis sem lógica de negócio, baixo risco, reduz `Main.py`. |
+| **Impacto esperado** | ~250 linhas removidas de `Main.py`; janelas futuras importam componentes de um único pacote. |

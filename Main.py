@@ -38,6 +38,14 @@ from app.services.designer_service import (
     has_unsaved_changes,
     serialize_canvas_to_dict,
 )
+from app.ui.components import (
+    ConfirmWindow,
+    ListBox,
+    PopUpWindow,
+    SpinBox,
+    Table,
+    Tooltip,
+)
 from threading import Thread
 import tkinter
 import traceback
@@ -749,69 +757,6 @@ class RemakeWindow(ctk.CTkToplevel):
         self.destroy()
 
 
-class Table(ttk.Treeview):
-    def __init__(self, master, cols_names, *args, **kwargs):
-        super().__init__(master, *args, **kwargs)
-
-        try:
-            self.tk.call("source", "azure.tcl")
-            self.tk.call("set_theme", "dark")
-        except Exception:
-            pass
-
-        self.configure(columns=cols_names)
-
-        # Configuração dos headings e colunas dinamicamente
-        for i, col_name in enumerate(cols_names, start=1):
-            self.heading(f"#{i}", text=col_name)
-            self.column(f"#{i}", width=100, anchor=tkinter.CENTER)
-
-        scroll_y = ttk.Scrollbar(self, orient="vertical", command=self.yview)
-        scroll_y.pack(side="right", fill="y")
-
-        scroll_x = ttk.Scrollbar(self, orient="horizontal", command=self.xview)
-        scroll_x.pack(side="bottom", fill="x")
-
-        self.configure(yscrollcommand=scroll_y.set)
-        self.configure(xscrollcommand=scroll_x.set)
-
-    def id_exists(self, item_id):
-        for item in self.get_children():
-            values = self.item(item, "values")
-            if values[0] == str(item_id):
-                return True
-
-        return False
-
-    def add_item(self, values):
-        values = tuple(values)
-        if not self.id_exists(values[0]):
-            self.insert("", "end", values=values)
-
-    def remove_selected_items(self):
-        for item in self.selection():
-            self.delete(item)
-
-    def remove_all(self):
-        for item in self.get_children():
-            self.delete(item)
-
-    def get_selected_items(self):
-        items = []
-        for item in self.selection():
-            values = self.item(item, "values")
-            items.append(values)
-
-        return items
-
-    def get_items(self):
-        items = []
-        for item in self.get_children():
-            values = self.item(item, "values")
-            items.append(values)
-
-        return items
-
 class ConfigWindow(ctk.CTkToplevel):
     def __init__(self, master, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1498,41 +1443,6 @@ class LoginWindow(ctk.CTkToplevel):
             self.func()
         else:
             PopUpWindow(self, 'Erro', 'Credenciais inválidas.')
-
-
-class Tooltip:
-    def __init__(self, widget, text):
-        self.widget = widget
-        self.text = text
-        self.tooltip_window = None
-
-        # Bind events to show/hide tooltip
-        self.widget.bind("<Enter>", self.show_tooltip)
-        self.widget.bind("<Leave>", self.hide_tooltip)
-
-    def show_tooltip(self, event=None):
-        if self.tooltip_window is None:
-            self.hide_tooltip()
-
-            x = self.widget.winfo_rootx() + 20
-            y = self.widget.winfo_rooty() + 20
-
-            self.tooltip_window = ctk.CTkToplevel(self.widget)
-            self.tooltip_window.wm_overrideredirect(True)
-            self.tooltip_window.wm_geometry(f"+{x}+{y}")
-            self.tooltip_window.bind("<Leave>", self.hide_tooltip)
-
-            label = ctk.CTkLabel(self.tooltip_window, text=self.text, padx=5, pady=5)
-            label.pack()
-        else:
-            self.tooltip_window.deiconify()
-
-    def hide_tooltip(self, event=None):
-        if self.tooltip_window:
-            self.tooltip_window.withdraw()
-            x = self.widget.winfo_rootx() + 20
-            y = self.widget.winfo_rooty() + 20
-            self.tooltip_window.wm_geometry(f"+{x}+{y}")
 
 
 class EditWindow(ctk.CTkToplevel):
@@ -2585,31 +2495,6 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
     def send_to_back(self):
         self.master.canvas.lower(self.master.id_selected_item)
 
-class ListBox(ctk.CTkScrollableFrame):
-    def __init__(self, master, items, child=False, **kwargs):
-        super().__init__(master, **kwargs)
-        self.radio_list = {}
-        self.radio_var = tkinter.StringVar()
-        self.master = master
-        self.child = child
-
-        self.grid_columnconfigure(0, weight=1)
-
-        for i, item in enumerate(items):
-            self.radio_list[item] = ctk.CTkRadioButton(self, text=item, variable=self.radio_var,
-                                                       value=item, radiobutton_width=0, command=self.focus,
-                                                       font=(font, 14), width=50)
-            self.radio_list[item].grid(column=0, pady=2)
-
-    def focus(self):
-        for item in self.radio_list.values():
-            if item != self.radio_var.get():
-                item.configure(font=(font, 14), text_color="white")
-        self.radio_list[self.radio_var.get()].configure(font=(font, 14, "bold"), text_color="green")
-
-        if hasattr(self.master, 'refresh'):
-            self.master.refresh(self.child)
-
 
 class GetImageWindow(ctk.CTkToplevel):
     def __init__(self, master, x, y, *args, **kwargs):
@@ -2846,92 +2731,6 @@ class GetBarcodeWindow(ctk.CTkToplevel):
         self.btn_ok.configure(state='normal')
 
 
-class PopUpWindow(ctk.CTkToplevel):
-    def __init__(self, master, title, text, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.iconbitmap(icone)
-        self.master = master
-
-        self.title(title)
-
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
-        self.frame = ctk.CTkScrollableFrame(self, fg_color='transparent', height=10)
-
-        self.lbl_text = ctk.CTkLabel(self.frame, text=text, font=('Arial', 12, 'bold'))
-        self.lbl_text.pack(padx=20, pady=10)
-        self.lbl_text.update_idletasks()
-
-        self.btn_close = ctk.CTkButton(self.frame, text='Fechar', fg_color=btn_red,
-                                       hover_color=btn_hover_red, command=self.destroy)
-        self.btn_close.pack(padx=20, pady=10)
-
-        window_width = max(200, self.lbl_text.winfo_reqwidth() + 80)
-        frame_height = max(50, self.lbl_text.winfo_reqheight())
-        window_height = max(100, frame_height - 100)
-
-        self.geometry(calculate_center_screen_with_monitor(master, window_width, window_height, get_monitor(master)))
-        self.minsize(window_width, window_height)
-        self.maxsize(window_width, window_height)
-        self.resizable(False, False)
-
-        self.frame.pack(fill='both')
-        self.grab_set()
-
-
-class ConfirmWindow(ctk.CTkToplevel):
-    def __init__(self, master, title, text, func, has_confirm=True, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.iconbitmap(icone)
-        if has_confirm:
-            height = 170
-        else:
-            height = 110
-
-        self.geometry(calculate_center_screen_with_monitor(master, 550, height, get_monitor(master)))
-        self.minsize(550, height)
-        self.maxsize(550, height)
-        self.func = func
-        self.has_confirm = has_confirm
-
-        self.resizable(False, False)
-        self.title(title)
-        self.master = master
-        self.grab_set()
-
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=1)
-
-        lbl_text = ctk.CTkLabel(self, text=text, font=('Arial', 13, 'bold'))
-        lbl_text.grid(row=0, column=0, columnspan=2, pady=5, padx=10)
-
-        if has_confirm:
-            lbl_text = ctk.CTkLabel(self, text='Digite "Confirmo" abaixo para validar', font=('Arial', 10, 'bold'))
-            lbl_text.grid(row=1, column=0, columnspan=2, pady=5, padx=10)
-
-            self.entry_confirm = ctk.CTkEntry(self)
-            self.entry_confirm.grid(row=2, column=0, columnspan=2, pady=5, padx=10)
-
-        self.btn_ok = ctk.CTkButton(self, text="OK", width=120, command=self.confirm_destroy)
-        self.btn_ok.grid(row=6, column=0, pady=10, padx=20)
-
-        self.btn_cancelar = ctk.CTkButton(self, width=120, text="Cancelar", fg_color=btn_red,
-                                          hover_color=btn_hover_red, command=self.destroy)
-        self.btn_cancelar.grid(row=6, column=1, pady=10, padx=20)
-
-    def confirm_destroy(self):
-        if self.has_confirm:
-            value = self.entry_confirm.get()
-            if value.upper() == 'CONFIRMO':
-                self.destroy()
-                self.func()
-            else:
-                PopUpWindow(self, 'Erro', f'O valor digitado "{value}" não confere')
-        else:
-            self.destroy()
-            self.func()
-
-
 class GetSegmentWindow(ctk.CTkToplevel):
     def __init__(self, master, x, y, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -3090,67 +2889,6 @@ class GetSegmentWindow(ctk.CTkToplevel):
     @staticmethod
     def is_valid_input(input_str):
         return input_str.isdigit() or input_str == ""
-
-
-class SpinBox(ctk.CTkFrame):
-    def __init__(self, master, step=1, func=None, *args, **kwargs):
-        super().__init__(master, *args, **kwargs)
-
-        self.configure(fg_color='transparent', corner_radius=0)
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
-        self.func = func
-        self.step = step
-
-        self.entry = ctk.CTkEntry(self, width=100, height=26, border_width=0,
-                                  corner_radius=0)
-        self.entry.grid(row=0, column=0, rowspan=2)
-        self.entry.insert(1, 1)
-
-        self.btn_up = ctk.CTkButton(self, text='▲', font=('arial', 6),
-                                    width=20, height=10, corner_radius=0,
-                                    command=self.increase)
-        self.btn_up.grid(row=0, column=0, sticky='E')
-
-        self.btn_down = ctk.CTkButton(self, text='▼', font=('arial', 6),
-                                      width=20, height=10, corner_radius=0,
-                                      command=self.decrease)
-        self.btn_down.grid(row=1, column=0, sticky='E')
-
-    def increase(self):
-        try:
-            if type(self.step) == float:
-                value = round(float(self.entry.get()) + float(self.step), 1)
-            else:
-                value = int(self.entry.get()) + self.step
-            self.entry.delete(0, 'end')
-            self.entry.insert(0, str(value))
-            if self.func:
-                self.func()
-        except ValueError:
-            return
-
-    def decrease(self):
-        try:
-            if type(self.step) == float:
-                value = round(float(self.entry.get()) - float(self.step), 1)
-            else:
-                value = int(self.entry.get()) - self.step
-            if value < 0:
-                value = 0
-            self.entry.delete(0, 'end')
-            self.entry.insert(0, str(value))
-            if self.func:
-                self.func()
-        except ValueError:
-            return
-
-    def set(self, value):
-        self.entry.delete(0, 'end')
-        self.entry.insert(0, str(value))
-
-    def get(self):
-        return self.entry.get()
 
 
 if __name__ == "__main__":

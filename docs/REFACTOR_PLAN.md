@@ -4,7 +4,7 @@ Documento permanente de acompanhamento da modularização incremental do projeto
 Para contexto funcional do sistema, consulte também `PROJECT_OVERVIEW.md`.  
 Para decisões arquiteturais registradas, consulte `DECISIONS.md`.
 
-**Última atualização:** 2026-06-20 (Fases A1, A2, B1 e C1 concluídas)
+**Última atualização:** 2026-06-20 (Fases A1–C1 e D1 concluídas)
 
 ---
 
@@ -28,7 +28,9 @@ Main.py                          ← UI completa + bootstrap + orquestração de
     │   └── production_service.py← fila de WO, validações, payload de produção/remake
     │   └── designer_service.py  ← validação, serialização canvas, import/export JSON
     ├── controllers/             ← vazio (placeholder)
-    └── ui/                      ← vazio (placeholder)
+    └── ui/
+        ├── constants.py         ← ícone, fontes, cores de botão
+        └── components/          ← Table, ListBox, SpinBox, Tooltip, PopUpWindow, ConfirmWindow
 ```
 
 ### Globals e bootstrap
@@ -105,8 +107,8 @@ Main.py                          ← UI completa + bootstrap + orquestração de
 
 ### Fase D — Organização da UI (Etapa 6 original, reordenada)
 
-1. `app/ui/components/` — widgets reutilizáveis (`Table`, `ListBox`, `SpinBox`, `Tooltip`, popups).
-2. `app/ui/remake_window.py` — `RemakeWindow`.
+1. **`app/ui/components/`** ✅ — widgets reutilizáveis (`Table`, `ListBox`, `SpinBox`, `Tooltip`, popups).
+2. **`app/ui/remake_window.py`** — `RemakeWindow` ← **PRÓXIMO (D2)**.
 3. `app/ui/main_app.py` — `App` + `LoadingBarFrame`.
 4. `app/ui/designer_window.py` — `EditWindow` + janelas auxiliares do designer.
 5. `app/ui/config_window.py` — `ConfigWindow` + janelas admin (login/registro inclusos na UI, sem módulo auth separado).
@@ -177,7 +179,9 @@ Documentados em `PROJECT_OVERVIEW.md` — rotação de imagens no PDF, vazamento
 
 ### ~~C1 — Criar `designer_service`~~ ✅ Concluído
 
-### D1 — Migrar componentes para `app/ui/components/` ← **PRÓXIMO PASSO**
+### ~~D1 — Migrar componentes para `app/ui/components/`~~ ✅ Concluído
+
+### D2 — Migrar `RemakeWindow` para `app/ui/remake_window.py` ← **PRÓXIMO PASSO**
 
 | Campo | Detalhe |
 |-------|---------|
@@ -206,8 +210,8 @@ A1  Desacoplar pdf_service (callbacks)           ✅
 A2  Completar print_service                      ✅
 B1  production_service                            ✅
 C1  designer_service                              ✅
-D1  app/ui/components                             ← PRÓXIMO
-D2  app/ui/remake_window
+D1  app/ui/components                             ✅
+D2  app/ui/remake_window                          ← PRÓXIMO
 D3  app/ui/main_app
 D4  app/ui/designer_window
 D5  app/ui/config_window
