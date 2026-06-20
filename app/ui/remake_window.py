@@ -158,7 +158,13 @@ class RemakeWindow(ctk.CTkToplevel):
             PopUpWindow(self, 'Não Encontrado', 'Registro não encontrado')
 
         for item in items:
-            infos = [item[0] + 1, item[1][4], item[1][1], item[1][2]]
+            row = item[1]
+            infos = [
+                item[0] + 1,
+                self.file.get_element(row, 4, ''),
+                self.file.get_element(row, 1, ''),
+                self.file.get_element(row, 2, ''),
+            ]
             self.table.add_item(infos)
 
         self.clear_other_entries()
