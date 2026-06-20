@@ -92,7 +92,8 @@ ArtemiS/
 | `app/ui/main_app` | Tela principal de produção + progresso paralelo | ✅ Concluído (D3) |
 | `app/ui/designer_window` | Editor de templates + janelas auxiliares | ✅ Concluído (D4) |
 | `app/ui/config_window` | Configurações, login, import/export | ✅ Concluído (D5) |
-| `Main.py` | Bootstrap + reexport para `__main__` | 🔄 ~35 linhas (D6 moverá para `main.py`) |
+| `Main.py` | Shim legado → `main.main()` | ✅ D6 |
+| `main.py` | Bootstrap (`config`, `db`, `App`) | ✅ D6 |
 
 ### Classes principais
 
@@ -131,10 +132,11 @@ ArtemiS/
 10. `App` + `LoadingBarFrame` em `app/ui/main_app.py` **(D3)**.
 11. Designer em `app/ui/designer_window.py` **(D4)**.
 12. Config/admin em `app/ui/config_window.py` **(D5)**.
+13. Bootstrap em `main.py`; `Main.py` shim **(D6)**.
 
 ### Próximo passo recomendado 🎯
 
-**D6 — Criar `main.py` e atualizar `Main.spec`** (ver `REFACTOR_PLAN.md`).
+**Fase E — Infraestrutura** (injeção de `db`/`config`, bugs DB documentados) — ver `REFACTOR_PLAN.md`.
 
 ### Explicitamente fora do escopo imediato 🚫
 
@@ -222,7 +224,8 @@ D2  app/ui/remake_window          ✅
 D3  app/ui/main_app               ✅
 D4  app/ui/designer_window         ✅
 D5  app/ui/config_window          ✅
-D6  bootstrap main.py + Main.spec ← PRÓXIMO
+D6  bootstrap main.py + Main.spec ✅
+E   infraestrutura (injeção db/config, bugs) ← PRÓXIMO
 E   infraestrutura (injeção db/config, bugs)
 A3  limpar imports (opcional)
 ```
@@ -238,5 +241,5 @@ Detalhes completos, riscos e dependências: **`docs/REFACTOR_PLAN.md`**.
 | Criar `auth_controller`? | **Não** (D-003) |
 | Criar controlador só por padrão MVC? | **Não** (D-004) |
 | Mover UI agora? | **Incremental** — serviços primeiro (D-007); UI em D1–D6 |
-| O que fazer primeiro? | **D6** — `main.py` + `Main.spec` |
+| O que fazer primeiro? | **Fase E** — injeção `db`/`config` (opcional A3) |
 | Onde colocar orquestração? | `app/services/`, não `app/controllers/` (D-004, D-005, D-006) |

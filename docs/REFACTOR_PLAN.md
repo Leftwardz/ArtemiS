@@ -4,18 +4,19 @@ Documento permanente de acompanhamento da modularização incremental do projeto
 Para contexto funcional do sistema, consulte também `PROJECT_OVERVIEW.md`.  
 Para decisões arquiteturais registradas, consulte `DECISIONS.md`.
 
-**Última atualização:** 2026-06-20 (Fases A1–C1, D1–D5 concluídas; D6 pendente)
+**Última atualização:** 2026-06-20 (Fases A1–C1 e D1–D6 concluídas)
 
 ---
 
 ## Estado Atual
 
-O ArtemiS continua sendo uma aplicação desktop em Python (CustomTkinter/Tkinter). O bootstrap permanece em `Main.py` (~35 linhas); a UI está em `app/ui/`.
+O ArtemiS é uma aplicação desktop em Python (CustomTkinter/Tkinter). Entry point: `main.py` (PyInstaller `Main.spec`); `Main.py` permanece como shim de compatibilidade.
 
 ### Arquitetura em camadas (estado real)
 
 ```
-Main.py                          ← bootstrap + reexport de janelas admin (~35 linhas)
+main.py                          ← bootstrap (config, db, App.mainloop)
+Main.py                          ← shim legado → main.main()
 ├── Database.py                  ← ponte → app/models/
 ├── utils.py                     ← ponte → app/utils/
 ├── pdf_utils.py                 ← ponte → app/services/pdf_service.py
@@ -39,9 +40,9 @@ Main.py                          ← bootstrap + reexport de janelas admin (~35 
 
 ### Globals e bootstrap
 
-- `config` e `db` são instanciados no bloco `if __name__ == "__main__"` de `Main.py`.
-- `Main.py` importa `App` de `app/ui/main_app.py`; serviços de produção/impressão ficam no módulo extraído.
-- PyInstaller (`Main.spec`) aponta para `Main.py` como entry point.
+- `config` e `db` são atribuídos a `sys.modules['__main__']` em `main.main()`.
+- `Main.py` reexporta janelas admin para compatibilidade com `python Main.py`.
+- PyInstaller (`Main.spec`) aponta para `main.py`.
 
 ### Acoplamento remanescente
 
@@ -116,7 +117,7 @@ Main.py                          ← bootstrap + reexport de janelas admin (~35 
 3. **`app/ui/main_app.py`** ✅ — `App` + `LoadingBarFrame`
 4. **`app/ui/designer_window.py`** ✅ — `EditWindow`, `ListOfPropertiesWindow`, `GetImageWindow`, `GetTextWindow`, `GetBarcodeWindow`, `GetSegmentWindow`
 5. **`app/ui/config_window.py`** ✅ — `ConfigWindow`, login/registro, import/export, grupos
-6. Bootstrap — `main.py` na raiz; atualizar `Main.spec` ← **PRÓXIMO (D6)**.
+6. Bootstrap — `main.py` + `Main.spec` ✅
 
 ### Fase E — Infraestrutura transversal (não bloqueante)
 
@@ -220,7 +221,18 @@ Documentados em `PROJECT_OVERVIEW.md` — rotação de imagens no PDF, vazamento
 
 ---
 
-### D6 — Criar `main.py` e atualizar `Main.spec` ← **PRÓXIMO PASSO**
+### ~~D6 — Criar `main.py` e atualizar `Main.spec`~~ ✅ Concluído
+
+| Campo | Detalhe |
+|-------|---------|
+| **Objetivo** | Entry point dedicado; `Main.py` como shim. |
+| **Benefício** | Separação clara bootstrap vs compatibilidade; build PyInstaller usa `main.py`. |
+| **Risco** | Baixo — `main()` publica `config`/`db` em `sys.modules['__main__']`. |
+| **Dependências** | D5 ✅. |
+
+---
+
+### Fase E — Infraestrutura transversal ← **PRÓXIMO**
 
 | Campo | Detalhe |
 |-------|---------|
@@ -243,8 +255,8 @@ D2  app/ui/remake_window                          ✅
 D3  app/ui/main_app                               ✅
 D4  app/ui/designer_window                    ✅
 D5  app/ui/config_window                      ✅
-D6  bootstrap main.py + Main.spec             ← PRÓXIMO
-E   Infraestrutura (injeção db/config, bugs DB)
+D6  bootstrap main.py + Main.spec             ✅
+E   Infraestrutura (injeção db/config, bugs DB) ← PRÓXIMO
 A3  Limpar imports (opcional, a qualquer momento)
 ```
 

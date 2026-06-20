@@ -1,7 +1,4 @@
-import json
-import os
-
-from Database import DataBase
+"""Compatibilidade com entry point legado — preferir main.py."""
 from app.ui.config_window import (
     AddClientWindow,
     ConfigWindow,
@@ -11,25 +8,7 @@ from app.ui.config_window import (
     ManageGroupWindow,
     RegisterWindow,
 )
-from app.ui.main_app import App
+from main import main
 
 if __name__ == "__main__":
-    try:
-        with open('config.json') as config_file:
-            config = json.load(config_file)
-            if not os.path.exists(config['search_folder']):
-                os.mkdir(config['search_folder'])
-    except FileNotFoundError:
-        with open('config.json', 'w') as config_file:
-            config = {
-                'database_location': 'database.db',
-                'search_folder': 'C:\\AR'
-            }
-            json.dump(config, config_file, indent=4)
-        if not os.path.exists('C:\\AR'):
-            os.mkdir('C:\\AR')
-
-    db = DataBase(config['database_location'])
-    db.create_tables()
-    app = App()
-    app.mainloop()
+    main()

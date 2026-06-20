@@ -30,7 +30,7 @@ Acompanhamento das etapas de modularização do projeto:
  [x] Mover App e LoadingBarFrame para app/ui/main_app.py
  [x] Mover EditWindow e auxiliares para app/ui/designer_window.py
  [x] Mover ConfigWindow e admin para app/ui/config_window.py
- [ ] Criar script bootstrap main.py
+ [x] Criar script bootstrap main.py
 
 ---
 Plano detalhado: docs/REFACTOR_PLAN.md

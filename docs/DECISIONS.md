@@ -247,3 +247,14 @@ Ao tomar uma nova decisão arquitetural durante a refatoração, adicionar entra
 | **Decisão** | Mover `ConfigWindow`, `ManageGroupWindow`, `DuplicateProductWindow`, `ExportProductWindow`, `AddClientWindow`, `RegisterWindow` e `LoginWindow` para `app/ui/config_window.py`; `Main.py` mantém apenas bootstrap e reexport das classes para `sys.modules['__main__']`. |
 | **Motivo** | Concluir migração da UI; monolito eliminado exceto entry point. |
 | **Impacto esperado** | ~740 linhas removidas de `Main.py`; persistência de `config.json` e recriação de `db` via `_runtime()`. |
+
+---
+
+## D-020 — Bootstrap em `main.py` e shim `Main.py` (D6)
+
+| Campo | Valor |
+|-------|-------|
+| **Data** | 2026-06-20 |
+| **Decisão** | Criar `main.py` com `main()` que atribui `config` e `db` a `sys.modules['__main__']`; `Main.py` delega para `main()` e reexporta janelas admin; `Main.spec` usa `main.py`. |
+| **Motivo** | Entry point explícito sem quebrar quem ainda executa `python Main.py`. |
+| **Impacto esperado** | Fase D concluída; monolito eliminado. |

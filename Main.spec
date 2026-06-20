@@ -10,7 +10,7 @@ dll_path = os.path.join(base_dir, 'venv', 'Lib', 'site-packages', 'pylibdmtx', '
 
 
 a = Analysis(
-    ['Main.py'],
+    ['main.py'],
     pathex=[],
     binaries=[(dll_path, '.')],
     datas=[],
