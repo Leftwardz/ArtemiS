@@ -3,7 +3,7 @@
 Registro permanente de decisões tomadas durante a refatoração incremental.  
 Consulte `REFACTOR_PLAN.md` para o plano de execução atual e `AI_CONTEXT.md` para o processo de trabalho.
 
-**Última atualização:** 2026-06-20 (Fases A1, A2, B1 implementadas)
+**Última atualização:** 2026-06-20 (Fases A1, A2, B1 e C1 implementadas)
 
 ---
 
@@ -175,3 +175,20 @@ Ao tomar uma nova decisão arquitetural durante a refatoração, adicionar entra
 - **`print_service`:** `finish_print_job`, `validate_printer_paper`, `get_printer_paper_error_message`.
 - **`production_service`:** busca de WO, validação de fila, carregamento de linhas, orientações, remake parcial.
 - **Correção colateral:** se geração falhar sem PDFs completos, não tenta juntar lista vazia.
+
+---
+
+## D-014 — Implementação da Fase C1 (`designer_service`)
+
+| Campo | Valor |
+|-------|-------|
+| **Data** | 2026-06-20 |
+| **Decisão** | Criar `app/services/designer_service.py` e delegar validação, serialização canvas, import/export e duplicação de produtos. |
+| **Motivo** | Segundo maior bloco de lógica de negócio fora da produção; prepara migração do designer para `app/ui/`. |
+| **Impacto esperado** | `pass_canvas_to_dict` (~100 linhas) removido de `Main.py`; regras de produto testáveis sem abrir o editor visual. |
+
+### Funções principais
+
+- `validate_product_name`, `serialize_canvas_to_dict`, `save_product_with_drawings`
+- `build_export_payload`, `parse_import_file`, funções de import/replace
+- `duplicate_product`, `has_unsaved_changes`, `ORIENTATION_LABELS`

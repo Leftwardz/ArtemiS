@@ -20,9 +20,9 @@ Acompanhamento das etapas de modularização do projeto:
   (x)Completar app/services/print_service.py — pós-impressão e validação (A2)
   (x)Criar app/services/production_service.py — fila de WO e remake (B1)
   [ ] Ajustar imports restantes em Main.py (A3, opcional)
-[ ] Etapa 5: Serviços de orquestração (substitui controladores artificiais)
+[x] Etapa 5: Serviços de orquestração (substitui controladores artificiais)
   (x)production_service.py — fila e produção (substitui queue_controller + remake_controller)
-  [ ] designer_service.py — editor de layouts (substitui designer_controller)
+  (x)designer_service.py — editor de layouts (substitui designer_controller)
   [-] auth_controller.py — NÃO CRIAR (decisão D-003)
 [ ] Etapa 6: Divisão e Organização da Interface Gráfica (app/ui)
  Mover a tela principal App e fila para app/ui/main_app.py

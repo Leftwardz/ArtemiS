@@ -3,7 +3,7 @@
 Documento de onboarding para qualquer agente de IA (Cursor, Codex, Antigravity ou outro) que trabalhe neste repositório.  
 **Leia este arquivo antes de propor ou implementar alterações.**
 
-**Última atualização:** 2026-06-20 (Fases A1, A2, B1 concluídas)
+**Última atualização:** 2026-06-20 (Fases A1, A2, B1 e C1 concluídas)
 
 ---
 
@@ -67,7 +67,8 @@ ArtemiS/
     ├── services/
     │   ├── pdf_service.py      # Geração ReportLab (callbacks, sem Tkinter)
     │   ├── print_service.py    # Pós-impressão, validação de papel, arquivamento
-    │   └── production_service.py # Fila de WO, validações, payload produção/remake
+    │   ├── production_service.py # Fila de WO, validações, payload produção/remake
+    │   └── designer_service.py   # Validação, serialização canvas, import/export
     ├── controllers/            # VAZIO — não criar controladores artificiais
     └── ui/                     # VAZIO — migração futura (Fase D)
 ```
@@ -81,7 +82,7 @@ ArtemiS/
 | `app/services/pdf_service` | Desenho e montagem de PDFs | ✅ Desacoplado (callbacks) |
 | `app/services/print_service` | Pós-impressão e arquivamento | ✅ Concluído |
 | `app/services/production_service` | Fila de WO, validações, remake | ✅ Concluído |
-| `app/services/designer_service` | Serialização canvas, import/export | ❌ Planejado (C1) |
+| `app/services/designer_service` | Serialização canvas, import/export | ✅ Concluído |
 | `Main.py` | UI + bootstrap + adaptadores finos | 🔄 Monolito ativo, lógica de produção delegada |
 
 ### Classes principais em `Main.py`
@@ -114,6 +115,7 @@ ArtemiS/
 4. `pdf_service.py` + ponte `pdf_utils.py` — **desacoplado da UI (A1)**.
 5. `print_service.py` — pós-impressão e validação de papel **(A2)**.
 6. `production_service.py` — fila de WO e remake **(B1)**.
+7. `designer_service.py` — editor de layouts **(C1)**.
 
 ### Em andamento 🔄
 
@@ -121,9 +123,9 @@ ArtemiS/
 
 ### Próximo passo recomendado 🎯
 
-**C1 — Criar `designer_service`** (ver `REFACTOR_PLAN.md`).
+**D1 — Migrar componentes para `app/ui/components/`** (ver `REFACTOR_PLAN.md`).
 
-Extrair de `EditWindow` / import-export: validação de produto, serialização canvas, JSON Base64.
+Widgets reutilizáveis: `Table`, `ListBox`, `SpinBox`, `Tooltip`, `PopUpWindow`, `ConfirmWindow`.
 
 ### Explicitamente fora do escopo imediato 🚫
 
@@ -205,8 +207,8 @@ Após alterações em PDF, impressão ou fila de WO, validar:
 A1  pdf_service callbacks          ✅
 A2  print_service completo         ✅
 B1  production_service             ✅
-C1  designer_service              ← PRÓXIMO
-D   app/ui/ + bootstrap main.py
+C1  designer_service              ✅
+D1  app/ui/components             ← PRÓXIMO
 E   infraestrutura (injeção db/config, bugs)
 A3  limpar imports (opcional)
 ```
@@ -222,5 +224,5 @@ Detalhes completos, riscos e dependências: **`docs/REFACTOR_PLAN.md`**.
 | Criar `auth_controller`? | **Não** (D-003) |
 | Criar controlador só por padrão MVC? | **Não** (D-004) |
 | Mover UI agora? | **Não** — extrair lógica primeiro (D-007) |
-| O que fazer primeiro? | **C1** — `designer_service` |
+| O que fazer primeiro? | **D1** — `app/ui/components` |
 | Onde colocar orquestração? | `app/services/`, não `app/controllers/` (D-004, D-005, D-006) |

@@ -4,7 +4,7 @@ Documento permanente de acompanhamento da modularização incremental do projeto
 Para contexto funcional do sistema, consulte também `PROJECT_OVERVIEW.md`.  
 Para decisões arquiteturais registradas, consulte `DECISIONS.md`.
 
-**Última atualização:** 2026-06-20 (Fases A1, A2 e B1 concluídas)
+**Última atualização:** 2026-06-20 (Fases A1, A2, B1 e C1 concluídas)
 
 ---
 
@@ -26,6 +26,7 @@ Main.py                          ← UI completa + bootstrap + orquestração de
     │   ├── pdf_service.py       ← geração ReportLab (desacoplado da UI via callbacks)
     │   ├── print_service.py     ← pós-impressão, validação de papel, arquivamento
     │   └── production_service.py← fila de WO, validações, payload de produção/remake
+    │   └── designer_service.py  ← validação, serialização canvas, import/export JSON
     ├── controllers/             ← vazio (placeholder)
     └── ui/                      ← vazio (placeholder)
 ```
@@ -39,7 +40,7 @@ Main.py                          ← UI completa + bootstrap + orquestração de
 ### Acoplamento remanescente
 
 - `App.create_pdf` e `LoadingBarFrame` permanecem na UI — adaptadores finos entre serviços e widgets.
-- `EditWindow`: canvas + undo + persistência no banco + import/export JSON no mesmo módulo.
+- `EditWindow`: canvas e interação gráfica permanecem na UI; persistência/serialização delegadas a `designer_service`.
 - Acesso direto ao banco (`db.*`) espalhado nas classes de UI (~99 referências em `Main.py`).
 
 ---
@@ -97,10 +98,10 @@ Main.py                          ← UI completa + bootstrap + orquestração de
 
 ~~**B1:** Criar `app/services/production_service.py`~~ — implementado.
 
-### Fase C — Lógica do designer
+### Fase C — Lógica do designer ✅
 
-- **C1:** Criar `app/services/designer_service.py` — serialização canvas, validação de produto, import/export JSON.
-- ~~`designer_controller.py`~~ — **substituído** por serviço (ver `DECISIONS.md`).
+- **`designer_service.py`** — validação de produto, serialização canvas↔dict, import/export JSON, duplicação.
+- `EditWindow`, `ConfigWindow.import_product`, `ExportProductWindow` e `DuplicateProductWindow` delegam ao serviço.
 
 ### Fase D — Organização da UI (Etapa 6 original, reordenada)
 
@@ -174,7 +175,9 @@ Documentados em `PROJECT_OVERVIEW.md` — rotação de imagens no PDF, vazamento
 
 ---
 
-### C1 — Criar `designer_service` ← **PRÓXIMO PASSO**
+### ~~C1 — Criar `designer_service`~~ ✅ Concluído
+
+### D1 — Migrar componentes para `app/ui/components/` ← **PRÓXIMO PASSO**
 
 | Campo | Detalhe |
 |-------|---------|
@@ -202,8 +205,8 @@ Documentados em `PROJECT_OVERVIEW.md` — rotação de imagens no PDF, vazamento
 A1  Desacoplar pdf_service (callbacks)           ✅
 A2  Completar print_service                      ✅
 B1  production_service                            ✅
-C1  designer_service                              ← PRÓXIMO
-D1  app/ui/components
+C1  designer_service                              ✅
+D1  app/ui/components                             ← PRÓXIMO
 D2  app/ui/remake_window
 D3  app/ui/main_app
 D4  app/ui/designer_window

@@ -22,6 +22,22 @@ from app.services.production_service import (
     get_paper_size_from_path,
     build_remake_file_lines,
 )
+from app.services.designer_service import (
+    ORIENTATION_LABELS,
+    validate_product_name,
+    orientation_index_from_label,
+    load_product_drawings,
+    save_product_with_drawings,
+    delete_product as designer_delete_product,
+    duplicate_product as designer_duplicate_product,
+    build_export_payload,
+    parse_import_file,
+    replace_imported_drawings,
+    import_product_for_existing_client,
+    import_product_with_new_client,
+    has_unsaved_changes,
+    serialize_canvas_to_dict,
+)
 from threading import Thread
 import tkinter
 import traceback
@@ -1093,54 +1109,51 @@ class ConfigWindow(ctk.CTkToplevel):
 
     def import_product(self):
         file_path = askopenfilename(filetypes=[("Arquivos JSON", "*.json")])
-        if file_path:
-            with open(file_path) as file:
-                product_file = json.load(file)
-            client_name = product_file['cliente']
-            product_name = product_file['produto']
-            paper_size = product_file['paper_size']
-            color = product_file['color']
-            orientation = product_file['orientation']
-            items = product_file['items']
+        if not file_path:
+            return
 
-            for item in items:
-                if item['image']:
-                    decoded_image = base64.b64decode(item['image'].encode('utf-8'))
-                    item['image'] = decoded_image
+        try:
+            product_file = parse_import_file(file_path)
+        except Exception as e:
+            PopUpWindow(self, 'Erro', f'Erro ao ler o arquivo.\n{e}')
+            return
 
-            if db.search_clients_names(client_name):
-                if product_name in db.search_products(client_name):
-                    def replace_drawing():
-                        try:
-                            db.del_all_drawing_from_product(client_name, product_name)
-                            # for i in items:
-                            #     pass
-                            db.save_drawings(client_name, product_name, items)
-                            PopUpWindow(self, 'Sucesso', 'Produto Substituído com sucesso!')
-                        except Exception as e:
-                            PopUpWindow(self, 'Erro', f'Não foi possível salvar o produto.\n{e}')
+        client_name = product_file['cliente']
+        product_name = product_file['produto']
+        paper_size = product_file['paper_size']
+        color = product_file['color']
+        orientation = product_file['orientation']
+        items = product_file['items']
 
-                    text = f'Produto "{product_name}" já existente na base.\nDeseja Substituí-lo?'
-                    ConfirmWindow(self, 'Produto já existente', text, replace_drawing)
-                else:
+        if db.search_clients_names(client_name):
+            if product_name in db.search_products(client_name):
+                def replace_drawing():
                     try:
-                        db.insert_product(product_name, client_name, color, orientation, paper_size)
-                        # for i in items:
-                        db.save_drawings(client_name, product_name, items)
-                        PopUpWindow(self, 'Sucesso', 'Produto salvo com sucesso!')
+                        replace_imported_drawings(client_name, product_name, items, db)
+                        PopUpWindow(self, 'Sucesso', 'Produto Substituído com sucesso!')
                     except Exception as e:
-                        PopUpWindow(self, 'Erro', f'Erro ao salvar o produto.\n{e}')
+                        PopUpWindow(self, 'Erro', f'Não foi possível salvar o produto.\n{e}')
+
+                text = f'Produto "{product_name}" já existente na base.\nDeseja Substituí-lo?'
+                ConfirmWindow(self, 'Produto já existente', text, replace_drawing)
             else:
                 try:
-                    db.insert_client(client_name)
-                    db.insert_product(product_name, client_name, color, orientation, paper_size)
-                    # for i in items:
-                    db.save_drawings(client_name, product_name, items)
-                    PopUpWindow(self, 'Sucesso', 'Cliente e Produto importados com sucesso!')
+                    import_product_for_existing_client(
+                        client_name, product_name, color, orientation, paper_size, items, db
+                    )
+                    PopUpWindow(self, 'Sucesso', 'Produto salvo com sucesso!')
                 except Exception as e:
-                    PopUpWindow(self, 'Erro', f'Erro ao criar um novo Cliente e Produto.\n{e}')
+                    PopUpWindow(self, 'Erro', f'Erro ao salvar o produto.\n{e}')
+        else:
+            try:
+                import_product_with_new_client(
+                    client_name, product_name, color, orientation, paper_size, items, db
+                )
+                PopUpWindow(self, 'Sucesso', 'Cliente e Produto importados com sucesso!')
+            except Exception as e:
+                PopUpWindow(self, 'Erro', f'Erro ao criar um novo Cliente e Produto.\n{e}')
 
-            self.reset_all()
+        self.reset_all()
 
     def exit(self):
         self.master.deiconify()
@@ -1259,28 +1272,23 @@ class DuplicateProductWindow(ctk.CTkToplevel):
     def duplicate_product(self):
         product_name = self.entry_productname.get()
         client_name = self.entry_clientname.get()
-        if product_name in db.search_products(client_name):
-            PopUpWindow(self, 'Erro', 'Nome de produto já existe')
-        else:
-            product_obj = db.search_product(self.original_client, self.product_name)
+        error = designer_duplicate_product(
+            self.original_client,
+            self.product_name,
+            client_name,
+            product_name,
+            db,
+        )
+        if error:
+            PopUpWindow(self, 'Erro', error)
+            return
 
-            paper_size = product_obj.paper_size
-            color = product_obj.paper_color
-            orientation = product_obj.orientation
-
-            db.insert_product(product_name, client_name, color, orientation, paper_size)
-
-            items = db.consult_drawings_from_product(self.original_client, self.product_name)
-
-            # for i in items:
-            db.save_drawings(client_name, product_name, items)
-
-            self.master.client_list.radio_var.set(client_name)
-            self.master.client_list.focus()
-            self.master.refresh()
-            self.master.product_list.radio_var.set(product_name)
-            self.master.product_list.focus()
-            self.destroy()
+        self.master.client_list.radio_var.set(client_name)
+        self.master.client_list.focus()
+        self.master.refresh()
+        self.master.product_list.radio_var.set(product_name)
+        self.master.product_list.focus()
+        self.destroy()
 
 
 class ExportProductWindow(ctk.CTkToplevel):
@@ -1333,31 +1341,11 @@ class ExportProductWindow(ctk.CTkToplevel):
     def export_product(self):
         client = self.entry_clientname.get()
         product = self.entry_productname.get()
-        product_db = db.search_product(client, product)
-
-        orientation = product_db.orientation
-        paper_size = product_db.paper_size
-        color = db.search_color(client, product)
         path = asksaveasfilename(defaultextension=".json", filetypes=[("Arquivos JSON", "*.json")],
                                  initialfile=f'{client}-{product}')
         try:
             if path:
-                result = db.consult_drawings_from_product(client, product)
-
-                # Encoding images, so it can be saved on a Json File
-                for item in result:
-                    if item['image']:
-                        base64_encoded = base64.b64encode(item['image']).decode('utf-8')
-                        item['image'] = base64_encoded
-                result = {
-                    'cliente': client,
-                    'produto': product,
-                    'paper_size': paper_size,
-                    'color': color,
-                    'orientation': orientation,
-                    'items': result
-                }
-
+                result = build_export_payload(client, product, db)
                 with open(path, 'w') as arquivo_json:
                     json.dump(result, arquivo_json, indent=4)
 
@@ -1652,8 +1640,7 @@ class EditWindow(ctk.CTkToplevel):
 
         ctk.CTkLabel(self.frame_type, text='Orientação:').grid(row=0, column=0, padx=10)
 
-        self.orient_values = ['3 por Folha - Vertical', '2 por Folha - Horizontal',
-                              '1 por folha - A4', '2 por folha - Vertical']
+        self.orient_values = ORIENTATION_LABELS
 
         self.combobox_type = ctk.CTkComboBox(self.frame_type, values=self.orient_values, width=180,
                                              command=self.change_orientation)
@@ -1736,24 +1723,17 @@ class EditWindow(ctk.CTkToplevel):
             raise f'mode invalid: {mode}, use "edit" or "add"'
 
     def verify_changes(self):
-        product = db.search_product(self.client, self.product_name)
-        if product:
-            product_color = product.paper_color
-            product_orientation = product.orientation
-            product_paper_size = product.paper_size
-        else:
-            return True
-
-        if self.entry_name.get() != self.product_name or self.pass_canvas_to_dict() != self.consult_drawings_from_db():
-            return True
-        elif self.paper_color_list.get() != product_color:
-            return True
-        elif self.orient_values.index(self.combobox_type.get()) != int(product_orientation):
-            return True
-        elif self.paper_size_list.get() != product_paper_size:
-            return True
-        else:
-            return False
+        return has_unsaved_changes(
+            self.client,
+            self.product_name,
+            self.entry_name.get(),
+            self.paper_color_list.get(),
+            orientation_index_from_label(self.combobox_type.get()),
+            self.paper_size_list.get(),
+            self.pass_canvas_to_dict(),
+            self.consult_drawings_from_db(),
+            db,
+        )
 
     def testes(self, *args):
         self.clean_canvas()
@@ -1782,8 +1762,7 @@ class EditWindow(ctk.CTkToplevel):
             PopUpWindow(self, 'Erro', traceback.format_exc())
 
     def consult_drawings_from_db(self):
-        result = db.consult_drawings_from_product(self.client, self.product_name)
-        return result
+        return load_product_drawings(self.client, self.product_name, db)
 
     def update_save_button(self, *args):
         if self.verify_changes():
@@ -1796,7 +1775,7 @@ class EditWindow(ctk.CTkToplevel):
                       self.delete_product)
 
     def delete_product(self):
-        if db.delete_product(self.client, self.product_name):
+        if designer_delete_product(self.client, self.product_name, db):
             self.master.refresh()
             self.exit()
             PopUpWindow(self.master, 'Sucesso', 'Produto deletado com Sucesso!')
@@ -1806,36 +1785,33 @@ class EditWindow(ctk.CTkToplevel):
 
     def save_changes(self):
         try:
-            if self.entry_name.get() in db.search_products(self.client) and self.entry_name.get() != self.product_name:
-                raise ValueError('ERROR - Nome de Produto já existente para esse cliente')
-            elif self.entry_name.get() == 'Novo Produto':
-                raise ValueError('ERROR - Por favor, dar um novo nome ao produto')
-            elif self.entry_name.get().strip() == '':
-                raise ValueError('ERROR - Nome do Produto não pode ser vazio')
-            elif '-' in self.entry_name.get().strip():
-                raise ValueError('ERROR - Nome do Produto não pode conter traço " - "')
-
-            color = self.paper_color_list.get()
-            orientation_type = self.orient_values.index(self.combobox_type.get())
-            paper_size = self.paper_size_list.get()
-
-            db.change_or_add_product_name(
-                self.client,
+            validation_error = validate_product_name(
                 self.product_name,
                 self.entry_name.get(),
+                db.search_products(self.client),
+            )
+            if validation_error:
+                raise ValueError(validation_error)
+
+            color = self.paper_color_list.get()
+            orientation_type = orientation_index_from_label(self.combobox_type.get())
+            paper_size = self.paper_size_list.get()
+            new_name = self.entry_name.get()
+
+            save_product_with_drawings(
+                self.client,
+                self.product_name,
+                new_name,
                 color,
                 orientation_type,
-                paper_size
+                paper_size,
+                self.pass_canvas_to_dict(),
+                db,
             )
 
-            self.product_name = self.entry_name.get()
+            self.product_name = new_name
             self.title(f'{self.client} - {self.product_name}')
             self.lbl_id.configure(text=f'ID: {self.client} - {self.product_name}')
-
-            # ######################### Save Canvas ######################################
-
-            db.del_all_drawing_from_product(self.client, self.product_name)
-            db.save_drawings(self.client, self.product_name, self.pass_canvas_to_dict())
 
             self.master.refresh()
             self.update_save_button()
@@ -1851,109 +1827,7 @@ class EditWindow(ctk.CTkToplevel):
             PopUpWindow(self, 'Erro', traceback.format_exc())
 
     def pass_canvas_to_dict(self, *args):
-        result = []
-        for item in self.canvas.find_all():
-            tag = self.canvas.gettags(item)
-
-            ignore = False
-            if 'IGNORE' in tag:
-                ignore = True
-                tag = tag[0] if tag else ''
-                tag += ' IGNORE'
-            else:
-                tag = tag[0] if tag else ''
-
-            item_dict = {'x1': None, 'x2': None, 'y1': None, 'y2': None, 'font_name': None,
-                         'font_size': None, 'font_style': None, 'orientation': None, 'text': None,
-                         'thickness': None, 'dashed': None, 'barcode_height': None, 'barcode_width': None,
-                         'line_distance': None, 'segment_id': None, 'tag': tag, 'proportion': None,
-                         'image': None, 'char_limit': None}
-
-            # ########################## TYPE ######################################
-            if self.canvas.type(item) == 'text':
-                if tag.startswith('segment'):
-                    item_dict['item_type'] = 'segment'
-                elif tag.startswith('barcode'):
-                    item_dict['item_type'] = 'barcode_text'
-                elif tag.startswith('counter'):
-                    item_dict['item_type'] = 'counter'
-                else:
-                    item_dict['item_type'] = 'text'
-            elif self.canvas.type(item) == 'image':
-                if tag.startswith('barcodeQR'):
-                    item_dict['item_type'] = 'barcodeQR'
-                elif tag.startswith('barcodeMatrix'):
-                    item_dict['item_type'] = 'barcodeMatrix'
-                elif tag.startswith('barcode#'):
-                    item_dict['item_type'] = 'barcode'
-                elif tag.startswith('barcode39'):
-                    item_dict['item_type'] = 'barcode39'
-                else:
-                    item_dict['item_type'] = 'image'
-            else:
-                item_dict['item_type'] = self.canvas.type(item)
-
-            # ########################## COORDS XY #################################
-            if item_dict['item_type'] in ['line', 'rectangle']:
-                x1, y1, x2, y2 = self.canvas.coords(item)
-                item_dict['x1'] = str(x1).replace('.0', '')
-                item_dict['y1'] = str(y1).replace('.0', '')
-                item_dict['x2'] = str(x2).replace('.0', '')
-                item_dict['y2'] = str(y2).replace('.0', '')
-            else:
-                x1, y1 = self.canvas.coords(item)
-                item_dict['x1'] = str(x1).replace('.0', '')
-                item_dict['y1'] = str(y1).replace('.0', '')
-
-            # ################ FONT AND LINE PROPERTIES ############################
-            if item_dict['item_type'] in ['segment', 'barcode_text', 'counter', 'text']:
-                font_full = self.canvas.itemconfig(item, 'font')[4]
-                if '{' in font_full:
-                    fontname = font_full.split('}')[0].replace('{', '')
-                    fontsize = font_full.split('}')[1].split()[0]
-                    font_style = font_full.split('}')[1].split()[1]
-                    font_full = [fontname, fontsize, font_style]
-                else:
-                    font_full = self.canvas.itemconfig(item, 'font')[4].split()
-
-                item_dict['font_name'] = font_full[0]
-                item_dict['font_size'] = font_full[1]
-                item_dict['font_style'] = font_full[2]
-
-                item_dict['orientation'] = self.canvas.itemconfig(item, 'angle')[4].replace('.0', '')
-                item_dict['text'] = self.canvas.itemconfig(item, 'text')[4]
-
-            elif item_dict['item_type'] in ['line', 'rectangle']:
-                item_dict['thickness'] = self.canvas.itemconfig(item, 'width')[4].replace('.0', '')
-                item_dict['dashed'] = self.canvas.itemconfig(item, 'dash')[4].replace('.0', '')
-
-            # ################## Barcode Width Height #############################
-            if item_dict['item_type'] in ['barcode', 'barcode39']:
-                item_dict['barcode_height'] = tag.split('§')[2]
-                item_dict['barcode_width'] = tag.split('§')[1]
-
-            if item_dict['item_type'] in ['barcodeQR', 'barcodeMatrix', 'barcode', 'barcode39']:
-                item_dict['proportion'] = str(self.canvas_dict_images[item][3])
-                item_dict['orientation'] = str(self.canvas_dict_images[item][4])
-                item_dict['text'] = tag.split('§')[4]
-
-            # ############### Segment ID and Line Distance ########################
-            if item_dict['item_type'] == 'segment':
-                item_dict['segment_id'] = tag.split('§')[0]
-                item_dict['line_distance'] = tag.split('§')[2]
-                item_dict['char_limit'] = tag.split('§')[4]
-
-            # ############### Image Proportion ####################################
-            if item_dict['item_type'] == 'image':
-                item_dict['proportion'] = str(self.canvas_dict_images[item][3])
-                item_dict['orientation'] = str(self.canvas_dict_images[item][4])
-                item_dict['image'] = convert_image_to_blob(self.canvas_dict_images[item][2])
-
-            item_dict['file_columns'] = tag.split('§')[3] if '§' in tag else None
-
-            result.append(item_dict)
-
-        return result
+        return serialize_canvas_to_dict(self.canvas, self.canvas_dict_images)
 
     def draw_items_into_canvas(self, items):
         for item in items:
