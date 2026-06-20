@@ -74,7 +74,8 @@ ArtemiS/
         ├── constants.py        # APP_NAME, ICON, FONT, cores, dimensões, PAPER_COLOR_LIST
         ├── components/         # Table, ListBox, SpinBox, Tooltip, popups
         ├── remake_window.py    # RemakeWindow
-        └── main_app.py         # App + LoadingBarFrame (tela principal)
+        ├── main_app.py         # App + LoadingBarFrame (tela principal)
+        └── designer_window.py  # EditWindow + auxiliares do designer
 ```
 
 ### Responsabilidades por camada
@@ -88,7 +89,8 @@ ArtemiS/
 | `app/services/production_service` | Fila de WO, validações, remake | ✅ Concluído |
 | `app/services/designer_service` | Serialização canvas, import/export | ✅ Concluído |
 | `app/ui/main_app` | Tela principal de produção + progresso paralelo | ✅ Concluído (D3) |
-| `Main.py` | Bootstrap + ConfigWindow, EditWindow, login | 🔄 Monolito reduzido (~2.235 linhas) |
+| `app/ui/designer_window` | Editor de templates + janelas auxiliares | ✅ Concluído (D4) |
+| `Main.py` | Bootstrap + ConfigWindow, login, export/import | 🔄 Monolito reduzido (~780 linhas) |
 
 ### Classes principais
 
@@ -97,7 +99,8 @@ ArtemiS/
 | `App` | `app/ui/main_app.py` | Tela principal — fila de WO, Start, impressão |
 | `LoadingBarFrame` | `app/ui/main_app.py` | Progresso paralelo (até 5 impressoras) |
 | `RemakeWindow` | `app/ui/remake_window.py` | Reimpressão seletiva |
-| `EditWindow` | `Main.py` | Designer de templates |
+| `EditWindow` | `app/ui/designer_window.py` | Designer de templates |
+| `ListOfPropertiesWindow` / `Get*Window` | `app/ui/designer_window.py` | Auxiliares do designer |
 | `ConfigWindow` | `Main.py` | Administração (clientes, produtos, config, usuários) |
 | `LoginWindow` / `RegisterWindow` | `Main.py` | Auth simples (sem camada separada) |
 | `Table`, `ListBox`, `SpinBox`, `Tooltip` | `app/ui/components/` | Componentes reutilizáveis |
@@ -124,10 +127,11 @@ ArtemiS/
 8. Componentes UI em `app/ui/components/` **(D1)**.
 9. `RemakeWindow` em `app/ui/remake_window.py` **(D2)**.
 10. `App` + `LoadingBarFrame` em `app/ui/main_app.py` **(D3)**.
+11. Designer em `app/ui/designer_window.py` **(D4)**.
 
 ### Próximo passo recomendado 🎯
 
-**D4 — Migrar `EditWindow` e auxiliares para `app/ui/designer_window.py`** (ver `REFACTOR_PLAN.md`).
+**D5 — Migrar `ConfigWindow` e janelas admin para `app/ui/config_window.py`** (ver `REFACTOR_PLAN.md`).
 
 ### Explicitamente fora do escopo imediato 🚫
 
@@ -213,8 +217,8 @@ C1  designer_service              ✅
 D1  app/ui/components             ✅
 D2  app/ui/remake_window          ✅
 D3  app/ui/main_app               ✅
-D4  app/ui/designer_window        ← PRÓXIMO
-D5  app/ui/config_window
+D4  app/ui/designer_window         ✅
+D5  app/ui/config_window          ← PRÓXIMO
 D6  bootstrap main.py
 E   infraestrutura (injeção db/config, bugs)
 A3  limpar imports (opcional)
@@ -231,5 +235,5 @@ Detalhes completos, riscos e dependências: **`docs/REFACTOR_PLAN.md`**.
 | Criar `auth_controller`? | **Não** (D-003) |
 | Criar controlador só por padrão MVC? | **Não** (D-004) |
 | Mover UI agora? | **Incremental** — serviços primeiro (D-007); UI em D1–D6 |
-| O que fazer primeiro? | **D4** — `app/ui/designer_window` |
+| O que fazer primeiro? | **D5** — `app/ui/config_window` |
 | Onde colocar orquestração? | `app/services/`, não `app/controllers/` (D-004, D-005, D-006) |

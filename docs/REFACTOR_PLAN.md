@@ -4,18 +4,18 @@ Documento permanente de acompanhamento da modularização incremental do projeto
 Para contexto funcional do sistema, consulte também `PROJECT_OVERVIEW.md`.  
 Para decisões arquiteturais registradas, consulte `DECISIONS.md`.
 
-**Última atualização:** 2026-06-20 (Fases A1–C1, D1–D3 concluídas)
+**Última atualização:** 2026-06-20 (Fases A1–C1, D1–D4 concluídas)
 
 ---
 
 ## Estado Atual
 
-O ArtemiS continua sendo uma aplicação desktop monolítica em Python (CustomTkinter/Tkinter), com ponto de entrada em `Main.py` (~2.235 linhas). A refatoração seguiu a estratégia de **extração incremental + pontes de compatibilidade**, sem reescrever o monolito de uma vez.
+O ArtemiS continua sendo uma aplicação desktop monolítica em Python (CustomTkinter/Tkinter), com ponto de entrada em `Main.py` (~780 linhas). A refatoração seguiu a estratégia de **extração incremental + pontes de compatibilidade**, sem reescrever o monolito de uma vez.
 
 ### Arquitetura em camadas (estado real)
 
 ```
-Main.py                          ← bootstrap + ConfigWindow, EditWindow, login (~2.235 linhas)
+Main.py                          ← bootstrap + ConfigWindow, login, export/import (~780 linhas)
 ├── Database.py                  ← ponte → app/models/
 ├── utils.py                     ← ponte → app/utils/
 ├── pdf_utils.py                 ← ponte → app/services/pdf_service.py
@@ -32,7 +32,8 @@ Main.py                          ← bootstrap + ConfigWindow, EditWindow, login
         ├── constants.py         ← APP_NAME, ícone, fontes, cores, dimensões, PAPER_COLOR_LIST
         ├── components/          ← Table, ListBox, SpinBox, Tooltip, PopUpWindow, ConfirmWindow
         ├── remake_window.py     ← RemakeWindow
-        └── main_app.py          ← App + LoadingBarFrame (tela principal de produção)
+        ├── main_app.py          ← App + LoadingBarFrame (tela principal de produção)
+        └── designer_window.py   ← EditWindow + janelas auxiliares do designer
 ```
 
 ### Globals e bootstrap
@@ -44,8 +45,8 @@ Main.py                          ← bootstrap + ConfigWindow, EditWindow, login
 ### Acoplamento remanescente
 
 - `App` e `LoadingBarFrame` em `app/ui/main_app.py` — acessam `db`/`config` e janelas admin via `sys.modules['__main__']`.
-- `EditWindow`: canvas e interação gráfica permanecem na UI; persistência/serialização delegadas a `designer_service`.
-- Acesso direto ao banco (`db.*`) espalhado em `ConfigWindow`, `EditWindow` e janelas admin em `Main.py`.
+- `EditWindow` e auxiliares em `app/ui/designer_window.py`; `ConfigWindow` importa `EditWindow` do módulo extraído.
+- Acesso direto ao banco (`db.*`) espalhado em `ConfigWindow`, janelas admin e módulos UI via `__main__`.
 
 ---
 
@@ -112,8 +113,8 @@ Main.py                          ← bootstrap + ConfigWindow, EditWindow, login
 1. **`app/ui/components/`** ✅ — widgets reutilizáveis (`Table`, `ListBox`, `SpinBox`, `Tooltip`, popups).
 2. **`app/ui/remake_window.py`** ✅ — `RemakeWindow`
 3. **`app/ui/main_app.py`** ✅ — `App` + `LoadingBarFrame`
-4. **`app/ui/designer_window.py`** — `EditWindow` + janelas auxiliares do designer ← **PRÓXIMO (D4)**.
-5. `app/ui/config_window.py` — `ConfigWindow` + janelas admin (login/registro inclusos na UI, sem módulo auth separado).
+4. **`app/ui/designer_window.py`** ✅ — `EditWindow`, `ListOfPropertiesWindow`, `GetImageWindow`, `GetTextWindow`, `GetBarcodeWindow`, `GetSegmentWindow`
+5. **`app/ui/config_window.py`** — `ConfigWindow` + janelas admin ← **PRÓXIMO (D5)**.
 6. Bootstrap — `main.py` na raiz; atualizar `Main.spec`.
 
 ### Fase E — Infraestrutura transversal (não bloqueante)
@@ -196,7 +197,18 @@ Documentados em `PROJECT_OVERVIEW.md` — rotação de imagens no PDF, vazamento
 
 ---
 
-### D4 — Migrar `EditWindow` para `app/ui/designer_window.py` ← **PRÓXIMO PASSO**
+### ~~D4 — Migrar `EditWindow` para `app/ui/designer_window.py`~~ ✅ Concluído
+
+| Campo | Detalhe |
+|-------|---------|
+| **Objetivo** | Extrair designer de templates e janelas auxiliares (propriedades, texto, imagem, barcode, segmento). |
+| **Benefício** | ~1.446 linhas removidas de `Main.py`; imports de barcode/text utils explícitos no módulo do designer. |
+| **Risco** | Médio — canvas e serialização frágeis; testar save/load, visualizar PDF e inserção de elementos. |
+| **Dependências** | C1 ✅, D3 ✅. |
+
+---
+
+### D5 — Migrar `ConfigWindow` e admin para `app/ui/config_window.py` ← **PRÓXIMO PASSO**
 
 | Campo | Detalhe |
 |-------|---------|
@@ -217,8 +229,8 @@ C1  designer_service                              ✅
 D1  app/ui/components                             ✅
 D2  app/ui/remake_window                          ✅
 D3  app/ui/main_app                               ✅
-D4  app/ui/designer_window                       ← PRÓXIMO
-D5  app/ui/config_window
+D4  app/ui/designer_window                    ✅
+D5  app/ui/config_window                      ← PRÓXIMO
 D6  bootstrap main.py + Main.spec
 E   Infraestrutura (injeção db/config, bugs DB)
 A3  Limpar imports (opcional, a qualquer momento)

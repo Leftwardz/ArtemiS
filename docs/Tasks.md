@@ -28,7 +28,7 @@ Acompanhamento das etapas de modularização do projeto:
  (x) Separar widgets reutilizados (Table, SpinBox, ListBox, Tooltip, popups) em app/ui/components
  (x) Mover RemakeWindow para app/ui/remake_window.py
  [x] Mover App e LoadingBarFrame para app/ui/main_app.py
- [ ] Mover EditWindow e auxiliares para app/ui/designer_window.py
+ [x] Mover EditWindow e auxiliares para app/ui/designer_window.py
  [ ] Mover ConfigWindow e admin para app/ui/config_window.py
  [ ] Criar script bootstrap main.py
 

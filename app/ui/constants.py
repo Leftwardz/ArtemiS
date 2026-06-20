@@ -14,3 +14,38 @@ PAPER_COLOR_LIST = {
     'Amarelo': '#FFFF00',
     'Marfim': '#eee9b4',
 }
+
+FONT_LIST = [
+    'Arial',
+    'Trebuchet MS',
+    'Helvetica',
+    'Arial Narrow',
+    'Times New Roman',
+    'Saira Extracondensed',
+]
+
+PAPER_SIZE_TIP = """
+Segue lista de papeis:
+00 - (Aceita Qualquer Papel)
+01 - (Letter)
+02 - (Letter Small)
+03 - (Tabloid)
+04 - (Ledger)
+05 - (Legal)
+06 - (Statement)
+07 - (A5)
+08 - (A3)
+09 - (A4)
+10 - (B4)
+11 - (B5)
+12 - (Folio)
+13 - (Quarto)
+14 - (10x14 inches)
+15 - (11x17 inches)
+16 - (Note)
+17 - (Envelope #9)
+18 - (Envelope #10)
+19 - (Envelope #11)
+20 - (Envelope #12)
+21 - (Envelope #14)
+"""

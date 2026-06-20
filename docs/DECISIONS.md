@@ -225,3 +225,14 @@ Ao tomar uma nova decisão arquitetural durante a refatoração, adicionar entra
 | **Decisão** | Mover `App` e `LoadingBarFrame` para `app/ui/main_app.py`; constantes `APP_NAME`, dimensões e cores via `app/ui/constants.py`; acesso a `db`, `config` e janelas admin (`ConfigWindow`, `LoginWindow`, `RegisterWindow`) via helper `_runtime()` → `sys.modules['__main__']`. |
 | **Motivo** | Tela principal concentra orquestração de produção já delegada a serviços; extração reduz monolito sem exigir mover login/config antes. |
 | **Impacto esperado** | ~450 linhas removidas de `Main.py`; imports de `print_service` e `production_service` saem de `Main.py`. |
+
+---
+
+## D-018 — Extração do designer para `app/ui/designer_window.py` (D4)
+
+| Campo | Valor |
+|-------|-------|
+| **Data** | 2026-06-20 |
+| **Decisão** | Mover `EditWindow` e janelas auxiliares (`ListOfPropertiesWindow`, `GetImageWindow`, `GetTextWindow`, `GetBarcodeWindow`, `GetSegmentWindow`) para `app/ui/designer_window.py`; ampliar `constants.py` com `FONT_LIST` e `PAPER_SIZE_TIP`; imports explícitos de `barcode_generator`, `text_utils` e `generate_test_pdf`. |
+| **Motivo** | Maior bloco de UI restante no monolito; lógica de persistência já delegada a `designer_service` na Fase C1. |
+| **Impacto esperado** | ~1.446 linhas removidas de `Main.py`; `pdf_utils` deixa de ser importado em `Main.py`. |
