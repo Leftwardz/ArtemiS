@@ -75,7 +75,8 @@ ArtemiS/
         ├── components/         # Table, ListBox, SpinBox, Tooltip, popups
         ├── remake_window.py    # RemakeWindow
         ├── main_app.py         # App + LoadingBarFrame (tela principal)
-        └── designer_window.py  # EditWindow + auxiliares do designer
+        ├── designer_window.py  # EditWindow + auxiliares do designer
+        └── config_window.py    # ConfigWindow + login/admin
 ```
 
 ### Responsabilidades por camada
@@ -90,7 +91,8 @@ ArtemiS/
 | `app/services/designer_service` | Serialização canvas, import/export | ✅ Concluído |
 | `app/ui/main_app` | Tela principal de produção + progresso paralelo | ✅ Concluído (D3) |
 | `app/ui/designer_window` | Editor de templates + janelas auxiliares | ✅ Concluído (D4) |
-| `Main.py` | Bootstrap + ConfigWindow, login, export/import | 🔄 Monolito reduzido (~780 linhas) |
+| `app/ui/config_window` | Configurações, login, import/export | ✅ Concluído (D5) |
+| `Main.py` | Bootstrap + reexport para `__main__` | 🔄 ~35 linhas (D6 moverá para `main.py`) |
 
 ### Classes principais
 
@@ -101,8 +103,8 @@ ArtemiS/
 | `RemakeWindow` | `app/ui/remake_window.py` | Reimpressão seletiva |
 | `EditWindow` | `app/ui/designer_window.py` | Designer de templates |
 | `ListOfPropertiesWindow` / `Get*Window` | `app/ui/designer_window.py` | Auxiliares do designer |
-| `ConfigWindow` | `Main.py` | Administração (clientes, produtos, config, usuários) |
-| `LoginWindow` / `RegisterWindow` | `Main.py` | Auth simples (sem camada separada) |
+| `ConfigWindow` | `app/ui/config_window.py` | Administração |
+| `LoginWindow` / `RegisterWindow` | `app/ui/config_window.py` | Auth simples (sem camada separada) |
 | `Table`, `ListBox`, `SpinBox`, `Tooltip` | `app/ui/components/` | Componentes reutilizáveis |
 
 ### Globals importantes
@@ -128,10 +130,11 @@ ArtemiS/
 9. `RemakeWindow` em `app/ui/remake_window.py` **(D2)**.
 10. `App` + `LoadingBarFrame` em `app/ui/main_app.py` **(D3)**.
 11. Designer em `app/ui/designer_window.py` **(D4)**.
+12. Config/admin em `app/ui/config_window.py` **(D5)**.
 
 ### Próximo passo recomendado 🎯
 
-**D5 — Migrar `ConfigWindow` e janelas admin para `app/ui/config_window.py`** (ver `REFACTOR_PLAN.md`).
+**D6 — Criar `main.py` e atualizar `Main.spec`** (ver `REFACTOR_PLAN.md`).
 
 ### Explicitamente fora do escopo imediato 🚫
 
@@ -218,8 +221,8 @@ D1  app/ui/components             ✅
 D2  app/ui/remake_window          ✅
 D3  app/ui/main_app               ✅
 D4  app/ui/designer_window         ✅
-D5  app/ui/config_window          ← PRÓXIMO
-D6  bootstrap main.py
+D5  app/ui/config_window          ✅
+D6  bootstrap main.py + Main.spec ← PRÓXIMO
 E   infraestrutura (injeção db/config, bugs)
 A3  limpar imports (opcional)
 ```
@@ -235,5 +238,5 @@ Detalhes completos, riscos e dependências: **`docs/REFACTOR_PLAN.md`**.
 | Criar `auth_controller`? | **Não** (D-003) |
 | Criar controlador só por padrão MVC? | **Não** (D-004) |
 | Mover UI agora? | **Incremental** — serviços primeiro (D-007); UI em D1–D6 |
-| O que fazer primeiro? | **D5** — `app/ui/config_window` |
+| O que fazer primeiro? | **D6** — `main.py` + `Main.spec` |
 | Onde colocar orquestração? | `app/services/`, não `app/controllers/` (D-004, D-005, D-006) |

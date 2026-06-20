@@ -236,3 +236,14 @@ Ao tomar uma nova decisão arquitetural durante a refatoração, adicionar entra
 | **Decisão** | Mover `EditWindow` e janelas auxiliares (`ListOfPropertiesWindow`, `GetImageWindow`, `GetTextWindow`, `GetBarcodeWindow`, `GetSegmentWindow`) para `app/ui/designer_window.py`; ampliar `constants.py` com `FONT_LIST` e `PAPER_SIZE_TIP`; imports explícitos de `barcode_generator`, `text_utils` e `generate_test_pdf`. |
 | **Motivo** | Maior bloco de UI restante no monolito; lógica de persistência já delegada a `designer_service` na Fase C1. |
 | **Impacto esperado** | ~1.446 linhas removidas de `Main.py`; `pdf_utils` deixa de ser importado em `Main.py`. |
+
+---
+
+## D-019 — Extração de config/admin para `app/ui/config_window.py` (D5)
+
+| Campo | Valor |
+|-------|-------|
+| **Data** | 2026-06-20 |
+| **Decisão** | Mover `ConfigWindow`, `ManageGroupWindow`, `DuplicateProductWindow`, `ExportProductWindow`, `AddClientWindow`, `RegisterWindow` e `LoginWindow` para `app/ui/config_window.py`; `Main.py` mantém apenas bootstrap e reexport das classes para `sys.modules['__main__']`. |
+| **Motivo** | Concluir migração da UI; monolito eliminado exceto entry point. |
+| **Impacto esperado** | ~740 linhas removidas de `Main.py`; persistência de `config.json` e recriação de `db` via `_runtime()`. |
