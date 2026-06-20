@@ -1,4 +1,4 @@
 {
-    "database_location": "Z:\\Payment Preprod\\22 - C\u00f3digo_Solu\u00e7\u00f5es_Sist\u00eamicas\\ArtemiS Build\\database_prod.db",
-    "search_folder": "Z:\\Payment Preprod\\22 - C\u00f3digo_Solu\u00e7\u00f5es_Sist\u00eamicas\\Impress\u00e3o de AR\\AR"
+    "database_location": "database.db",
+    "search_folder": "C:\\AR"
 }

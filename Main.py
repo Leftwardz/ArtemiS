@@ -2267,7 +2267,8 @@ class EditWindow(ctk.CTkToplevel):
             self.exit()
 
     def exit(self):
-        ctk.activate_automatic_dpi_awareness()
+        
+        #ctk.activate_automatic_dpi_awareness()
         self.properties_window.destroy()
         self.destroy()
         self.master.focus_set()
