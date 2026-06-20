@@ -241,14 +241,14 @@ Documentados em `PROJECT_OVERVIEW.md` — rotação de imagens no PDF, vazamento
 
 ---
 
-### A3 — Limpar imports (opcional) ← **PRÓXIMO OPCIONAL**
+### A3 — Limpar imports (opcional)
 
 | Campo | Detalhe |
 |-------|---------|
-| **Objetivo** | Mover classes de `Main.py` para módulos em `app/ui/` na ordem: components → remake → main → designer → config; criar bootstrap `main.py`. |
-| **Benefício** | `Main.py` deixa de ser monolito; entry point claro. |
-| **Risco** | Alto se feito antes das Fases A–C (move acoplamento junto); baixo/médio se feito depois. |
-| **Dependências** | A1 ✅, A2 ✅, B1 ✅, C1 (recomendado). Atualizar `Main.spec`. |
+| **Objetivo** | Substituir wildcards restantes (`pdf_utils`, pontes legadas) por imports explícitos de `app.*`. |
+| **Benefício** | Dependências visíveis; facilita navegação. |
+| **Risco** | Baixo. |
+| **Dependências** | Nenhuma bloqueante. |
 
 ---
 
