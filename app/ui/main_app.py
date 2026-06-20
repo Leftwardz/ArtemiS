@@ -17,7 +17,7 @@ from app.services.production_service import (
     normalize_group_flag,
     resolve_work_search_path,
     validate_queue_consistency,
-    work_is_empty_file,
+    is_empty_file as work_is_empty_file,
 )
 from app.ui.components import PopUpWindow
 from app.ui.constants import (
