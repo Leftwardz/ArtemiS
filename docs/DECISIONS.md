@@ -214,3 +214,14 @@ Ao tomar uma nova decisão arquitetural durante a refatoração, adicionar entra
 | **Decisão** | Mover `RemakeWindow` para módulo dedicado; ampliar `app/ui/constants.py` com `PAPER_COLOR_LIST` e dimensões padrão. |
 | **Motivo** | Janela relativamente isolada; valida padrão de extração de telas antes de `main_app`. |
 | **Impacto esperado** | ~210 linhas removidas de `Main.py`; remake importável independentemente. |
+
+---
+
+## D-017 — Extração de `App` + `LoadingBarFrame` para `app/ui/main_app.py` (D3)
+
+| Campo | Valor |
+|-------|-------|
+| **Data** | 2026-06-20 |
+| **Decisão** | Mover `App` e `LoadingBarFrame` para `app/ui/main_app.py`; constantes `APP_NAME`, dimensões e cores via `app/ui/constants.py`; acesso a `db`, `config` e janelas admin (`ConfigWindow`, `LoginWindow`, `RegisterWindow`) via helper `_runtime()` → `sys.modules['__main__']`. |
+| **Motivo** | Tela principal concentra orquestração de produção já delegada a serviços; extração reduz monolito sem exigir mover login/config antes. |
+| **Impacto esperado** | ~450 linhas removidas de `Main.py`; imports de `print_service` e `production_service` saem de `Main.py`. |

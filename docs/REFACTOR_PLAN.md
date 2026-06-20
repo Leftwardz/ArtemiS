@@ -4,18 +4,18 @@ Documento permanente de acompanhamento da modularização incremental do projeto
 Para contexto funcional do sistema, consulte também `PROJECT_OVERVIEW.md`.  
 Para decisões arquiteturais registradas, consulte `DECISIONS.md`.
 
-**Última atualização:** 2026-06-20 (Fases A1–C1, D1 e D2 concluídas)
+**Última atualização:** 2026-06-20 (Fases A1–C1, D1–D3 concluídas)
 
 ---
 
 ## Estado Atual
 
-O ArtemiS continua sendo uma aplicação desktop monolítica em Python (CustomTkinter/Tkinter), com ponto de entrada em `Main.py` (~2.678 linhas, 22 classes). A refatoração seguiu a estratégia de **extração incremental + pontes de compatibilidade**, sem reescrever o monolito de uma vez.
+O ArtemiS continua sendo uma aplicação desktop monolítica em Python (CustomTkinter/Tkinter), com ponto de entrada em `Main.py` (~2.235 linhas). A refatoração seguiu a estratégia de **extração incremental + pontes de compatibilidade**, sem reescrever o monolito de uma vez.
 
 ### Arquitetura em camadas (estado real)
 
 ```
-Main.py                          ← UI completa + bootstrap + orquestração de produção
+Main.py                          ← bootstrap + ConfigWindow, EditWindow, login (~2.235 linhas)
 ├── Database.py                  ← ponte → app/models/
 ├── utils.py                     ← ponte → app/utils/
 ├── pdf_utils.py                 ← ponte → app/services/pdf_service.py
@@ -25,25 +25,27 @@ Main.py                          ← UI completa + bootstrap + orquestração de
     ├── services/
     │   ├── pdf_service.py       ← geração ReportLab (desacoplado da UI via callbacks)
     │   ├── print_service.py     ← pós-impressão, validação de papel, arquivamento
-    │   └── production_service.py← fila de WO, validações, payload de produção/remake
+    │   ├── production_service.py← fila de WO, validações, payload de produção/remake
     │   └── designer_service.py  ← validação, serialização canvas, import/export JSON
     ├── controllers/             ← vazio (placeholder)
     └── ui/
-        ├── constants.py         ← ícone, fontes, cores de botão
-        └── components/          ← Table, ListBox, SpinBox, Tooltip, PopUpWindow, ConfirmWindow
+        ├── constants.py         ← APP_NAME, ícone, fontes, cores, dimensões, PAPER_COLOR_LIST
+        ├── components/          ← Table, ListBox, SpinBox, Tooltip, PopUpWindow, ConfirmWindow
+        ├── remake_window.py     ← RemakeWindow
+        └── main_app.py          ← App + LoadingBarFrame (tela principal de produção)
 ```
 
 ### Globals e bootstrap
 
 - `config` e `db` são instanciados no bloco `if __name__ == "__main__"` de `Main.py`.
-- `Main.py` importa serviços de `app.services` para produção/impressão; demais imports ainda usam wildcards legados.
+- `Main.py` importa `App` de `app/ui/main_app.py`; serviços de produção/impressão ficam no módulo extraído.
 - PyInstaller (`Main.spec`) aponta para `Main.py` como entry point.
 
 ### Acoplamento remanescente
 
-- `App.create_pdf` e `LoadingBarFrame` permanecem na UI — adaptadores finos entre serviços e widgets.
+- `App` e `LoadingBarFrame` em `app/ui/main_app.py` — acessam `db`/`config` e janelas admin via `sys.modules['__main__']`.
 - `EditWindow`: canvas e interação gráfica permanecem na UI; persistência/serialização delegadas a `designer_service`.
-- Acesso direto ao banco (`db.*`) espalhado nas classes de UI (~99 referências em `Main.py`).
+- Acesso direto ao banco (`db.*`) espalhado em `ConfigWindow`, `EditWindow` e janelas admin em `Main.py`.
 
 ---
 
@@ -109,8 +111,8 @@ Main.py                          ← UI completa + bootstrap + orquestração de
 
 1. **`app/ui/components/`** ✅ — widgets reutilizáveis (`Table`, `ListBox`, `SpinBox`, `Tooltip`, popups).
 2. **`app/ui/remake_window.py`** ✅ — `RemakeWindow`
-3. **`app/ui/main_app.py`** — `App` + `LoadingBarFrame` ← **PRÓXIMO (D3)**.
-4. `app/ui/designer_window.py` — `EditWindow` + janelas auxiliares do designer.
+3. **`app/ui/main_app.py`** ✅ — `App` + `LoadingBarFrame`
+4. **`app/ui/designer_window.py`** — `EditWindow` + janelas auxiliares do designer ← **PRÓXIMO (D4)**.
 5. `app/ui/config_window.py` — `ConfigWindow` + janelas admin (login/registro inclusos na UI, sem módulo auth separado).
 6. Bootstrap — `main.py` na raiz; atualizar `Main.spec`.
 
@@ -138,11 +140,11 @@ Main.py                          ← UI completa + bootstrap + orquestração de
 
 | Responsabilidade | Onde está hoje |
 |------------------|----------------|
-| UI (widgets, estados) | `App` |
+| UI (widgets, estados) | `app/ui/main_app.py` (`App`, `LoadingBarFrame`) |
 | I/O filesystem, validação de fila | `production_service` + `App.search_work` (UI de popups) |
-| Orquestração de impressão (thread) | `App.create_pdf` (adaptador) |
+| Orquestração de impressão (thread) | `App.create_pdf` em `main_app.py` (adaptador) |
 | Pós-processamento (mover CSV para `Old/`) | `print_service.finish_print_job` |
-| Acesso direto ao banco | Espalhado em `App`, `RemakeWindow`, `ConfigWindow`, `EditWindow` |
+| Acesso direto ao banco | `main_app`, `RemakeWindow`, `ConfigWindow`, `EditWindow` via `__main__` |
 
 ### ~~`print_service.py` incompleto~~ ✅ Resolvido (A2)
 
@@ -183,18 +185,18 @@ Documentados em `PROJECT_OVERVIEW.md` — rotação de imagens no PDF, vazamento
 
 ### ~~D2 — Migrar `RemakeWindow`~~ ✅ Concluído
 
-### D3 — Migrar `App` + `LoadingBarFrame` para `app/ui/main_app.py` ← **PRÓXIMO PASSO**
+### ~~D3 — Migrar `App` + `LoadingBarFrame` para `app/ui/main_app.py`~~ ✅ Concluído
 
 | Campo | Detalhe |
 |-------|---------|
-| **Objetivo** | Extrair de `EditWindow` / import-export: validação de nome de produto, serialização canvas↔dict↔banco, import/export JSON com Base64. |
-| **Benefício** | Segundo maior bloco de lógica (~1.500 linhas de designer) preparado para migração de UI. |
-| **Risco** | Médio — serialização de canvas é frágil; testar save/load e import/export. |
-| **Dependências** | Recomendado após B1 ✅. |
+| **Objetivo** | Extrair tela principal de produção e barra de progresso paralela. |
+| **Benefício** | ~450 linhas removidas de `Main.py`; serviços de produção/impressão co-localizados com a UI que os usa. |
+| **Risco** | Médio — `open_toplevel` referencia janelas ainda em `Main.py`; resolvido com import tardio via `sys.modules['__main__']`. |
+| **Dependências** | D2 ✅. |
 
 ---
 
-### D — Migrar UI para `app/ui/`
+### D4 — Migrar `EditWindow` para `app/ui/designer_window.py` ← **PRÓXIMO PASSO**
 
 | Campo | Detalhe |
 |-------|---------|
@@ -214,8 +216,8 @@ B1  production_service                            ✅
 C1  designer_service                              ✅
 D1  app/ui/components                             ✅
 D2  app/ui/remake_window                          ✅
-D3  app/ui/main_app                               ← PRÓXIMO
-D4  app/ui/designer_window
+D3  app/ui/main_app                               ✅
+D4  app/ui/designer_window                       ← PRÓXIMO
 D5  app/ui/config_window
 D6  bootstrap main.py + Main.spec
 E   Infraestrutura (injeção db/config, bugs DB)

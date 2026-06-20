@@ -1,5 +1,6 @@
 ICON = 'img/favicon3.ico'
 FONT = 'Segoe UI'
+APP_NAME = 'ArtemiS'
 BTN_RED = '#732425'
 BTN_HOVER_RED = '#4a191a'
 DEFAULT_WIDTH = 850

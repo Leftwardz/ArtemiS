@@ -71,9 +71,10 @@ ArtemiS/
     │   └── designer_service.py   # Validação, serialização canvas, import/export
     ├── controllers/            # VAZIO — não criar controladores artificiais
     └── ui/
-        ├── constants.py        # ICON, FONT, cores de botão
-        └── components/         # Table, ListBox, SpinBox, Tooltip, popups
-    ├── remake_window.py      # RemakeWindow
+        ├── constants.py        # APP_NAME, ICON, FONT, cores, dimensões, PAPER_COLOR_LIST
+        ├── components/         # Table, ListBox, SpinBox, Tooltip, popups
+        ├── remake_window.py    # RemakeWindow
+        └── main_app.py         # App + LoadingBarFrame (tela principal)
 ```
 
 ### Responsabilidades por camada
@@ -86,19 +87,20 @@ ArtemiS/
 | `app/services/print_service` | Pós-impressão e arquivamento | ✅ Concluído |
 | `app/services/production_service` | Fila de WO, validações, remake | ✅ Concluído |
 | `app/services/designer_service` | Serialização canvas, import/export | ✅ Concluído |
-| `Main.py` | UI + bootstrap + adaptadores finos | 🔄 Monolito ativo, lógica de produção delegada |
+| `app/ui/main_app` | Tela principal de produção + progresso paralelo | ✅ Concluído (D3) |
+| `Main.py` | Bootstrap + ConfigWindow, EditWindow, login | 🔄 Monolito reduzido (~2.235 linhas) |
 
-### Classes principais em `Main.py`
+### Classes principais
 
-| Classe | Papel |
-|--------|-------|
-| `App` | Tela principal — fila de WO, Start, impressão |
-| `LoadingBarFrame` | Progresso paralelo (até 5 impressoras) |
-| `RemakeWindow` | Reimpressão seletiva |
-| `EditWindow` | Designer de templates |
-| `ConfigWindow` | Administração (clientes, produtos, config, usuários) |
-| `LoginWindow` / `RegisterWindow` | Auth simples (sem camada separada) |
-| `Table`, `ListBox`, `SpinBox`, `Tooltip` | Componentes reutilizáveis |
+| Classe | Módulo | Papel |
+|--------|--------|-------|
+| `App` | `app/ui/main_app.py` | Tela principal — fila de WO, Start, impressão |
+| `LoadingBarFrame` | `app/ui/main_app.py` | Progresso paralelo (até 5 impressoras) |
+| `RemakeWindow` | `app/ui/remake_window.py` | Reimpressão seletiva |
+| `EditWindow` | `Main.py` | Designer de templates |
+| `ConfigWindow` | `Main.py` | Administração (clientes, produtos, config, usuários) |
+| `LoginWindow` / `RegisterWindow` | `Main.py` | Auth simples (sem camada separada) |
+| `Table`, `ListBox`, `SpinBox`, `Tooltip` | `app/ui/components/` | Componentes reutilizáveis |
 
 ### Globals importantes
 
@@ -121,10 +123,11 @@ ArtemiS/
 7. `designer_service.py` — editor de layouts **(C1)**.
 8. Componentes UI em `app/ui/components/` **(D1)**.
 9. `RemakeWindow` em `app/ui/remake_window.py` **(D2)**.
+10. `App` + `LoadingBarFrame` em `app/ui/main_app.py` **(D3)**.
 
 ### Próximo passo recomendado 🎯
 
-**D3 — Migrar `App` + `LoadingBarFrame` para `app/ui/main_app.py`** (ver `REFACTOR_PLAN.md`).
+**D4 — Migrar `EditWindow` e auxiliares para `app/ui/designer_window.py`** (ver `REFACTOR_PLAN.md`).
 
 ### Explicitamente fora do escopo imediato 🚫
 
@@ -209,8 +212,8 @@ B1  production_service             ✅
 C1  designer_service              ✅
 D1  app/ui/components             ✅
 D2  app/ui/remake_window          ✅
-D3  app/ui/main_app               ← PRÓXIMO
-D4  app/ui/designer_window
+D3  app/ui/main_app               ✅
+D4  app/ui/designer_window        ← PRÓXIMO
 D5  app/ui/config_window
 D6  bootstrap main.py
 E   infraestrutura (injeção db/config, bugs)
@@ -227,6 +230,6 @@ Detalhes completos, riscos e dependências: **`docs/REFACTOR_PLAN.md`**.
 |----------|----------|
 | Criar `auth_controller`? | **Não** (D-003) |
 | Criar controlador só por padrão MVC? | **Não** (D-004) |
-| Mover UI agora? | **Não** — extrair lógica primeiro (D-007) |
-| O que fazer primeiro? | **D3** — `app/ui/main_app` |
+| Mover UI agora? | **Incremental** — serviços primeiro (D-007); UI em D1–D6 |
+| O que fazer primeiro? | **D4** — `app/ui/designer_window` |
 | Onde colocar orquestração? | `app/services/`, não `app/controllers/` (D-004, D-005, D-006) |
