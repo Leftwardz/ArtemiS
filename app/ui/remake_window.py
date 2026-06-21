@@ -1,8 +1,7 @@
 from app import runtime
 import customtkinter as ctk
 
-from app.services.print_service import get_printer_paper_error_message, validate_printer_paper
-from app.services.production_service import build_remake_file_lines
+from app.services.remake_service import prepare_remake_job
 from app.ui.components import PopUpWindow, Table
 from app.ui.constants import DEFAULT_WIDTH, FONT, PAPER_COLOR_LIST
 from app.utils.file_parser import FileUtils, get_sequence_from_str
@@ -180,24 +179,32 @@ class RemakeWindow(ctk.CTkToplevel):
             return build_remake_file_lines(self.file, self.filepath, position_list)
 
     def btn_start(self):
-        lines = [self.get_lines_to_remake()]
-        db_items = [self.db.consult_drawings_from_product(self.client, self.product)]
-        product = self.db.search_product(self.client, self.product)
+        position_list = []
+        items_to_remake = self.table.get_items()
+        for item in items_to_remake:
+            position_list.append(int(item[0]))
 
-        if self.printers_list.get() != 'Criar PDF':
-            if not validate_printer_paper(self.printers_list.get(), product.paper_size):
-                PopUpWindow(
-                    self, 'Erro',
-                    get_printer_paper_error_message(product.paper_size, wording='cadastrado')
-                )
-                return
+        result = prepare_remake_job(
+            self.db,
+            self.client,
+            self.product,
+            self.file,
+            self.filepath,
+            position_list,
+            self.printers_list.get(),
+        )
+        if not result.ok:
+            PopUpWindow(self, result.error_title, result.error_message)
+            return
 
-        db_orientation = [product.orientation]
-        if lines[0]:
-            self.master.create_pdf(lines, db_items, db_orientation, is_remake=True, printer=self.printers_list.get())
-            self.exit()
-        else:
-            PopUpWindow(self, 'Erro!', 'Lista não pode estar vazia!')
+        self.master.create_pdf(
+            result.lines,
+            result.items,
+            result.orientations,
+            is_remake=True,
+            printer=self.printers_list.get(),
+        )
+        self.exit()
 
     def btn_remove(self):
         self.table.remove_selected_items()

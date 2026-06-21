@@ -1,22 +1,16 @@
 import os
 import traceback
-from threading import Thread
 
 import customtkinter as ctk
 
 from app import runtime
+from app.services.print_job_coordinator import start_pdf_generation
 from app.services.print_service import finish_print_job, get_printer_paper_error_message, validate_printer_paper
 from app.services.production_service import (
     ensure_output_directories,
-    find_work_in_directory,
     get_drawings_and_orientations,
     get_paper_size_from_path,
-    get_product_from_file as production_get_product_from_file,
-    get_work_product_info,
     load_worklist_file_lines,
-    normalize_group_flag,
-    resolve_work_search_path,
-    validate_queue_consistency,
     is_empty_file as work_is_empty_file,
 )
 from app.ui.components import PopUpWindow
@@ -33,8 +27,8 @@ from app.ui.constants import (
 )
 from app.ui.remake_window import RemakeWindow
 from app.utils.file_parser import FileUtils
+from app.services.work_queue_service import search_work_for_queue
 from app.utils.window_geometry import calculate_center_screen
-from pdf_utils import write_text_to_pdf
 
 
 class App(ctk.CTk):
@@ -233,21 +227,17 @@ class App(ctk.CTk):
 
         on_progress, on_error, on_complete = self._build_pdf_callbacks(printer)
 
-        t = Thread(
-            target=write_text_to_pdf,
-            kwargs={
-                'items': items,
-                'files_lines': lines,
-                'orientation_list': orientations,
-                'path': folder_destination,
-                'is_remake': is_remake,
-                'printer': printer,
-                'on_progress': on_progress,
-                'on_error': on_error,
-                'on_complete': on_complete,
-            }
+        start_pdf_generation(
+            items,
+            lines,
+            orientations,
+            runtime.config['search_folder'],
+            is_remake,
+            printer,
+            on_progress,
+            on_error,
+            on_complete,
         )
-        t.start()
 
         self.refresh()
 
@@ -272,10 +262,10 @@ class App(ctk.CTk):
         return work_is_empty_file(path)
 
     def get_product_from_file(self, path):
-        return production_get_product_from_file(path)
+        from app.services.production_service import get_product_from_file
+        return get_product_from_file(path)
 
     def search_work(self, *args):
-        # If entry is empty, do nothing
         work = self.entry_work.get().upper()
         if not work:
             return
@@ -283,75 +273,71 @@ class App(ctk.CTk):
         if self.worklist.get('0.0', 'end').strip():
             self.btn_start.configure(state='normal')
 
-        # Works that's already in the list
         founded_works = self.worklist.get('0.0', 'end').split('\n')
         founded_works = [i for i in founded_works if i]
 
-        group_flag = normalize_group_flag(self.print_group_list.get())
-        path = resolve_work_search_path(runtime.config['search_folder'], group_flag, self.checkbox_remake.get())
+        skip_remake_screen = bool(
+            self.checkbox_remake_refazer and self.checkbox_remake_refazer.get()
+        )
+        result = search_work_for_queue(
+            work,
+            runtime.config['search_folder'],
+            self.print_group_list.get(),
+            self.checkbox_remake.get(),
+            skip_remake_screen,
+            founded_works,
+            self.defined_paper_size,
+            self.defined_color,
+            runtime.db,
+        )
 
-        if not os.path.exists(path):
-            PopUpWindow(self, 'Erro', f'Caminho "{path}" não existe!')
+        if result.status == 'empty':
             return
-
-        if work not in founded_works:
-            full_path = find_work_in_directory(path, work)
-
-            if full_path is None:
-                self.entry_work.delete('0', 'end')
-                PopUpWindow(self, 'Work não encontrada', f'Work "{work}" não foi encontrada.\n'
-                                                         f'Por favor selecionar o arquivo manualmente\n'
-                                                         f'Ou Contactar PreProd\n'
-                                                         f'Caminho: {runtime.config["search_folder"]}')
-                return
-
-            if self.is_empty_file(full_path):
-                PopUpWindow(self, 'Erro', 'Arquivo encontrado está vazio - Verificar')
-                self.entry_work.delete('0', 'end')
-                return
-
-            work_info = get_work_product_info(full_path, runtime.db)
-            if work_info is None:
-                client, product = production_get_product_from_file(full_path)
-                PopUpWindow(self, 'Erro',
-                            f'Cliente: "{client}" e Produto: "{product}" não existem no banco')
-                return
-
-            consistency = validate_queue_consistency(
-                work_info.paper_size,
-                work_info.color,
-                self.defined_paper_size,
-                self.defined_color,
-            )
-            if not consistency.ok:
-                self.entry_work.delete('0', 'end')
-                PopUpWindow(self, consistency.error.title, consistency.error.message)
-                return
-
-            self.defined_paper_size = consistency.defined_paper_size
-            self.defined_color = consistency.defined_color
-            if consistency.show_color:
-                self.show_color(consistency.defined_color)
-
-            if full_path not in self.works_paths:
-                self.works_paths.append(full_path)
-
-            self.entry_work.delete('0', 'end')
-
-            self.worklist.configure(state='normal')
-            self.worklist.delete('0.0', 'end')
-            founded_works.append(work)
-            self.worklist.insert('0.0', '\n'.join(founded_works))
-            self.worklist.configure(state='disabled')
-            if self.worklist.get('0.0', 'end').strip():
-                self.btn_start.configure(state='normal')
-            self.btn_start.configure(state='normal')
-            if self.checkbox_remake.get() and not self.checkbox_remake_refazer.get():
-                RemakeWindow(self, full_path, work.upper(), self.defined_color, self.printers_list.get())
-                self.withdraw()
-        else:
+        if result.status == 'duplicate':
             PopUpWindow(self, 'Erro', 'Work já está na lista')
             self.entry_work.delete('0', 'end')
+            return
+        if result.status == 'path_missing':
+            PopUpWindow(self, result.error.title, result.error.message)
+            return
+        if result.status == 'not_found':
+            self.entry_work.delete('0', 'end')
+            PopUpWindow(self, 'Work não encontrada', f'Work "{work}" não foi encontrada.\n'
+                                                     f'Por favor selecionar o arquivo manualmente\n'
+                                                     f'Ou Contactar PreProd\n'
+                                                     f'Caminho: {runtime.config["search_folder"]}')
+            return
+        if result.status == 'empty_file':
+            PopUpWindow(self, 'Erro', 'Arquivo encontrado está vazio - Verificar')
+            self.entry_work.delete('0', 'end')
+            return
+        if result.status == 'product_missing':
+            PopUpWindow(self, 'Erro', result.error.message)
+            return
+        if result.status == 'inconsistent':
+            self.entry_work.delete('0', 'end')
+            PopUpWindow(self, result.error.title, result.error.message)
+            return
+
+        self.defined_paper_size = result.defined_paper_size
+        self.defined_color = result.defined_color
+        if result.show_color:
+            self.show_color(result.defined_color)
+
+        if result.full_path not in self.works_paths:
+            self.works_paths.append(result.full_path)
+
+        self.entry_work.delete('0', 'end')
+        self.worklist.configure(state='normal')
+        self.worklist.delete('0.0', 'end')
+        founded_works.append(result.work)
+        self.worklist.insert('0.0', '\n'.join(founded_works))
+        self.worklist.configure(state='disabled')
+        self.btn_start.configure(state='normal')
+
+        if result.open_remake:
+            RemakeWindow(self, result.full_path, result.work, self.defined_color, self.printers_list.get())
+            self.withdraw()
 
     def open_or_print_pdf(self, filename='', file_to_move=[], is_remake=None, printer=None):
         try:
