@@ -14,9 +14,9 @@ from app.services.designer_service import (
     load_product_drawings,
     orientation_index_from_label,
     save_product_with_drawings,
-    serialize_canvas_to_dict,
     validate_product_name,
 )
+from app.ui.designer_canvas_adapter import serialize_canvas_to_dict
 from app.ui.components import ConfirmWindow, PopUpWindow, SpinBox, Tooltip
 from app.ui.constants import (
     BTN_HOVER_RED,
