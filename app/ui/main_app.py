@@ -26,6 +26,7 @@ from app.ui.constants import (
     PAPER_COLOR_LIST,
 )
 from app.ui.remake_window import RemakeWindow
+from app.utils.document_delivery import open_path
 from app.utils.file_parser import FileUtils
 from app.services import admin_service
 from app.services.work_queue_service import search_work_for_queue
@@ -473,4 +474,4 @@ class LoadingBarFrame(ctk.CTkFrame):
     def visualize_error(self, printer_name, path):
         self.remove_progressbar(printer_name)
 
-        os.startfile(os.path.abspath(path))
+        open_path(path)

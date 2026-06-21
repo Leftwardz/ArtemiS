@@ -6,12 +6,13 @@ from app.ui.constants import FONT
 
 
 class ListBox(ctk.CTkScrollableFrame):
-    def __init__(self, master, items, child=False, **kwargs):
+    def __init__(self, master, items, child=False, on_select=None, **kwargs):
         super().__init__(master, **kwargs)
         self.radio_list = {}
         self.radio_var = tkinter.StringVar()
         self.master = master
         self.child = child
+        self.on_select = on_select
 
         self.grid_columnconfigure(0, weight=1)
 
@@ -34,5 +35,7 @@ class ListBox(ctk.CTkScrollableFrame):
                 item.configure(font=(FONT, 14), text_color="white")
         self.radio_list[self.radio_var.get()].configure(font=(FONT, 14, "bold"), text_color="green")
 
-        if hasattr(self.master, 'refresh'):
+        if self.on_select is not None:
+            self.on_select(self.child)
+        elif hasattr(self.master, 'refresh'):
             self.master.refresh(self.child)

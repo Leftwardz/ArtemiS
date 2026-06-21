@@ -269,3 +269,16 @@ Ao tomar uma nova decisão arquitetural durante a refatoração, adicionar entra
 | **Decisão** | Criar `app/runtime.py` com `config` e `db`; bootstrap inicializa; módulos UI importam `app.runtime` em vez de `sys.modules['__main__']`; `main_app.open_toplevel` importa janelas admin diretamente. |
 | **Motivo** | Eliminar acoplamento frágil ao entry point; `main.py`/`Main.py` idênticos no Windows. |
 | **Impacto esperado** | Zero referências a `_runtime()`; troca de DB atualiza `runtime.db` explicitamente. |
+
+---
+
+## D-022 — Plano de desacoplamento E1–E6 (2026-06-20)
+
+| Fase | Entrega |
+|------|---------|
+| E1 | `designer_canvas_adapter.py`; serviço sem Tk Canvas |
+| E2 | `work_queue_service`, `remake_service`, `print_job_coordinator` |
+| E3 | `admin_service`, `settings_service`; UI sem `runtime.db` |
+| E4 | `ApplicationContext` + `runtime.init` / `set_db` |
+| E5 | `parse_client_product_from_work_lines` em `production_service` |
+| E6 | `document_delivery.open_path`; imports diretos de `pdf_service`; `ListBox.on_select` |

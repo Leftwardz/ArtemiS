@@ -1,6 +1,7 @@
 import os
 import shutil
 
+from app.utils.document_delivery import open_path
 from app.utils.printer_handler import is_papersize_a4, print_pdf_file
 
 
@@ -22,7 +23,7 @@ def finish_print_job(pdf_path, files_to_move, is_remake, printer_name, exe_index
     Opens or prints the unified PDF and archives source work files when not in remake mode.
     """
     if printer_name == 'Criar PDF':
-        os.startfile(os.path.abspath(pdf_path))
+        open_path(pdf_path)
     else:
         print_pdf_file(os.path.abspath(pdf_path), printer_name, exe_index)
 

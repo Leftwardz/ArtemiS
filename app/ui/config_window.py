@@ -63,7 +63,8 @@ class ConfigWindow(ctk.CTkToplevel):
         self.btn_add_client.grid(row=0, column=0, sticky='W')
 
         client_names = admin_service.search_clients_names()
-        self.client_list = ListBox(self, items=client_names, label_text='Clientes', width=345, height=150)
+        self.client_list = ListBox(self, items=client_names, label_text='Clientes', width=345, height=150,
+                                   on_select=lambda child: self.refresh(child))
         self.client_list.grid(row=2, column=0, columnspan=1, padx=10, pady=10)
 
         self.product_list = ListBox(self, [], child=True, width=345, height=150, label_text='Produtos')

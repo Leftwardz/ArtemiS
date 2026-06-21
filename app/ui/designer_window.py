@@ -36,7 +36,8 @@ from app.utils.barcode_generator import (
 )
 from app.utils.text_utils import break_line
 from app.utils.window_geometry import calculate_center_screen_with_monitor, get_monitor
-from pdf_utils import generate_test_pdf
+from app.services.pdf_service import generate_test_pdf
+from app.utils.document_delivery import open_path
 
 
 class EditWindow(ctk.CTkToplevel):
@@ -255,7 +256,7 @@ class EditWindow(ctk.CTkToplevel):
             orientation = self.orient_values.index(self.combobox_type.get())
 
             generate_test_pdf(self.pass_canvas_to_dict(), orientation=orientation)
-            os.startfile(os.path.abspath('temp/text.pdf'))
+            open_path('temp/text.pdf')
         except PermissionError:
             PopUpWindow(self, 'Erro', 'Erro ao abrir o PDF, por favor fechar o aplicativo de PDF\n'
                                       'Ou configure o Navegador como aplicativo padrão de PDF')
@@ -1081,7 +1082,7 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
         img = self.master.canvas_dict_images[item_id][2]
 
         img.save(path)
-        os.startfile(path)
+        open_path(path)
 
     def bring_to_front(self):
         self.master.canvas.lift(self.master.id_selected_item)

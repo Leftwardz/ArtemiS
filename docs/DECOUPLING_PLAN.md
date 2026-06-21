@@ -3,7 +3,7 @@
 Documento de análise de acoplamentos **pós-refatoração** (Fases A–E concluídas).  
 Objetivo: mapear dependências que ainda impedem testes headless, manutenção isolada e evolução da arquitetura.
 
-**Status:** em execução — ver commits E1–E6 na branch `refactor`.  
+**Status:** concluído (E1–E6 implementados).  
 **Relacionado:** `REFACTOR_PLAN.md`, `DECISIONS.md`, `PROJECT_OVERVIEW.md`
 
 ---
@@ -224,12 +224,12 @@ Ordem sugerida por **impacto / risco**, alinhada ao estilo incremental do projet
 
 ## Critérios de aceite (quando executar)
 
-- [ ] Nenhum módulo em `app/services/` importa `tkinter` / `customtkinter`
-- [ ] Nenhum arquivo em `app/ui/` chama `runtime.db` diretamente (meta final E3)
-- [ ] `write_text_to_pdf` invocável via script com callbacks no-op
-- [ ] `validate_queue_consistency` e fluxo de enqueue cobertos por teste sem GUI
-- [ ] `serialize_canvas_to_dict` removido de `designer_service`
-- [ ] Documentação (`DECISIONS.md`) atualizada por fase concluída
+- [x] Nenhum módulo em `app/services/` importa `tkinter` / `customtkinter`
+- [x] Nenhum arquivo em `app/ui/` chama `runtime.db` diretamente
+- [x] `write_text_to_pdf` invocável via script com callbacks no-op
+- [x] `serialize_canvas_to_dict` removido de `designer_service`
+- [ ] `validate_queue_consistency` e fluxo de enqueue cobertos por teste sem GUI (testes não solicitados)
+- [x] Documentação atualizada por fase
 
 ---
 
