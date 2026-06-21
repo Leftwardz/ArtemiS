@@ -10,9 +10,11 @@ from tkinter.filedialog import askdirectory, askopenfilename, asksaveasfilename
 from app import audit
 from app.services import admin_service
 from app.services.settings_service import (
+    get_audit_central_location,
     get_database_location,
     get_print_backend_label,
     get_search_folder,
+    save_audit_central_location,
     save_database_location,
     save_print_backend,
     save_search_folder,
@@ -155,6 +157,31 @@ class ConfigWindow(ctk.CTkToplevel):
         )
         self.btn_audit.grid(row=12, column=0, padx=10, pady=5, sticky='W')
 
+        ctk.CTkLabel(self.main_frame, text="Banco de Logs (central)", font=(FONT, 15, "bold")) \
+            .grid(row=13, column=0, columnspan=2, padx=10, sticky='W')
+
+        self.inpt_audit_location = ctk.CTkEntry(
+            self.main_frame, width=220,
+            placeholder_text=r'\\servidor\pasta\artemis_audit_central.db',
+        )
+        self.inpt_audit_location.grid(row=14, column=0, padx=10, sticky='W')
+        audit_location = get_audit_central_location()
+        if audit_location:
+            self.inpt_audit_location.insert(0, audit_location)
+
+        self.btn_save_audit_location = ctk.CTkButton(
+            self.main_frame, text='Salvar', width=80,
+            command=self.save_audit_location,
+        )
+        self.btn_save_audit_location.grid(row=14, column=1, sticky='W')
+
+        ctk.CTkLabel(
+            self.main_frame,
+            text='Caminho do arquivo .db central de auditoria.\nVazio = mesma pasta do Database.',
+            font=(FONT, 10),
+            text_color='gray',
+        ).grid(row=15, column=0, columnspan=2, padx=10, sticky='W')
+
         # ------------------------------- Printers ---------------------------------------------
         ctk.CTkLabel(self.main_frame, text="Impressoras", font=(FONT, 15, "bold")) \
             .grid(row=1, column=2, padx=50, sticky='W')
@@ -222,6 +249,14 @@ class ConfigWindow(ctk.CTkToplevel):
             self.update_save_button()
             self.exit()
             PopUpWindow(self.master, 'Sucesso', result.message)
+
+    def save_audit_location(self):
+        result = save_audit_central_location(self.inpt_audit_location.get())
+        if not result.ok:
+            PopUpWindow(self, 'Erro', result.error)
+            return
+        if result.message:
+            PopUpWindow(self, 'Sucesso', result.message)
 
     @staticmethod
     def _available_backend_labels():

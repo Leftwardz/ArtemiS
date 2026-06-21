@@ -1,6 +1,8 @@
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker, attributes
 import hashlib
+import os
+import stat
 
 from app.models.schema import (
     Base, Client, Product, PrintingGroup, Printer, RegisteredPrinter,
@@ -39,7 +41,16 @@ class DataBase:
         except Exception as e:
             raise(f'Erro ao conectar com o banco: {e}')
 
+    def _clear_readonly_attribute(self):
+        """Remove o atributo somente-leitura do arquivo .db (best-effort)."""
+        if os.path.isfile(self.db_location):
+            try:
+                os.chmod(self.db_location, stat.S_IWRITE | stat.S_IREAD)
+            except OSError:
+                pass
+
     def create_tables(self):
+        self._clear_readonly_attribute()
         self.connect_to_database('rw')
         Base.metadata.create_all(self.write_engine)
         self.migrate_legacy_printers()
