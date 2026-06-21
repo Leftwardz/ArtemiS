@@ -2,6 +2,8 @@ import os
 import shutil
 from threading import Thread
 
+from app import runtime
+from app.services.settings_service import get_print_backend
 from app.utils.document_delivery import open_path
 from app.utils.printer_handler import is_papersize_a4, print_pdf_file
 from app.utils.temp_pdf import remove_temp_pdf, write_temp_pdf
@@ -16,6 +18,8 @@ def _delayed_remove_temp_pdf(path: str, delay_seconds: float = 60):
 def validate_printer_paper(printer_name, paper_size):
     if printer_name == 'Criar PDF':
         return True
+    if get_print_backend() == 'ghostscript':
+        return True
     return is_papersize_a4(printer_name, paper_size)
 
 
@@ -26,10 +30,10 @@ def get_printer_paper_error_message(paper_size, wording='configurado'):
     )
 
 
-def finish_print_job(pdf_data, files_to_move, is_remake, printer_name, exe_index=None):
+def finish_print_job(pdf_data, files_to_move, is_remake, printer_name, exe_index=None, paper_size='9'):
     """
     Imprime ou abre o PDF unificado e arquiva os CSVs de origem.
-    pdf_data: bytes do PDF gerado em memória; grava temp efêmero só para PDFtoPrinter/visualizador.
+    pdf_data: bytes do PDF gerado em memória; grava temp efêmero só para impressão/visualizador.
     """
     temp_path = write_temp_pdf(pdf_data)
     defer_remove = False
@@ -38,7 +42,14 @@ def finish_print_job(pdf_data, files_to_move, is_remake, printer_name, exe_index
             open_path(temp_path)
             defer_remove = True
         else:
-            print_pdf_file(os.path.abspath(temp_path), printer_name, exe_index)
+            print_pdf_file(
+                os.path.abspath(temp_path),
+                printer_name,
+                exe_index=exe_index,
+                paper_size=paper_size,
+                backend=get_print_backend(),
+                config=runtime.context.config,
+            )
 
         for file in files_to_move:
             try:
@@ -63,9 +74,16 @@ def finish_print_job(pdf_data, files_to_move, is_remake, printer_name, exe_index
             remove_temp_pdf(temp_path)
 
 
-def print_document(pdf_path, printer_name, exe_index):
+def print_document(pdf_path, printer_name, exe_index, paper_size='9'):
     """Triggers physical printing of a unified batch PDF file."""
-    print_pdf_file(pdf_path, printer_name, exe_index)
+    print_pdf_file(
+        pdf_path,
+        printer_name,
+        exe_index=exe_index,
+        paper_size=paper_size,
+        backend=get_print_backend(),
+        config=runtime.context.config,
+    )
 
 
 def configure_printer_settings(printer_name, paper_size):

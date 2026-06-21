@@ -8,9 +8,12 @@ from tkinter.filedialog import askdirectory, askopenfilename, asksaveasfilename
 from app.services import admin_service
 from app.services.settings_service import (
     get_database_location,
+    get_print_backend_label,
     get_search_folder,
     save_database_location,
+    save_print_backend,
     save_search_folder,
+    PRINT_BACKEND_LABELS,
 )
 from app.services.designer_service import (
     build_export_payload,
@@ -161,13 +164,37 @@ class ConfigWindow(ctk.CTkToplevel):
         )
         self.btn_manage_printers.grid(row=3, column=2, padx=50, pady=5, sticky='W')
 
+        ctk.CTkLabel(self.main_frame, text="Motor de impressão", font=(FONT, 15, "bold")) \
+            .grid(row=4, column=2, padx=50, sticky='W')
+
+        backend_values = list(PRINT_BACKEND_LABELS.values())
+        self.combo_print_backend = ctk.CTkComboBox(
+            self.main_frame, width=200, values=backend_values,
+        )
+        self.combo_print_backend.grid(row=5, column=2, padx=50, sticky='W')
+        self.combo_print_backend.set(get_print_backend_label())
+
+        ctk.CTkLabel(
+            self.main_frame,
+            text='Ghostscript: papel do produto no job (sem validar preferência)',
+            font=(FONT, 10),
+            text_color='gray',
+            wraplength=280,
+        ).grid(row=6, column=2, padx=50, sticky='W')
+
+        self.btn_save_print_backend = ctk.CTkButton(
+            self.main_frame, text='Salvar motor', width=100,
+            command=self.save_print_backend,
+        )
+        self.btn_save_print_backend.grid(row=7, column=2, padx=50, pady=5, sticky='W')
+
         # ------------------------------- List or Printing Groups ---------------------------------------------
         ctk.CTkLabel(self.main_frame, text="Gerenciar Grupos de Impressão", font=(FONT, 15, "bold")) \
-            .grid(row=6, column=2, padx=50, sticky='W')
+            .grid(row=8, column=2, padx=50, sticky='W')
 
         self.btn_manage_groups = ctk.CTkButton(self.main_frame, text='Gerenciar Grupos', width=80,
                                                command=lambda: ManageGroupWindow(self, 'Gerenciar Grupos de Impressão'))
-        self.btn_manage_groups.grid(row=7, column=2, padx=50, sticky='W')
+        self.btn_manage_groups.grid(row=9, column=2, padx=50, sticky='W')
         # #################### Event Binds ##########################################
         self.inpt_db_location.bind('<KeyRelease>', self.update_save_button)
         self.inpt_search_folder.bind('<KeyRelease>', self.update_save_button)
@@ -186,6 +213,19 @@ class ConfigWindow(ctk.CTkToplevel):
             self.update_save_button()
             self.exit()
             PopUpWindow(self.master, 'Sucesso', result.message)
+
+    def save_print_backend(self):
+        label = self.combo_print_backend.get()
+        backend = next(
+            (key for key, value in PRINT_BACKEND_LABELS.items() if value == label),
+            'pdftoprinter',
+        )
+        result = save_print_backend(backend)
+        if not result.ok:
+            PopUpWindow(self, 'Erro', result.error)
+            return
+        if result.message:
+            PopUpWindow(self, 'Sucesso', result.message)
 
     def update_save_button(self, *args):
         folder = self.inpt_search_folder.get()

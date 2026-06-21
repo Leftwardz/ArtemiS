@@ -389,7 +389,10 @@ class App(ctk.CTk):
             if printer != 'Criar PDF':
                 exe_index = self.loading_frame.get_exe_index(slot)
 
-            finish_print_job(pdf_data, file_to_move, is_remake, printer, exe_index)
+            finish_print_job(
+                pdf_data, file_to_move, is_remake, printer, exe_index,
+                paper_size=self.defined_paper_size or '9',
+            )
             self.loading_frame.remove_progressbar(slot)
         except Exception:
             self.loading_frame.show_error(slot, traceback.format_exc())

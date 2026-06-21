@@ -17,6 +17,7 @@ def main():
             config = {
                 "database_location": "database.db",
                 "search_folder": "C:\\AR",
+                "print_backend": "pdftoprinter",
             }
             json.dump(config, config_file, indent=4)
         if not os.path.exists("C:\\AR"):
