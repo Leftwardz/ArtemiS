@@ -141,14 +141,29 @@ def load_worklist_file_lines(works_paths: List[str]) -> list:
     return files_lines
 
 
+def parse_client_product_from_work_lines(file_lines) -> Tuple[str, str]:
+    """Extrai cliente e produto da primeira linha de um CSV de work."""
+    if not file_lines:
+        raise ValueError('Arquivo de work sem linhas')
+
+    first_row = file_lines[0]
+    if len(first_row) < 2 or not first_row[1]:
+        raise ValueError('Formato de linha inválido no CSV')
+
+    header_cell = first_row[1][0]
+    if '-' not in header_cell:
+        raise ValueError(f'Identificador cliente-produto inválido: {header_cell!r}')
+
+    client, product = header_cell.split('-', 1)
+    return client.strip(), product.strip()
+
+
 def get_drawings_and_orientations(files_lines, db):
     all_items = []
     orientations = []
 
     for file in files_lines:
-        canvas_id = file[0][1][0].split('-')
-        client = canvas_id[0].strip()
-        product = canvas_id[1].strip()
+        client, product = parse_client_product_from_work_lines(file)
 
         items = db.consult_drawings_from_product(client, product)
         all_items.append(items)
