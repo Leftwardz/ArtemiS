@@ -63,11 +63,16 @@ class ConfigWindow(ctk.CTkToplevel):
         self.btn_add_client.grid(row=0, column=0, sticky='W')
 
         client_names = admin_service.search_clients_names()
-        self.client_list = ListBox(self, items=client_names, label_text='Clientes', width=345, height=150,
-                                   on_select=lambda child: self.refresh(child))
+        self.client_list = ListBox(
+            self, items=client_names, label_text='Clientes', width=345, height=150,
+            on_select=lambda _child: self.refresh(),
+        )
         self.client_list.grid(row=2, column=0, columnspan=1, padx=10, pady=10)
 
-        self.product_list = ListBox(self, [], child=True, width=345, height=150, label_text='Produtos')
+        self.product_list = ListBox(
+            self, [], child=True, width=345, height=150, label_text='Produtos',
+            on_select=lambda _child: self.refresh(True),
+        )
         self.product_list.grid(row=2, column=1, columnspan=1, padx=10, pady=10)
 
         # ############################# Config Frame ##################################################
@@ -234,13 +239,19 @@ class ConfigWindow(ctk.CTkToplevel):
 
     def update_product_list(self, products):
         self.product_list.destroy()
-        self.product_list = ListBox(self, products, child=True, width=345, height=150, label_text='Produtos')
+        self.product_list = ListBox(
+            self, products, child=True, width=345, height=150, label_text='Produtos',
+            on_select=lambda _child: self.refresh(True),
+        )
         self.product_list.grid(row=2, column=1, columnspan=1, padx=10, pady=10)
 
     def update_client_list(self):
         clients = admin_service.search_clients_names()
         self.client_list.destroy()
-        self.client_list = ListBox(self, clients, width=345, height=150, label_text='Clientes')
+        self.client_list = ListBox(
+            self, clients, width=345, height=150, label_text='Clientes',
+            on_select=lambda _child: self.refresh(),
+        )
         self.client_list.grid(row=2, column=0, columnspan=1, padx=10, pady=10)
 
     def show_edit_button(self):
