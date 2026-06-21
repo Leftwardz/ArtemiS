@@ -22,8 +22,7 @@ def main():
         if not os.path.exists("C:\\AR"):
             os.mkdir("C:\\AR")
 
-    runtime.config = config
-    runtime.db = DataBase(config["database_location"])
+    runtime.init(config, DataBase(config["database_location"]))
     runtime.db.create_tables()
 
     app = App()
