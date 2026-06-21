@@ -167,7 +167,7 @@ class ConfigWindow(ctk.CTkToplevel):
         ctk.CTkLabel(self.main_frame, text="Motor de impressão", font=(FONT, 15, "bold")) \
             .grid(row=4, column=2, padx=50, sticky='W')
 
-        backend_values = list(PRINT_BACKEND_LABELS.values())
+        backend_values = self._available_backend_labels()
         self.combo_print_backend = ctk.CTkComboBox(
             self.main_frame, width=200, values=backend_values,
         )
@@ -213,6 +213,21 @@ class ConfigWindow(ctk.CTkToplevel):
             self.update_save_button()
             self.exit()
             PopUpWindow(self.master, 'Sucesso', result.message)
+
+    @staticmethod
+    def _available_backend_labels():
+        """Rótulos dos backends disponíveis na máquina (sempre inclui o atual)."""
+        try:
+            from app.utils.printing.registry import list_backends
+            labels = [label for _name, label, available, _exp in list_backends() if available]
+        except Exception:
+            labels = []
+        current = get_print_backend_label()
+        if not labels:
+            labels = list(PRINT_BACKEND_LABELS.values())
+        if current not in labels:
+            labels.insert(0, current)
+        return labels
 
     def save_print_backend(self):
         label = self.combo_print_backend.get()

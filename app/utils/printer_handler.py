@@ -1,21 +1,11 @@
 import os
-import subprocess
 
 import pywintypes
 import psutil
 import win32print
 
 from app.utils.file_parser import FileUtils
-from app.utils.ghostscript_paths import ghostscript_env, resolve_ghostscript_exe
-from app.utils.paper_size_map import paper_size_to_ghostscript
-
-PDFTOPRINTER_EXECUTABLES = (
-    'PDFtoPrinter.exe',
-    'PDFtoPrinter_2.exe',
-    'PDFtoPrinter_3.exe',
-    'PDFtoPrinter_4.exe',
-    'PDFtoPrinter_5.exe',
-)
+from app.utils.printing.backends.pdftoprinter import PDFTOPRINTER_EXECUTABLES  # noqa: F401  (compat)
 
 
 def enumerate_installed_printers():
@@ -85,48 +75,40 @@ def is_papersize_a4(printer_name, paper_size=9):
         return False
 
 
-def _print_via_pdftoprinter(pdf_path, printer_name, exe_index):
-    if exe_index is None:
-        exe_index = 0
-    executable = PDFTOPRINTER_EXECUTABLES[exe_index]
-    command = [executable, 'focus="Impressão de AR"', printer_name, pdf_path]
-    try:
-        subprocess.call(command, shell=True)
-    except subprocess.CalledProcessError as exc:
-        raise Exception('Erro ao enviar arquivo para a impressora') from exc
+def print_pdf_file(
+    pdf_path,
+    printer_name,
+    exe_index=0,
+    paper_size='9',
+    backend='pdftoprinter',
+    config=None,
+    copies=1,
+    duplex='simplex',
+    orientation='portrait',
+    tray=None,
+):
+    """Despacha a impressão para o backend escolhido (camada app.utils.printing).
 
+    Assinatura mantida por compatibilidade; novos parâmetros (copies, duplex,
+    orientation, tray) têm defaults neutros que preservam o comportamento atual.
+    Levanta Exception em caso de falha (preserva o tratamento de erro da UI).
+    """
+    from app.utils.printing import PrintJob, dispatch
 
-def _print_via_ghostscript(pdf_path, printer_name, paper_size, config=None):
-    gs_exe = resolve_ghostscript_exe(config)
-    env = ghostscript_env(config)
-    output = f'%printer%{printer_name}'
-
-    command = [
-        gs_exe,
-        '-dNOPAUSE', '-dBATCH', '-dQUIET',
-        '-sDEVICE=mswinpr2',
-        f'-sOutputFile={output}',
-    ]
-    gs_paper = paper_size_to_ghostscript(paper_size)
-    if gs_paper:
-        command.append(f'-sPAPERSIZE={gs_paper}')
-    command.append(pdf_path)
-
-    result = subprocess.run(
-        command,
-        env=env,
-        capture_output=True,
-        text=True,
-        cwd=os.path.dirname(gs_exe) if os.path.isfile(gs_exe) else None,
+    job = PrintJob(
+        pdf_path=os.path.abspath(pdf_path),
+        printer=printer_name,
+        copies=copies,
+        duplex=duplex,
+        orientation=orientation,
+        paper_size=str(paper_size),
+        tray=tray,
+        slot_index=exe_index,
+        config=config,
     )
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or '').strip()
-        raise Exception(f'Erro ao imprimir via Ghostscript.\n{detail}')
-
-
-def print_pdf_file(pdf_path, printer_name, exe_index=0, paper_size='9', backend='pdftoprinter', config=None):
-    pdf_path = os.path.abspath(pdf_path)
-    if backend == 'ghostscript':
-        _print_via_ghostscript(pdf_path, printer_name, paper_size, config)
-    else:
-        _print_via_pdftoprinter(pdf_path, printer_name, exe_index)
+    result = dispatch(job, backend)
+    if not result.ok:
+        message = result.error or 'Falha na impressão.'
+        if result.detail:
+            message = f'{message}\n{result.detail}'
+        raise Exception(message)

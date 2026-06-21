@@ -296,6 +296,17 @@ Ao tomar uma nova decisão arquitetural durante a refatoração, adicionar entra
 
 ---
 
+## D-026 — Camada de impressão desacoplada com múltiplos backends
+
+| Campo | Valor |
+|-------|-------|
+| **Data** | 2026-06-21 |
+| **Decisão** | Introduzir abstração única de impressão em `app/utils/printing/` (`PrintJob`, `PrintResult`, `PrintBackend`, `registry.dispatch`). Manter PDFtoPrinter e Ghostscript com comportamento idêntico e adicionar backends experimentais: Win32 DEVMODE por job, Win32 Print API avançada e XPS Print API. `printer_handler.print_pdf_file` vira wrapper de compatibilidade. |
+| **Motivo** | Comparar técnicas de impressão (duplex/cópias/bandeja/papel por job, sem admin nem alteração permanente da impressora) mantendo o fluxo de produção atual intacto. |
+| **Impacto esperado** | Seleção de motor em `config.json` → `print_backend` (combo só lista backends disponíveis). Log dedicado em `logs/print.log`. Backends Win32 dependem do Ghostscript apenas para rasterizar PDF. Sem fallback automático: erro do backend selecionado é exibido como hoje. Relatório completo em `docs/PRINTING_BACKENDS.md`. |
+
+---
+
 ## D-025 — Auth Windows com SQLite compartilhado em rede
 
 | Campo | Valor |

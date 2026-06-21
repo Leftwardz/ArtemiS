@@ -18,7 +18,10 @@ def _delayed_remove_temp_pdf(path: str, delay_seconds: float = 60):
 def validate_printer_paper(printer_name, paper_size):
     if printer_name == 'Criar PDF':
         return True
-    if get_print_backend() == 'ghostscript':
+    # Apenas o PDFtoPrinter depende da preferência de papel já configurada na
+    # impressora. Os demais backends (Ghostscript, Win32 DEVMODE, Win32 avançada
+    # e XPS) definem o papel por JOB, então não precisam dessa validação.
+    if get_print_backend() != 'pdftoprinter':
         return True
     return is_papersize_a4(printer_name, paper_size)
 

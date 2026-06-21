@@ -6,12 +6,20 @@ from dataclasses import dataclass
 
 from app import runtime
 from app.models.database_manager import DataBase
-from app.utils.ghostscript_paths import ghostscript_is_available
 
-PRINT_BACKENDS = ('pdftoprinter', 'ghostscript')
+PRINT_BACKENDS = (
+    'pdftoprinter',
+    'ghostscript',
+    'win32_devmode',
+    'win32_advanced',
+    'xps',
+)
 PRINT_BACKEND_LABELS = {
     'pdftoprinter': 'PDFtoPrinter',
     'ghostscript': 'Ghostscript',
+    'win32_devmode': 'Win32 DEVMODE (experimental)',
+    'win32_advanced': 'Win32 Print API avançada (experimental)',
+    'xps': 'XPS Print API (experimental)',
 }
 
 
@@ -45,11 +53,17 @@ def save_print_backend(backend: str) -> SettingsSaveResult:
     if backend not in PRINT_BACKENDS:
         return SettingsSaveResult(ok=False, error='Motor de impressão inválido.')
 
-    if backend == 'ghostscript' and not ghostscript_is_available():
+    from app.utils.printing.registry import get_backend
+    backend_obj = get_backend(backend)
+    if backend_obj is None or not backend_obj.is_available():
+        hint = ''
+        if backend in ('ghostscript', 'win32_devmode', 'win32_advanced', 'xps'):
+            hint = ('\nEste motor depende do Ghostscript empacotado.\n'
+                    'Rode scripts/fetch_ghostscript.ps1 ou inclua no build PyInstaller.')
+        label = PRINT_BACKEND_LABELS.get(backend, backend)
         return SettingsSaveResult(
             ok=False,
-            error='Ghostscript não encontrado.\n'
-                  'Rode scripts/fetch_ghostscript.ps1 ou inclua no build PyInstaller.',
+            error=f'Motor de impressão "{label}" não está disponível nesta máquina.{hint}',
         )
 
     if runtime.context.config.get('print_backend') == backend:
