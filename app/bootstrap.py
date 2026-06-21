@@ -1,8 +1,8 @@
 import json
 import os
 
-from Database import DataBase
 from app import runtime
+from app.models.database_manager import DataBase
 from app.ui.main_app import App
 
 
@@ -23,7 +23,7 @@ def main():
             os.mkdir("C:\\AR")
 
     runtime.init(config, DataBase(config["database_location"]))
-    runtime.db.create_tables()
+    runtime.context.db.create_tables()
 
     app = App()
     app.mainloop()

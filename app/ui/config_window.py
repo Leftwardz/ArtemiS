@@ -4,7 +4,6 @@ import traceback
 import customtkinter as ctk
 from tkinter.filedialog import askdirectory, askopenfilename, asksaveasfilename
 
-from app import runtime
 from app.services import admin_service
 from app.services.settings_service import (
     get_database_location,
@@ -62,7 +61,7 @@ class ConfigWindow(ctk.CTkToplevel):
         self.btn_add_client = ctk.CTkButton(self.frame, text='Adicionar Cliente', command=self.create_client)
         self.btn_add_client.grid(row=0, column=0, sticky='W')
 
-        client_names = admin_service.search_clients_names()
+        client_names = admin_service.list_client_names()
         self.client_list = ListBox(
             self, items=client_names, label_text='Clientes', width=345, height=150,
             on_select=lambda _child: self.refresh(),
@@ -96,8 +95,9 @@ class ConfigWindow(ctk.CTkToplevel):
 
         self.inpt_search_folder = ctk.CTkEntry(self.main_frame, width=220)
         self.inpt_search_folder.grid(row=5, column=0, padx=10, sticky='W')
-        if runtime.config.get('search_folder'):
-            self.inpt_search_folder.insert(0, runtime.config.get('search_folder'))
+        search_folder = get_search_folder()
+        if search_folder:
+            self.inpt_search_folder.insert(0, search_folder)
 
         self.btn_save_folder = ctk.CTkButton(self.main_frame, text='Salvar', width=80,
                                              state='disabled', command=self.save_folder)
@@ -109,8 +109,9 @@ class ConfigWindow(ctk.CTkToplevel):
 
         self.inpt_db_location = ctk.CTkEntry(self.main_frame, width=220)
         self.inpt_db_location.grid(row=7, column=0, padx=10, sticky='W')
-        if runtime.config.get('database_location'):
-            self.inpt_db_location.insert(0, runtime.config.get('database_location'))
+        database_location = get_database_location()
+        if database_location:
+            self.inpt_db_location.insert(0, database_location)
 
         self.btn_save_db = ctk.CTkButton(self.main_frame, text='Salvar', width=80,
                                          state='disabled', command=self.save_database_location)
@@ -124,7 +125,7 @@ class ConfigWindow(ctk.CTkToplevel):
                                           command=self.register_user)
         self.btn_register.grid(row=9, column=0, padx=10, sticky='W')
 
-        users = admin_service.users_list()
+        users = admin_service.list_users()
         self.combo_userlist = ctk.CTkComboBox(self.main_frame, values=users, width=200)
         self.combo_userlist.grid(row=10, column=0, pady=10, padx=10, sticky='W')
 
@@ -138,7 +139,7 @@ class ConfigWindow(ctk.CTkToplevel):
         ctk.CTkLabel(self.main_frame, text="Lista de impressoras", font=(FONT, 15, "bold")) \
             .grid(row=1, column=2, padx=50, sticky='W')
 
-        printers = admin_service.search_printers()
+        printers = admin_service.list_printers()
         printers = '\n'.join(printers)
         self.inpt_printers = ctk.CTkTextbox(self.main_frame, width=330, height=130)
         self.inpt_printers.grid(row=2, column=2, rowspan=3, padx=50, sticky='W')
@@ -164,7 +165,7 @@ class ConfigWindow(ctk.CTkToplevel):
         self.protocol("WM_DELETE_WINDOW", self.exit)
 
     def update_userlist(self):
-        self.combo_userlist.configure(values=admin_service.users_list())
+        self.combo_userlist.configure(values=admin_service.list_users())
 
     def register_user(self):
         RegisterWindow(self, func=self.update_userlist, first_login=False)
@@ -191,9 +192,9 @@ class ConfigWindow(ctk.CTkToplevel):
 
     def update_save_button(self, *args):
         folder = self.inpt_search_folder.get()
-        config_folder = runtime.config.get('search_folder')
+        config_folder = get_search_folder()
 
-        config_db_location = runtime.config.get('database_location')
+        config_db_location = get_database_location()
         database_folder = self.inpt_db_location.get()
 
         if config_db_location != database_folder:
@@ -246,7 +247,7 @@ class ConfigWindow(ctk.CTkToplevel):
         self.product_list.grid(row=2, column=1, columnspan=1, padx=10, pady=10)
 
     def update_client_list(self):
-        clients = admin_service.search_clients_names()
+        clients = admin_service.list_client_names()
         self.client_list.destroy()
         self.client_list = ListBox(
             self, clients, width=345, height=150, label_text='Clientes',
@@ -293,7 +294,7 @@ class ConfigWindow(ctk.CTkToplevel):
             self.btn_add_product.grid(row=1, column=1, padx=10, sticky='W')
 
             client = self.client_list.radio_var.get()
-            self.update_product_list(admin_service.search_products(client))
+            self.update_product_list(admin_service.list_products(client))
             if self.btn_edit:
                 self.btn_edit.destroy()
                 self.btn_duplicate.destroy()
@@ -305,7 +306,7 @@ class ConfigWindow(ctk.CTkToplevel):
     def delete_user(self):
         try:
             admin_service.delete_user(self.combo_userlist.get())
-            self.combo_userlist.configure(values=admin_service.users_list())
+            self.combo_userlist.configure(values=admin_service.list_users())
             self.combo_userlist.set('')
         except Exception as e:
             PopUpWindow(self, 'Erro', f'Erro ao excluir o usuário\n{e}')
@@ -340,8 +341,8 @@ class ConfigWindow(ctk.CTkToplevel):
         orientation = product_file['orientation']
         items = product_file['items']
 
-        if admin_service.search_clients_names(client_name):
-            if product_name in admin_service.search_products(client_name):
+        if admin_service.list_client_names(client_name):
+            if product_name in admin_service.list_products(client_name):
                 def replace_drawing():
                     try:
                         replace_imported_drawings(client_name, product_name, items, admin_service.get_db())
@@ -421,7 +422,7 @@ class ManageGroupWindow(ctk.CTkToplevel):
 
     def add_group(self, *args):
         name = self.entry_name.get().upper()
-        if name in admin_service.search_print_group():
+        if name in admin_service.list_print_groups():
             PopUpWindow(self, 'Erro', f'Grupo {name} Já existe na Base')
             return
 
@@ -444,7 +445,7 @@ class ManageGroupWindow(ctk.CTkToplevel):
 
     def refresh_table(self):
         self.table.remove_all()
-        for i in admin_service.search_print_group():
+        for i in admin_service.list_print_groups():
             self.table.add_item([i])
 
 
@@ -469,7 +470,7 @@ class DuplicateProductWindow(ctk.CTkToplevel):
         ctk.CTkLabel(self, text=title, font=('Arial', 18, 'bold')).grid(row=0, column=0, columnspan=2, pady=5, padx=10)
 
         ctk.CTkLabel(self, text='Cliente:').grid(row=3, column=0, pady=5, padx=10)
-        self.entry_clientname = ctk.CTkComboBox(self, width=140, values=admin_service.search_clients_names())
+        self.entry_clientname = ctk.CTkComboBox(self, width=140, values=admin_service.list_client_names())
         self.entry_clientname.grid(row=3, column=1, sticky='W')
 
         ctk.CTkLabel(self, text='Nome do Produto').grid(row=4, column=0, columnspan=2, pady=5, padx=10)
@@ -526,7 +527,7 @@ class ExportProductWindow(ctk.CTkToplevel):
             grid(row=0, column=0, columnspan=2, pady=5, padx=10)
 
         ctk.CTkLabel(self, text='Cliente:').grid(row=3, column=0, pady=5, padx=10)
-        self.entry_clientname = ctk.CTkComboBox(self, width=140, values=admin_service.search_clients_names(),
+        self.entry_clientname = ctk.CTkComboBox(self, width=140, values=admin_service.list_client_names(),
                                                 command=self.refresh_combobox)
         self.entry_clientname.grid(row=3, column=1, sticky='W')
         self.entry_clientname.set('')
@@ -544,7 +545,7 @@ class ExportProductWindow(ctk.CTkToplevel):
         self.btn_cancelar.grid(row=6, column=1, pady=10, padx=20)
 
     def refresh_combobox(self, *args):
-        products = admin_service.search_products(self.entry_clientname.get())
+        products = admin_service.list_products(self.entry_clientname.get())
         self.entry_productname.set('')
         self.entry_productname.configure(state='normal', values=products)
         self.btn_ok.configure(state='disabled')
@@ -601,7 +602,7 @@ class AddClientWindow(ctk.CTkToplevel):
         self.btn_cancelar.grid(row=6, column=1, pady=10, padx=20)
 
     def add_client(self):
-        if self.entry_name.get() in admin_service.search_clients_names():
+        if self.entry_name.get() in admin_service.list_client_names():
             PopUpWindow(self, 'Nome Duplicado', 'Nome Duplicado')
         else:
             admin_service.insert_client(self.entry_name.get())

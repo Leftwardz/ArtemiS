@@ -3,7 +3,6 @@ import traceback
 
 import customtkinter as ctk
 
-from app import runtime
 from app.services.print_job_coordinator import start_pdf_generation
 from app.services.print_service import finish_print_job, get_printer_paper_error_message, validate_printer_paper
 from app.services.production_service import (
@@ -29,6 +28,7 @@ from app.ui.remake_window import RemakeWindow
 from app.utils.document_delivery import open_path
 from app.utils.file_parser import FileUtils
 from app.services import admin_service
+from app.services.settings_service import get_search_folder
 from app.services.work_queue_service import search_work_for_queue
 from app.utils.window_geometry import calculate_center_screen
 
@@ -219,7 +219,7 @@ class App(ctk.CTk):
         # this function must be separeted from btn star, due to the remake window
 
         # setting PDF folder
-        folder_destination = os.path.join(runtime.config['search_folder'], 'PDFs')
+        folder_destination = os.path.join(get_search_folder(), 'PDFs')
 
         try:
             self.loading_frame.add_progressbar(printer)
@@ -233,7 +233,7 @@ class App(ctk.CTk):
             items,
             lines,
             orientations,
-            runtime.config['search_folder'],
+            get_search_folder(),
             is_remake,
             printer,
             on_progress,
@@ -283,7 +283,7 @@ class App(ctk.CTk):
         )
         result = search_work_for_queue(
             work,
-            runtime.config['search_folder'],
+            get_search_folder(),
             self.print_group_list.get(),
             self.checkbox_remake.get(),
             skip_remake_screen,
@@ -307,7 +307,7 @@ class App(ctk.CTk):
             PopUpWindow(self, 'Work não encontrada', f'Work "{work}" não foi encontrada.\n'
                                                      f'Por favor selecionar o arquivo manualmente\n'
                                                      f'Ou Contactar PreProd\n'
-                                                     f'Caminho: {runtime.config["search_folder"]}')
+                                                     f'Caminho: {get_search_folder()}')
             return
         if result.status == 'empty_file':
             PopUpWindow(self, 'Erro', 'Arquivo encontrado está vazio - Verificar')
@@ -375,7 +375,7 @@ class App(ctk.CTk):
 
     @staticmethod
     def verify_directorys():
-        ensure_output_directories(runtime.config['search_folder'])
+        ensure_output_directories(get_search_folder())
 
     def refresh(self, *args):
         self.btn_start.configure(state='disabled')
