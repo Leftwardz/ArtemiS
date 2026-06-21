@@ -28,17 +28,15 @@ class Table(ttk.Treeview):
         self.configure(xscrollcommand=scroll_x.set)
 
     def id_exists(self, item_id):
-        for item in self.get_children():
-            values = self.item(item, "values")
-            if values[0] == str(item_id):
-                return True
+        return self.exists(str(item_id))
 
-        return False
-
-    def add_item(self, values):
+    def add_item(self, values, item_id=None):
         values = tuple(values)
-        if not self.id_exists(values[0]):
-            self.insert("", "end", values=values)
+        uid = str(item_id if item_id is not None else values[0])
+        if self.id_exists(uid):
+            return False
+        self.insert("", "end", iid=uid, values=values)
+        return True
 
     def remove_selected_items(self):
         for item in self.selection():

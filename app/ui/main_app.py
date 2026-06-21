@@ -9,10 +9,11 @@ from app.services.production_service import (
     ensure_output_directories,
     get_drawings_and_orientations,
     get_paper_size_from_path,
+    get_work_product_info,
     load_worklist_file_lines,
     is_empty_file as work_is_empty_file,
 )
-from app.ui.components import PopUpWindow
+from app.ui.components import PopUpWindow, WORK_QUEUE_WIDTH, WorkQueueList
 from app.ui.config_window import ConfigWindow, LoginWindow, RegisterWindow
 from app.ui.constants import (
     APP_NAME,
@@ -22,6 +23,7 @@ from app.ui.constants import (
     DEFAULT_WIDTH,
     FONT,
     ICON,
+    LOADING_SIDEBAR_WIDTH,
     PAPER_COLOR_LIST,
 )
 from app.ui.remake_window import RemakeWindow
@@ -47,16 +49,14 @@ class App(ctk.CTk):
         self.minsize(DEFAULT_WIDTH, DEFAULT_HEIGHT)
         self.maxsize(DEFAULT_WIDTH, DEFAULT_HEIGHT)
 
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=1)
-        self.grid_columnconfigure(2, weight=1)
-        self.grid_columnconfigure(3, weight=1)
+        for col in range(4):
+            self.grid_columnconfigure(col, weight=1)
+        self.grid_rowconfigure(7, weight=1)
 
         self.config_window = None
         self.file_lines = None
         self.progressbar = None
         self.lbl_progressbar = None
-        self.works_paths = []
 
         # ################## Title ##############################
         self.lbl_title = ctk.CTkLabel(self, text=APP_NAME, font=(FONT, 45, "bold"), fg_color="transparent")
@@ -89,8 +89,13 @@ class App(ctk.CTk):
         self.print_group_list.grid(row=1, column=1, padx=15, pady=5)
 
         # ######################## Remake Checkbox ##############################
-        self.checkbox_remake = ctk.CTkCheckBox(self, text='Habilitar Remake', command=self.remake_checkbox_event)
-        self.checkbox_remake.grid(row=2, column=0, columnspan=4, pady=10)
+        self.remake_frame = ctk.CTkFrame(self, fg_color='transparent')
+        self.remake_frame.grid(row=2, column=0, columnspan=4, pady=10)
+
+        self.checkbox_remake = ctk.CTkCheckBox(
+            self.remake_frame, text='Habilitar Remake', command=self.remake_checkbox_event,
+        )
+        self.checkbox_remake.pack(side='left', padx=8)
 
         self.checkbox_remake_refazer = None
 
@@ -98,18 +103,27 @@ class App(ctk.CTk):
         frame_works = ctk.CTkFrame(self, fg_color="transparent")
         frame_works.grid(row=3, column=0, columnspan=4, pady=10)
 
-        ctk.CTkLabel(frame_works, text="Escaneie as Workorders: ").grid(row=0, sticky='w')
+        ctk.CTkLabel(frame_works, text="Escaneie as Workorders: ").grid(row=0, column=0, sticky='w')
 
-        self.entry_work = ctk.CTkEntry(frame_works, border_width=2, corner_radius=0, width=370)
-        self.entry_work.grid(row=1)
+        self.entry_work = ctk.CTkEntry(
+            frame_works,
+            border_width=2,
+            corner_radius=0,
+            width=WORK_QUEUE_WIDTH,
+        )
+        self.entry_work.grid(row=1, column=0, sticky='w')
         self.entry_work.bind('<Return>', self.search_work)
 
-        self.worklist = ctk.CTkTextbox(frame_works, corner_radius=0, height=122, width=370, state='disabled')
-        self.worklist.grid(row=2, column=0, columnspan=4)
-        self.worklist.bind('<FocusIn>', self.refresh)
+        self.work_queue = WorkQueueList(frame_works, width=WORK_QUEUE_WIDTH, height=122)
+        self.work_queue.grid(row=2, column=0, sticky='nw')
 
-        ctk.CTkButton(frame_works, text="Limpar", width=50, height=20, corner_radius=0,
-                      command=self.clean_worklist).grid(row=2, sticky='ES')
+        worklist_actions = ctk.CTkFrame(frame_works, fg_color='transparent')
+        worklist_actions.grid(row=3, column=0, sticky='w', pady=(4, 0))
+
+        ctk.CTkButton(worklist_actions, text="Remover", width=70, height=24, corner_radius=0,
+                      command=self.remove_selected_works).pack(side='left', padx=(0, 6))
+        ctk.CTkButton(worklist_actions, text="Limpar", width=70, height=24, corner_radius=0,
+                      command=self.clean_worklist).pack(side='left')
 
         # ######################## Paper Color ##############################
         self.frame_papercolor = ctk.CTkFrame(self, height=60, fg_color='transparent', corner_radius=0)
@@ -125,26 +139,31 @@ class App(ctk.CTk):
         # ######################## Label Impressão ################################
         self.printing_label = None
         # ######################## Botão Start ################################
-        self.grid_rowconfigure(7, weight=1)
         self.btn_start = ctk.CTkButton(self, text="Start", font=(FONT, 14, "bold"), state='disabled',
                                        command=self.btn_start)
         self.btn_start.grid(row=7, column=0, columnspan=4, padx=10, pady=10, sticky="s")
 
-        ctk.CTkLabel(self, text='Developed By Nathan - V1.0.9', text_color='grey').grid(row=7, column=0,
-                                                                                        columnspan=4, padx=5,
-                                                                                        sticky='SE')
+        ctk.CTkLabel(self, text='Developed By Nathan - V1.0.9', text_color='grey').grid(
+            row=7, column=0, columnspan=4, padx=5, sticky='SE',
+        )
 
-        # ######################## Frame Loading ################################
-        self.loading_frame = LoadingBarFrame(self, fg_color='transparent')
-        self.loading_frame.grid(row=0, column=0, rowspan=8, padx=10, pady=5, sticky='NSW')
+        # Barra de progresso à esquerda — não ocupa coluna do grid (evita deslocar o centro visual)
+        self.loading_frame = LoadingBarFrame(
+            self,
+            fg_color='transparent',
+            width=LOADING_SIDEBAR_WIDTH,
+            height=DEFAULT_HEIGHT,
+        )
+        self.loading_frame.place(x=0, y=0, relheight=1.0, anchor='nw')
 
         self.verify_directorys()
 
     def remake_checkbox_event(self, event=None):
         if self.checkbox_remake.get():
-            self.checkbox_remake_refazer = ctk.CTkCheckBox(self, text='Não Utilizar Tela Secundária',
-                                                           command=self.clean_worklist)
-            self.checkbox_remake_refazer.grid(row=2, column=2, columnspan=2, pady=10)
+            self.checkbox_remake_refazer = ctk.CTkCheckBox(
+                self.remake_frame, text='Não Utilizar Tela Secundária', command=self.clean_worklist,
+            )
+            self.checkbox_remake_refazer.pack(side='left', padx=8)
         else:
             self.checkbox_remake_refazer.destroy()
             self.checkbox_remake_refazer = None
@@ -152,8 +171,13 @@ class App(ctk.CTk):
         self.clean_worklist()
 
     def create_printing_label(self):
-        self.printing_label = ctk.CTkLabel(self, text="Realizando Impressão\nAguarde...", font=('Arial', 30, 'bold'),
-                                           fg_color='transparent', bg_color='transparent')
+        self.printing_label = ctk.CTkLabel(
+            self,
+            text="Realizando Impressão\nAguarde...",
+            font=('Arial', 30, 'bold'),
+            fg_color='transparent',
+            bg_color='transparent',
+        )
         self.printing_label.grid(row=0, column=0, rowspan=7, columnspan=4)
 
     def remove_printing_label(self):
@@ -183,8 +207,11 @@ class App(ctk.CTk):
         else:
             RegisterWindow(self, open_config, first_login=True)
 
+    def get_work_paths(self):
+        return self.work_queue.get_paths()
+
     def get_paper_size_from_worklist(self):
-        return get_paper_size_from_path(self.works_paths[0], admin_service.get_db())
+        return get_paper_size_from_path(self.get_work_paths()[0], admin_service.get_db())
 
     def btn_start(self):
         if self.printers_list.get() != 'Criar PDF':
@@ -198,21 +225,21 @@ class App(ctk.CTk):
 
         self.create_pdf(lines, items, orientations, self.checkbox_remake.get(), printer=self.printers_list.get())
 
-    def _build_pdf_callbacks(self, printer):
-        def on_progress(printer_name, progress, text):
-            self.after(0, lambda: self._on_pdf_progress(printer_name, progress, text))
+    def _build_pdf_callbacks(self, progress_slot, printer):
+        def on_progress(_printer_name, progress, text):
+            self.after(0, lambda: self._on_pdf_progress(progress_slot, progress, text))
 
-        def on_error(printer_name, error_traceback):
-            self.after(0, lambda: self.loading_frame.show_error(printer_name, error_traceback))
+        def on_error(_printer_name, error_traceback):
+            self.after(0, lambda: self.loading_frame.show_error(progress_slot, error_traceback))
 
-        def on_complete(joined_pdf_filepath, files_to_move, is_remake_flag, printer_name):
+        def on_complete(joined_pdf_filepath, files_to_move, is_remake_flag, _printer_name):
             self.after(0, lambda: self.open_or_print_pdf(
-                joined_pdf_filepath, files_to_move, is_remake_flag, printer_name))
+                joined_pdf_filepath, files_to_move, is_remake_flag, printer, progress_slot))
 
         return on_progress, on_error, on_complete
 
-    def _on_pdf_progress(self, printer, progress, text):
-        self.loading_frame.update_progressbar(printer, progress, text)
+    def _on_pdf_progress(self, progress_slot, progress, text):
+        self.loading_frame.update_progressbar(progress_slot, progress, text)
         self.update_idletasks()
 
     def create_pdf(self, lines, items, orientations, is_remake=False, printer=None):
@@ -222,12 +249,12 @@ class App(ctk.CTk):
         folder_destination = os.path.join(get_search_folder(), 'PDFs')
 
         try:
-            self.loading_frame.add_progressbar(printer)
+            progress_slot = self.loading_frame.add_progressbar(printer)
         except Exception as e:
             PopUpWindow(self, "Erro", e)
             return
 
-        on_progress, on_error, on_complete = self._build_pdf_callbacks(printer)
+        on_progress, on_error, on_complete = self._build_pdf_callbacks(progress_slot, printer)
 
         start_pdf_generation(
             items,
@@ -247,18 +274,34 @@ class App(ctk.CTk):
         return get_drawings_and_orientations(files, admin_service.get_db())
 
     def open_files_from_worklist(self, *args):
-        return load_worklist_file_lines(self.works_paths)
+        return load_worklist_file_lines(self.get_work_paths())
+
+    def remove_selected_works(self):
+        if not self.work_queue.has_selection():
+            return
+        self.work_queue.remove_selected()
+        self._sync_queue_state()
+
+    def _sync_queue_state(self):
+        paths = self.get_work_paths()
+        if not paths:
+            self.btn_start.configure(state='disabled')
+            self.frame_papercolor.grid_forget()
+            self.defined_color = None
+            self.defined_paper_size = None
+            self.entry_work.focus()
+            return
+
+        self.btn_start.configure(state='normal')
+        info = get_work_product_info(paths[0], admin_service.get_db())
+        if info:
+            self.defined_paper_size = info.paper_size
+            self.defined_color = info.color
+            self.show_color(info.color)
 
     def clean_worklist(self):
-        self.worklist.configure(state='normal')
-        self.worklist.delete('0.0', 'end')
-        self.worklist.configure(state='disabled')
-        self.works_paths = []
-        self.btn_start.configure(state='disabled')
-        self.frame_papercolor.grid_forget()
-        self.defined_color = None
-        self.defined_paper_size = None
-        self.entry_work.focus()
+        self.work_queue.clear_all()
+        self._sync_queue_state()
 
     def is_empty_file(self, path):
         return work_is_empty_file(path)
@@ -272,11 +315,8 @@ class App(ctk.CTk):
         if not work:
             return
 
-        if self.worklist.get('0.0', 'end').strip():
+        if self.get_work_paths():
             self.btn_start.configure(state='normal')
-
-        founded_works = self.worklist.get('0.0', 'end').split('\n')
-        founded_works = [i for i in founded_works if i]
 
         skip_remake_screen = bool(
             self.checkbox_remake_refazer and self.checkbox_remake_refazer.get()
@@ -287,7 +327,7 @@ class App(ctk.CTk):
             self.print_group_list.get(),
             self.checkbox_remake.get(),
             skip_remake_screen,
-            founded_works,
+            self.get_work_paths(),
             self.defined_paper_size,
             self.defined_color,
             admin_service.get_db(),
@@ -326,33 +366,27 @@ class App(ctk.CTk):
         if result.show_color:
             self.show_color(result.defined_color)
 
-        if result.full_path not in self.works_paths:
-            self.works_paths.append(result.full_path)
-
         self.entry_work.delete('0', 'end')
-        self.worklist.configure(state='normal')
-        self.worklist.delete('0.0', 'end')
-        founded_works.append(result.work)
-        self.worklist.insert('0.0', '\n'.join(founded_works))
-        self.worklist.configure(state='disabled')
+        self.work_queue.add(result.work, result.full_path)
         self.btn_start.configure(state='normal')
 
         if result.open_remake:
             RemakeWindow(self, result.full_path, result.work, self.defined_color, self.printers_list.get())
             self.withdraw()
 
-    def open_or_print_pdf(self, filename='', file_to_move=[], is_remake=None, printer=None):
+    def open_or_print_pdf(self, filename='', file_to_move=[], is_remake=None, printer=None, progress_slot=None):
+        slot = progress_slot if progress_slot is not None else printer
         try:
-            self.loading_frame.update_progressbar(printer, 1, 'Imprimindo...')
+            self.loading_frame.update_progressbar(slot, 1, 'Imprimindo...')
 
             exe_index = None
             if printer != 'Criar PDF':
-                exe_index = self.loading_frame.get_exe_index(printer)
+                exe_index = self.loading_frame.get_exe_index(slot)
 
             finish_print_job(filename, file_to_move, is_remake, printer, exe_index)
-            self.loading_frame.remove_progressbar(printer)
+            self.loading_frame.remove_progressbar(slot)
         except Exception:
-            self.loading_frame.show_error(printer, traceback.format_exc())
+            self.loading_frame.show_error(slot, traceback.format_exc())
 
     def create_progress_bar(self):
         self.progressbar = ctk.CTkProgressBar(self.loading_frame, orientation="horizontal", height=30,
@@ -404,19 +438,27 @@ class LoadingBarFrame(ctk.CTkFrame):
         super().__init__(*args, **kwargs)
 
         self.printers_status = {}
+        self._pdf_slot_counter = 0
 
     def add_progressbar(self, printer_name):
-        if printer_name in self.printers_status:
-            raise Exception('Impressora já está em uso')
-
-        exe_index = self.__get_exe_to_use()
+        if printer_name == 'Criar PDF':
+            self._pdf_slot_counter += 1
+            slot_id = f'Criar PDF #{self._pdf_slot_counter}'
+            display_name = 'Criar PDF'
+            exe_index = None
+        else:
+            if printer_name in self.printers_status:
+                raise Exception('Impressora já está em uso')
+            slot_id = printer_name
+            display_name = printer_name
+            exe_index = self.__get_exe_to_use()
 
         frame = ctk.CTkFrame(self, fg_color='transparent')
         frame.pack()
 
         ctk.CTkLabel(frame, text=45 * '-', bg_color='transparent').grid(row=0)
 
-        lbl_printer = ctk.CTkLabel(frame, text=f'Impressora\n{printer_name}', font=('Arial', 10),
+        lbl_printer = ctk.CTkLabel(frame, text=f'Impressora\n{display_name}', font=('Arial', 10),
                                    bg_color='transparent')
         lbl_printer.grid(row=1)
 
@@ -426,20 +468,23 @@ class LoadingBarFrame(ctk.CTkFrame):
         progress_lbl = ctk.CTkLabel(frame, text='1/2', font=('Arial', 13), bg_color='#1F538D')
         progress_lbl.grid(row=2, column=0)
 
-        self.printers_status[printer_name] = {
+        self.printers_status[slot_id] = {
             'ProgressBar': loadingbar,
             'Label': progress_lbl,
             'Frame': frame,
-            'Exe_to_use': exe_index
+            'Exe_to_use': exe_index,
         }
+        return slot_id
 
-    def get_exe_index(self, printer_name):
-        return self.printers_status[printer_name]['Exe_to_use']
+    def get_exe_index(self, slot_id):
+        return self.printers_status[slot_id]['Exe_to_use']
 
     def __get_exe_to_use(self):
         exe = []
-        for i in self.printers_status:
-            exe.append(self.printers_status[i]['Exe_to_use'])
+        for slot in self.printers_status:
+            idx = self.printers_status[slot]['Exe_to_use']
+            if idx is not None:
+                exe.append(idx)
 
         for i in range(5):
             if i not in exe:
@@ -447,21 +492,21 @@ class LoadingBarFrame(ctk.CTkFrame):
 
         raise Exception('Máximo de 5 processos de impressão por vez.\nAguardar')
 
-    def update_progressbar(self, printer_name, loadingbar_progress, lbl_text):
-        progress_bar = self.printers_status[printer_name]['ProgressBar']
-        progress_lbl = self.printers_status[printer_name]['Label']
+    def update_progressbar(self, slot_id, loadingbar_progress, lbl_text):
+        progress_bar = self.printers_status[slot_id]['ProgressBar']
+        progress_lbl = self.printers_status[slot_id]['Label']
 
         progress_bar.set(loadingbar_progress)
         progress_lbl.configure(text=lbl_text)
 
-    def remove_progressbar(self, printer_name):
-        frame = self.printers_status[printer_name]['Frame']
+    def remove_progressbar(self, slot_id):
+        frame = self.printers_status[slot_id]['Frame']
         frame.destroy()
 
-        self.printers_status.pop(printer_name)
+        self.printers_status.pop(slot_id)
 
-    def show_error(self, printer_name, error_tracebak):
-        frame = self.printers_status[printer_name]['Frame']
+    def show_error(self, slot_id, error_tracebak):
+        frame = self.printers_status[slot_id]['Frame']
 
         ctk.CTkLabel(frame, font=('Arial', 10), text='ERRO AO CRIAR').grid(row=0)
 
@@ -469,9 +514,9 @@ class LoadingBarFrame(ctk.CTkFrame):
         FileUtils.write_log_file(path, error_tracebak)
 
         ctk.CTkButton(frame, text='Visualizar', fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
-                      command=lambda: self.visualize_error(printer_name, path)).grid(row=1)
+                      command=lambda: self.visualize_error(slot_id, path)).grid(row=1)
 
-    def visualize_error(self, printer_name, path):
-        self.remove_progressbar(printer_name)
+    def visualize_error(self, slot_id, path):
+        self.remove_progressbar(slot_id)
 
         open_path(path)

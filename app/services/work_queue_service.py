@@ -33,7 +33,7 @@ def search_work_for_queue(
     group_name: str,
     is_remake: bool,
     skip_remake_screen: bool,
-    founded_works: List[str],
+    queued_paths: List[str],
     defined_paper_size,
     defined_color,
     db,
@@ -41,9 +41,6 @@ def search_work_for_queue(
     work = work.upper()
     if not work:
         return WorkSearchResult(status='empty')
-
-    if work in founded_works:
-        return WorkSearchResult(status='duplicate', work=work)
 
     group_flag = normalize_group_flag(group_name)
     path = resolve_work_search_path(search_folder, group_flag, is_remake)
@@ -57,6 +54,9 @@ def search_work_for_queue(
     full_path = find_work_in_directory(path, work)
     if full_path is None:
         return WorkSearchResult(status='not_found', work=work, search_folder=search_folder)
+
+    if full_path in queued_paths:
+        return WorkSearchResult(status='duplicate', work=work)
 
     if is_empty_file(full_path):
         return WorkSearchResult(status='empty_file', work=work)
