@@ -1,9 +1,10 @@
+import io
+
 from barcode import Code128, Code39
 from barcode.writer import ImageWriter
-from PIL import ImageTk, Image
+from PIL import Image, ImageTk
 from pylibdmtx.pylibdmtx import encode
 import pyqrcode
-import io
 
 
 def create_barcode(code, width, height, path='temp/codigo_de_barras'):
@@ -29,6 +30,41 @@ def create_datamatrix(code, path='temp/dmtx.png'):
     encoded = encode(code.encode('utf8'))
     img = Image.frombytes('RGB', (encoded.width, encoded.height), encoded.pixels)
     img.save(path)
+
+
+def create_barcode_bytes(code, width, height) -> io.BytesIO:
+    barcode_aux = Code128(code, writer=ImageWriter())
+    options = {"module_width": float(width), "module_height": float(height), "write_text": False, "quiet_zone": 0}
+    buffer = io.BytesIO()
+    barcode_aux.write(buffer, options)
+    buffer.seek(0)
+    return buffer
+
+
+def create_barcode39_bytes(code, width, height) -> io.BytesIO:
+    barcode_aux = Code39(code, writer=ImageWriter(), add_checksum=False)
+    options = {"module_width": float(width), "module_height": float(height), "write_text": False, "quiet_zone": 0}
+    buffer = io.BytesIO()
+    barcode_aux.write(buffer, options)
+    buffer.seek(0)
+    return buffer
+
+
+def create_qrcode_bytes(code) -> io.BytesIO:
+    qr = pyqrcode.create(code)
+    buffer = io.BytesIO()
+    qr.png(buffer, scale=5, module_color='#000000', background='#ffffff')
+    buffer.seek(0)
+    return buffer
+
+
+def create_datamatrix_bytes(code) -> io.BytesIO:
+    encoded = encode(code.encode('utf8'))
+    img = Image.frombytes('RGB', (encoded.width, encoded.height), encoded.pixels)
+    buffer = io.BytesIO()
+    img.save(buffer, format='PNG')
+    buffer.seek(0)
+    return buffer
 
 
 def change_proportion(image, proportion, orientation=0):

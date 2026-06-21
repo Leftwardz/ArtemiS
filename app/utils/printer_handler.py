@@ -6,6 +6,34 @@ import os
 from app.utils.file_parser import FileUtils
 
 
+def enumerate_installed_printers():
+    """Lista nomes de impressoras instaladas no Windows (local + conexões de rede)."""
+    flags = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
+    names = []
+    try:
+        for item in win32print.EnumPrinters(flags, None, 1):
+            name = item[2]
+            if name and name not in names:
+                names.append(name)
+    except Exception:
+        pass
+    return sorted(names, key=str.lower)
+
+
+def printer_is_available(printer_name):
+    """True se o Windows consegue abrir a impressora pelo nome."""
+    if not (printer_name or '').strip():
+        return False
+    try:
+        handle = win32print.OpenPrinter(
+            printer_name, {"DesiredAccess": win32print.PRINTER_ACCESS_USE},
+        )
+        win32print.ClosePrinter(handle)
+        return True
+    except Exception:
+        return False
+
+
 def set_default_printer(printer):
     win32print.SetDefaultPrinter(printer)
 

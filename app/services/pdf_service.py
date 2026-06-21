@@ -14,7 +14,10 @@ from datetime import datetime
 import traceback
 
 from app.utils.barcode_generator import (
-    create_barcode, create_barcode39, create_qrcode, create_datamatrix, get_image
+    create_barcode_bytes,
+    create_barcode39_bytes,
+    create_qrcode_bytes,
+    create_datamatrix_bytes,
 )
 from app.utils.text_utils import break_line
 
@@ -41,7 +44,19 @@ pdfmetrics.registerFont(TTFont('Morganite Semibold', 'fontes/Morganite-Semibold.
 pdfmetrics.registerFont(TTFont('Morganite semibold', 'fontes/Morganite-Semibold.ttf'))
 
 
+def join_pdf_buffers(pdf_buffers):
+    merger = PyPDF2.PdfMerger()
+    for buffer in pdf_buffers:
+        buffer.seek(0)
+        merger.append(buffer)
+    result = io.BytesIO()
+    merger.write(result)
+    merger.close()
+    return result.getvalue()
+
+
 def join_pdfs(pdf_list, joined_pdf_name):
+    """Legado — preferir join_pdf_buffers para produção em memória."""
     merger = PyPDF2.PdfMerger()
 
     for pdf in pdf_list:
@@ -49,6 +64,26 @@ def join_pdfs(pdf_list, joined_pdf_name):
 
     with open(joined_pdf_name, 'wb') as result:
         merger.write(result)
+
+
+def _oriented_image_reader(image_source, orientation, proportion):
+    with PIL.Image.open(image_source) as img:
+        if orientation > 0:
+            img = img.rotate(orientation, expand=True)
+        out = io.BytesIO()
+        img.save(out, format='PNG')
+        out.seek(0)
+        largura, altura = img.size
+        scale = proportion / 100
+        return ImageReader(out), largura * scale, altura * scale
+
+
+def _draw_oriented_image(pdf_canvas, x1, y1, image_source, orientation, proportion, mask='auto'):
+    reader, largura, altura = _oriented_image_reader(image_source, orientation, proportion)
+    kwargs = {'width': largura, 'height': altura}
+    if mask is not None:
+        kwargs['mask'] = mask
+    pdf_canvas.drawImage(reader, x1, A4[1] - y1, **kwargs)
 
 
 def get_element(lst, index, default=None):
@@ -144,7 +179,7 @@ def _report_progress(on_progress, printer, progress, text):
         on_progress(printer, progress, text)
 
 
-def write_text_to_pdf(items, files_lines, orientation_list, path, is_remake=False, printer=None,
+def write_text_to_pdf(items, files_lines, orientation_list, path=None, is_remake=False, printer=None,
                       on_progress=None, on_error=None, on_complete=None):
     completed_pdfs = []
     files_to_move = []
@@ -153,13 +188,13 @@ def write_text_to_pdf(items, files_lines, orientation_list, path, is_remake=Fals
     for i, lines in enumerate(files_lines):
         try:
             original_filepath = lines[-1]
-            filename, extension = os.path.splitext(os.path.basename(original_filepath))
+            filename, _extension = os.path.splitext(os.path.basename(original_filepath))
             if is_remake:
                 date = datetime.now().strftime('%Y%m%d_%H%M%S')
                 filename = filename + '_Remake_' + date
-            complete_path = os.path.join(path, filename + '.pdf')
 
-            pdf = canvas.Canvas(complete_path, pagesize=A4)
+            buffer = io.BytesIO()
+            pdf = canvas.Canvas(buffer, pagesize=A4)
             lines = lines[:-1]
 
             if orientation_list[i] == '0':
@@ -172,8 +207,9 @@ def write_text_to_pdf(items, files_lines, orientation_list, path, is_remake=Fals
                 configure_2vertical_ar(pdf, lines, items, i, total, printer, filename, on_progress)
 
             pdf.save()
+            buffer.seek(0)
             files_to_move.append(original_filepath)
-            completed_pdfs.append(complete_path)
+            completed_pdfs.append(buffer)
             _report_progress(on_progress, printer, 1, 'Finalizando PDF')
 
         except Exception:
@@ -185,16 +221,10 @@ def write_text_to_pdf(items, files_lines, orientation_list, path, is_remake=Fals
         return
 
     _report_progress(on_progress, printer, 1, 'Juntando PDFs')
-    first_pdf = completed_pdfs[0].replace('.pdf', '')[-6:]
-    last_pdf = completed_pdfs[-1].replace('.pdf', '')[-6:]
-    date = datetime.now().strftime('%Y%m%d_%H%M%S')
-    joined_pdf_filename = f'{first_pdf}_{last_pdf}_{date}.pdf'
-    joined_pdf_filepath = os.path.join(path, joined_pdf_filename)
-
-    join_pdfs(completed_pdfs, joined_pdf_filepath)
+    joined_pdf_bytes = join_pdf_buffers(completed_pdfs)
 
     if on_complete:
-        on_complete(joined_pdf_filepath, files_to_move, is_remake, printer)
+        on_complete(joined_pdf_bytes, files_to_move, is_remake, printer)
 
 
 def configure_3vertical_ar(pdf, filelines, items, current_index, total, printer, filename, on_progress=None):
@@ -393,124 +423,64 @@ def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offs
                 pdf_canvas.rotate(-angle)
 
         elif item['item_type'] == 'barcode':
-            path = f'temp/barcode{int(x1)}{int(y1)}{counter}{filename}'
             w, h = item['barcode_width'], item['barcode_height']
 
             if is_test:
-                create_barcode(item['text'], w, h, path=path)
+                barcode_bytes = create_barcode_bytes(item['text'], w, h)
             else:
                 if get_element(file_columns, column[0]):
-                    create_barcode(file_columns[column[0]].strip(), w, h, path=path)
+                    barcode_bytes = create_barcode_bytes(file_columns[column[0]].strip(), w, h)
                 else:
                     continue
 
-            with PIL.Image.open(path + '.png') as img:
-                if orientation > 0:
-                    img = img.rotate(orientation, expand=True)
-                    img.save(path + '.png')
-                largura, altura = img.size
-
-            largura *= (proportion / 100)
-            altura *= (proportion / 100)
-
-            pdf_canvas.drawImage(path + '.png', x1, A4[1] - y1, width=largura, height=altura, mask="auto")
-            os.remove(os.path.abspath(path + '.png'))
+            _draw_oriented_image(pdf_canvas, x1, y1, barcode_bytes, orientation, proportion, mask='auto')
 
         elif item['item_type'] == 'barcode39':
-            path = f'temp/barcode39{int(x1)}{int(y1)}{counter}{filename}'
             w, h = item['barcode_width'], item['barcode_height']
 
             if is_test:
-                create_barcode39(item['text'], w, h, path=path)
+                barcode_bytes = create_barcode39_bytes(item['text'], w, h)
             else:
                 if get_element(file_columns, column[0]):
-                    create_barcode39(file_columns[column[0]].strip(), w, h, path=path)
+                    barcode_bytes = create_barcode39_bytes(file_columns[column[0]].strip(), w, h)
                 else:
                     continue
 
-            with PIL.Image.open(path + '.png') as img:
-                if orientation > 0:
-                    img = img.rotate(orientation, expand=True)
-                    img.save(path + '.png')
-                largura, altura = img.size
-
-            largura *= (proportion / 100)
-            altura *= (proportion / 100)
-
-            pdf_canvas.drawImage(path + '.png', x1, A4[1] - y1, width=largura, height=altura)
-            os.remove(os.path.abspath(path + '.png'))
+            _draw_oriented_image(pdf_canvas, x1, y1, barcode_bytes, orientation, proportion, mask=None)
 
         elif item['item_type'] == 'barcodeQR':
             if item['text'].strip() == '':
                 continue
 
-            path = f'temp/QRbarcode{int(x1)}{int(y1)}{counter}{filename}.png'
-
             if is_test:
-                create_qrcode(item['text'], path=path)
+                barcode_bytes = create_qrcode_bytes(item['text'])
             else:
                 if get_element(file_columns, column[0]):
-                    create_qrcode(file_columns[column[0]].strip(), path=path)
+                    barcode_bytes = create_qrcode_bytes(file_columns[column[0]].strip())
                 else:
                     continue
 
-            with PIL.Image.open(path) as img:
-                if orientation > 0:
-                    img = img.rotate(orientation, expand=True)
-                    img.save(path)
-                largura, altura = img.size
-
-            largura *= (proportion / 100)
-            altura *= (proportion / 100)
-
-            pdf_canvas.drawImage(path, x1, A4[1] - y1, width=largura, height=altura)
-            os.remove(os.path.abspath(path))
+            _draw_oriented_image(pdf_canvas, x1, y1, barcode_bytes, orientation, proportion)
 
         elif item['item_type'] == 'barcodeMatrix':
-            path = f'temp/Matrixbarcode{int(x1)}{int(y1)}{counter}{filename}.png'
-
             if is_test:
-                create_datamatrix(item['text'], path=path)
+                barcode_bytes = create_datamatrix_bytes(item['text'])
             else:
                 if get_element(file_columns, column[0]):
-                    create_datamatrix(file_columns[column[0]].strip(), path=path)
+                    barcode_bytes = create_datamatrix_bytes(file_columns[column[0]].strip())
                 else:
                     continue
 
-            with PIL.Image.open(path) as img:
-                if orientation > 0:
-                    img = img.rotate(orientation, expand=True)
-                    img.save(path)
-                largura, altura = img.size
-
-            largura *= (proportion / 100)
-            altura *= (proportion / 100)
-
-            pdf_canvas.drawImage(path, x1, A4[1] - y1, width=largura, height=altura)
-            os.remove(os.path.abspath(path))
+            _draw_oriented_image(pdf_canvas, x1, y1, barcode_bytes, orientation, proportion)
 
         elif item['item_type'] == 'image':
+            image_bytes = io.BytesIO(item['image'])
             if orientation == 0:
-                image_reader = ImageReader(io.BytesIO(item['image']))
-
+                image_reader = ImageReader(image_bytes)
                 with PIL.Image.open(io.BytesIO(item['image'])) as img:
                     largura, altura = img.size
-
                 largura *= (proportion / 100)
                 altura *= (proportion / 100)
-
                 pdf_canvas.drawImage(image_reader, x1, A4[1] - y1, width=largura, height=altura)
-
             else:
-                path = f'temp/image{int(x1)}{int(y1)}{counter}{filename}.png'
-
-                with PIL.Image.open(io.BytesIO(item['image'])) as img:
-                    img = img.rotate(orientation, expand=True)
-                    largura, altura = img.size
-                    img.save(path)
-
-                largura *= (proportion / 100)
-                altura *= (proportion / 100)
-
-                pdf_canvas.drawImage(path, x1, A4[1] - y1, width=largura, height=altura)
-                os.remove(os.path.abspath(path))
+                _draw_oriented_image(pdf_canvas, x1, y1, image_bytes, orientation, proportion)

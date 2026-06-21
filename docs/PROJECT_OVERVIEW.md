@@ -74,12 +74,14 @@ Serviço envolvido: `remake_service`.
 
 Arquivo: `app/ui/config_window.py`
 
-- Login e cadastro de usuários (SHA-256).
+- Acesso via identidade Windows (sem senha do ArtemiS).
+- Administradores locais e de domínio sempre entram; demais usuários/grupos são liberados na configuração.
+- Pesquisa de usuários e grupos no AD e na máquina local.
 - CRUD de clientes e produtos; duplicação; import/export de layouts.
 - Caminhos globais: pasta de busca de WOs e arquivo SQLite (`config.json`).
 - Cadastro de impressoras e grupos de impressão exibidos na tela de produção.
 
-Serviços envolvidos: `admin_service`, `settings_service`.
+Serviços envolvidos: `admin_service`, `settings_service`, `app/utils/windows_auth.py`.
 
 ---
 
@@ -87,13 +89,14 @@ Serviços envolvidos: `admin_service`, `settings_service`.
 
 ### Administrador — configuração e design
 
-1. Abre o ArtemiS; no primeiro acesso, cadastra usuário administrador.
-2. Acessa configurações (ícone ⚙) e faz login.
+1. Abre o ArtemiS; clica no ícone ⚙ (requer ser administrador Windows ou estar liberado na lista de acesso).
+2. Acessa configurações — sem login/senha; o Windows identifica o usuário.
 3. Define pasta de busca (ex.: `C:\AR`) e caminho do banco SQLite.
-4. Cadastra cliente e produto.
-5. Abre o editor: tipo de papel, orientação do gabarito e cor física.
-6. Desenha layout e associa elementos às colunas CSV (ex.: `Coluna_2` → endereço).
-7. Gera PDF de teste, valida alinhamento e salva.
+4. Libera outros usuários ou grupos da rede em **Gerenciar Acesso** (opcional).
+5. Cadastra cliente e produto.
+6. Abre o editor: tipo de papel, orientação do gabarito e cor física.
+7. Desenha layout e associa elementos às colunas CSV (ex.: `Coluna_2` → endereço).
+8. Gera PDF de teste, valida alinhamento e salva.
 
 ### Operador — produção
 
@@ -179,6 +182,71 @@ O bootstrap (`app/bootstrap.py`) carrega `config.json`, instancia `DataBase`, re
 
 ---
 
+## Deploy em rede (SQLite compartilhado)
+
+### Modelo operacional atual
+
+Na prática, o ArtemiS funciona assim:
+
+| Componente | Onde roda | Observação |
+|------------|-----------|------------|
+| **Executável / app Python** | Local, em cada PC de produção | Um processo por estação; UI, PDF e impressão são locais |
+| **`config.json`** | Local em cada PC (ou imagem padrão) | Aponta caminhos; em rede, `database_location` costuma ser UNC (ex.: `\\servidor\ArtemiS\database.db`) |
+| **`database.db` (SQLite)** | Pasta compartilhada na rede | Vários PCs leem/escrevem o **mesmo arquivo** para layouts, clientes, produtos, grupos de impressão e `config_access` |
+| **Pastas de WO (`search_folder`)** | Rede ou local | CSVs de lote; cada estação pode ter caminho próprio ou compartilhado |
+| **`temp/`** | Local em cada PC | PDFs e barcodes intermediários — não compartilhados |
+
+Ou seja: **identidade e impressão são locais**; **cadastro de layouts e regras de configuração centralizados no SQLite da rede**.
+
+### Auth Windows × banco compartilhado — há conflito?
+
+**Não há conflito lógico** entre o auth Windows (2026-06) e o SQLite compartilhado. As duas camadas são separadas:
+
+1. **Quem pode abrir ⚙ Configurações** — decidido **no PC**, pela sessão Windows (`app/utils/windows_auth.py`): usuário logado, grupos do token, admin local/domínio.
+2. **Quem está liberado na lista** — lido do **SQLite compartilhado** (tabela `config_access`), igual clientes/produtos.
+
+Fluxo ao clicar em ⚙:
+
+```
+PC local                          Pasta compartilhada
+────────                          ───────────────────
+Windows: quem é o usuário?  ──┐
+Windows: é admin?           ──┼──► can_access_config()
+SQLite: config_access       ──┘         │
+                                        ├─ admin Windows → entra
+                                        ├─ usuário/grupo na lista → entra
+                                        └─ senão → acesso negado
+```
+
+**Tela de produção (Start, fila, impressão)** não usa auth Windows — operadores continuam trabalhando normalmente.
+
+### O que funciona bem nesse modelo
+
+- **Lista de acesso centralizada:** liberar `EMPRESA\Grupo Operadores` em um PC vale para todos que apontam para o mesmo `database.db`.
+- **Layouts únicos:** alteração de produto/desenho reflete em todas as estações na próxima leitura do banco.
+- **Sem senha duplicada:** cada PC valida o login Windows que o usuário já fez na estação.
+
+### Cuidados e limitações
+
+| Tópico | Detalhe |
+|--------|---------|
+| **Preferir contas de domínio** | Cadastre `EMPRESA\usuario` ou `EMPRESA\grupo`. Entradas `NOME-DO-PC\usuario` só valem naquele computador. |
+| **Admin local por estação** | Quem é admin **daquele PC** sempre abre config ali, mesmo sem estar em `config_access`. Em rede, isso costuma ser TI — comportamento intencional. |
+| **SQLite multi-acesso** | Vários PCs escrevendo no mesmo `.db` na rede é **arriscado** (lock, corrupção) — risco **pré-existente**, não introduzido pelo auth. Evite editar config/layout simultaneamente em muitas máquinas; preferir um administrador central. |
+| **Tabela `config_access` nova** | Mesmas regras de concorrência das demais tabelas. Escritas são raras (só ao gerenciar acesso). |
+| **Tabela `users` legada** | Login/senha antigo não é mais usado; registros antigos não bloqueiam nem liberam ninguém. |
+| **`config.json` por PC** | Impressoras em `printers` no SQLite são compartilhadas; cada estação ainda imprime na impressora **local** escolhida na combo. |
+| **PC fora do domínio** | Pesquisa AD não funciona; use contas locais ou entrada manual `COMPUTADOR\conta`. |
+
+### Recomendações para TI
+
+1. Apontar `database_location` para UNC estável com backup.
+2. Gerenciar acesso preferencialmente com **grupos de domínio** (ex.: `EMPRESA\ArtemiS-Config`).
+3. Manter PCs de produção no **mesmo domínio** quando possível.
+4. Restringir quem pode abrir config em produção; operadores do dia a dia não precisam estar em `config_access`.
+
+---
+
 ## Limitações conhecidas
 
 ### Duplicação de segmentos no editor
@@ -189,9 +257,9 @@ Em `app/ui/designer_window.py`, o atalho Ctrl+C não duplica blocos do tipo **Se
 
 Em `app/services/pdf_service.py`, se uma coluna referenciada no layout não existir no CSV, o campo correspondente é omitido no PDF sem mensagem de erro na interface. Layouts inconsistentes podem gerar documentos incompletos de forma silenciosa.
 
-### Controle de acesso por privilégio
+### Controle de acesso à configuração
 
-A tabela `User` possui coluna `privileges` (valor padrão `'admin'` no cadastro), mas nenhuma tela restringe funcionalidades com base nesse campo. O acesso depende apenas de login válido.
+O acesso às configurações usa a identidade Windows do usuário logado **na estação**. Administradores locais (`Administrators`) e de domínio (`Domain Admins`) sempre têm acesso. Outros usuários ou grupos podem ser liberados em **Gerenciar Acesso**; a lista fica na tabela `config_access` do SQLite (compartilhado se `database_location` for UNC). Ver seção **Deploy em rede** acima. A tabela legada `users` (login/senha SHA-256) permanece no banco mas não é mais utilizada.
 
 ### Dependências declaradas não utilizadas
 

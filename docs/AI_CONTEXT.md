@@ -3,7 +3,7 @@
 Documento de onboarding para qualquer agente de IA (Cursor, Codex, Antigravity ou outro) que trabalhe neste repositório.  
 **Leia este arquivo antes de propor ou implementar alterações.**
 
-**Última atualização:** 2026-06-20 (Fases A–E, E1–E6, A3 concluídas)
+**Última atualização:** 2026-06-21 (auth Windows para configuração)
 
 ---
 
@@ -112,7 +112,7 @@ ArtemiS/
 | `EditWindow` | `app/ui/designer_window.py` | Designer de templates |
 | `ListOfPropertiesWindow` / `Get*Window` | `app/ui/designer_window.py` | Auxiliares do designer |
 | `ConfigWindow` | `app/ui/config_window.py` | Administração |
-| `LoginWindow` / `RegisterWindow` | `app/ui/config_window.py` | Auth simples (sem camada separada) |
+| `ManageAccessWindow` | `app/ui/config_window.py` | Liberação de usuários/grupos Windows |
 | `Table`, `ListBox`, `SpinBox`, `Tooltip` | `app/ui/components/` | Componentes reutilizáveis |
 
 ### Globals importantes
@@ -157,6 +157,12 @@ ArtemiS/
 - Reescrita completa de `Main.py`.
 - Implementar controle de privilégios (coluna `privileges` existe mas não é usada).
 
+### Auth de configuração ✅
+
+- Acesso via identidade Windows (`app/utils/windows_auth.py`); sem login/senha no ArtemiS.
+- Lista de permissões em tabela `config_access` (usuários/grupos da rede) — **persistida no SQLite**, compartilhado entre PCs quando `database_location` aponta para rede.
+- Verificação de identidade é **local por PC**; lista de liberados é **centralizada no banco**. Sem conflito entre as duas camadas. Detalhes: `docs/PROJECT_OVERVIEW.md` → *Deploy em rede*.
+
 ---
 
 ## Regras para Alterações
@@ -183,6 +189,7 @@ ArtemiS/
 - Remake tem dois fluxos: com tela secundária (`RemakeWindow`) e direto (checkbox "Não Utilizar Tela Secundária").
 - Grupo de impressão `'AR'` é tratado como string vazia no caminho (legado).
 - Vazamentos de sessão DB em métodos de impressoras/grupos (ver `PROJECT_OVERVIEW.md`).
+- **SQLite em pasta compartilhada:** vários PCs usam o mesmo `database.db` para layouts; auth Windows não altera produção, mas `config_access` também vive nesse arquivo — preferir grupos de domínio e evitar edição simultânea do banco (ver *Deploy em rede* em `PROJECT_OVERVIEW.md`).
 - `Main.spec` aponta para `Main.py` — não mudar entry point até fase bootstrap.
 
 ---

@@ -37,12 +37,28 @@ class Printer(Base):
     name = Column(String, unique=True)
 
 
+class RegisteredPrinter(Base):
+    __tablename__ = 'registered_printers'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, unique=True)
+    display_name = Column(String)
+    enabled = Column(String, default='1')
+    notes = Column(String)
+
+
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, unique=True)
     password = Column(String)
     privileges = Column(String)
+
+
+class ConfigAccess(Base):
+    __tablename__ = 'config_access'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    principal_name = Column(String, unique=True)
+    principal_type = Column(String)
 
 
 class Drawing(Base):

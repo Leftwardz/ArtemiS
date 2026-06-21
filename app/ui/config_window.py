@@ -1,3 +1,4 @@
+import json
 import os
 import traceback
 
@@ -117,37 +118,48 @@ class ConfigWindow(ctk.CTkToplevel):
                                          state='disabled', command=self.save_database_location)
         self.btn_save_db.grid(row=7, column=1, sticky='W')
 
-        # ------------------------------- Users --------------------------------------------
-        ctk.CTkLabel(self.main_frame, text="Cadastrar ou Excluir usuários", font=(FONT, 15, "bold")) \
+        # ------------------------------- Config Access --------------------------------------------
+        ctk.CTkLabel(self.main_frame, text="Acesso à Configuração", font=(FONT, 15, "bold")) \
             .grid(row=8, column=0, columnspan=2, padx=10, sticky='W')
 
-        self.btn_register = ctk.CTkButton(self.main_frame, text='Cadastrar', width=80,
-                                          command=self.register_user)
-        self.btn_register.grid(row=9, column=0, padx=10, sticky='W')
+        current_user = admin_service.get_current_windows_user()
+        admin_hint = ' (administrador Windows)' if admin_service.is_windows_admin() else ''
+        ctk.CTkLabel(
+            self.main_frame,
+            text=f'Usuário atual: {current_user}{admin_hint}',
+            font=(FONT, 11),
+        ).grid(row=9, column=0, columnspan=2, padx=10, sticky='W')
 
-        users = admin_service.list_users()
-        self.combo_userlist = ctk.CTkComboBox(self.main_frame, values=users, width=200)
-        self.combo_userlist.grid(row=10, column=0, pady=10, padx=10, sticky='W')
+        ctk.CTkLabel(
+            self.main_frame,
+            text='Administradores do PC/rede sempre têm acesso.',
+            font=(FONT, 11),
+            text_color='gray',
+        ).grid(row=10, column=0, columnspan=2, padx=10, sticky='W')
 
-        text = f'Você realmente deseja deletar esse usuario?'
-        self.btn_delete_user = ctk.CTkButton(self.main_frame, text='Deletar Usuario', fg_color=BTN_RED,
-                                             hover_color=BTN_HOVER_RED, width=80,
-                                             command=lambda: ConfirmWindow(self, 'Você tem certeza?', text,
-                                                                           self.delete_user))
-        self.btn_delete_user.grid(row=10, column=0, columnspan=2, sticky='E')
-        # ------------------------------- List of Printers ---------------------------------------------
-        ctk.CTkLabel(self.main_frame, text="Lista de impressoras", font=(FONT, 15, "bold")) \
+        self.btn_manage_access = ctk.CTkButton(
+            self.main_frame, text='Gerenciar Acesso', width=120,
+            command=lambda: ManageAccessWindow(self),
+        )
+        self.btn_manage_access.grid(row=11, column=0, padx=10, pady=5, sticky='W')
+
+        # ------------------------------- Printers ---------------------------------------------
+        ctk.CTkLabel(self.main_frame, text="Impressoras", font=(FONT, 15, "bold")) \
             .grid(row=1, column=2, padx=50, sticky='W')
 
-        printers = admin_service.list_printers()
-        printers = '\n'.join(printers)
-        self.inpt_printers = ctk.CTkTextbox(self.main_frame, width=330, height=130)
-        self.inpt_printers.grid(row=2, column=2, rowspan=3, padx=50, sticky='W')
-        self.inpt_printers.insert('0.0', printers)
+        count = len(admin_service.list_registered_printers())
+        ctk.CTkLabel(
+            self.main_frame,
+            text=f'{count} cadastrada(s)',
+            font=(FONT, 11),
+            text_color='gray',
+        ).grid(row=2, column=2, padx=50, sticky='W')
 
-        self.btn_save_printers = ctk.CTkButton(self.main_frame, text='Salvar', width=80,
-                                               command=self.save_printers)
-        self.btn_save_printers.grid(row=5, column=2, padx=50, pady=5, sticky='E')
+        self.btn_manage_printers = ctk.CTkButton(
+            self.main_frame, text='Gerenciar Impressoras', width=140,
+            command=lambda: ManagePrintersWindow(self),
+        )
+        self.btn_manage_printers.grid(row=3, column=2, padx=50, pady=5, sticky='W')
 
         # ------------------------------- List or Printing Groups ---------------------------------------------
         ctk.CTkLabel(self.main_frame, text="Gerenciar Grupos de Impressão", font=(FONT, 15, "bold")) \
@@ -164,12 +176,6 @@ class ConfigWindow(ctk.CTkToplevel):
 
         self.protocol("WM_DELETE_WINDOW", self.exit)
 
-    def update_userlist(self):
-        self.combo_userlist.configure(values=admin_service.list_users())
-
-    def register_user(self):
-        RegisterWindow(self, func=self.update_userlist, first_login=False)
-
     def save_database_location(self):
         folder = self.inpt_db_location.get()
         result = save_database_location(folder)
@@ -180,15 +186,6 @@ class ConfigWindow(ctk.CTkToplevel):
             self.update_save_button()
             self.exit()
             PopUpWindow(self.master, 'Sucesso', result.message)
-
-    def save_printers(self):
-        try:
-            printers = self.inpt_printers.get("0.0", "end")
-            printers_list = [i for i in printers.split('\n') if i.strip() != '']
-            admin_service.save_printers(printers_list)
-            PopUpWindow(self, 'Sucesso', 'Impressoras Salvas com Sucesso!')
-        except Exception as e:
-            PopUpWindow(self, 'Erro', f'Erro ao salvar as impressoras.\n{e}')
 
     def update_save_button(self, *args):
         folder = self.inpt_search_folder.get()
@@ -303,14 +300,6 @@ class ConfigWindow(ctk.CTkToplevel):
         else:
             self.show_edit_button()
 
-    def delete_user(self):
-        try:
-            admin_service.delete_user(self.combo_userlist.get())
-            self.combo_userlist.configure(values=admin_service.list_users())
-            self.combo_userlist.set('')
-        except Exception as e:
-            PopUpWindow(self, 'Erro', f'Erro ao excluir o usuário\n{e}')
-
     def confirm_delete(self):
         client = self.client_list.radio_var.get()
         ConfirmWindow(self, 'Você tem certeza?', f'Você realmente deseja deletar o cliente {client}?',
@@ -376,6 +365,431 @@ class ConfigWindow(ctk.CTkToplevel):
         self.master.focus_set()
         self.master.refresh()
         self.destroy()
+
+
+class EditRegisteredPrinterWindow(ctk.CTkToplevel):
+    def __init__(self, master, on_save, printer=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.iconbitmap(ICON)
+        self.title('Editar impressora' if (printer and printer.get('id')) else 'Cadastrar impressora')
+        self.master = master
+        self.on_save = on_save
+        self.printer = printer
+        self.grab_set()
+
+        self.geometry(calculate_center_screen_with_monitor(master, 420, 320, get_monitor(master)))
+        self.minsize(420, 320)
+        self.maxsize(420, 320)
+        self.resizable(False, False)
+
+        ctk.CTkLabel(self, text=self.title(), font=('Arial', 16, 'bold')) \
+            .grid(row=0, column=0, columnspan=2, pady=10, padx=10)
+
+        ctk.CTkLabel(self, text='Nome Windows (rede/local)').grid(row=1, column=0, columnspan=2, padx=10, sticky='w')
+        self.entry_name = ctk.CTkEntry(self, width=360)
+        self.entry_name.grid(row=2, column=0, columnspan=2, padx=10, pady=(0, 8))
+
+        ctk.CTkLabel(self, text='Apelido (aparece na combo)').grid(row=3, column=0, columnspan=2, padx=10, sticky='w')
+        self.entry_display = ctk.CTkEntry(self, width=360)
+        self.entry_display.grid(row=4, column=0, columnspan=2, padx=10, pady=(0, 8))
+
+        self.checkbox_enabled = ctk.CTkCheckBox(self, text='Ativa na tela de produção')
+        self.checkbox_enabled.grid(row=5, column=0, columnspan=2, padx=10, sticky='w')
+
+        ctk.CTkLabel(self, text='Observações').grid(row=6, column=0, columnspan=2, padx=10, sticky='w')
+        self.entry_notes = ctk.CTkEntry(self, width=360)
+        self.entry_notes.grid(row=7, column=0, columnspan=2, padx=10, pady=(0, 8))
+
+        if printer:
+            self.entry_name.insert(0, printer.get('name', ''))
+            self.entry_display.insert(0, printer.get('display_name', ''))
+            if printer.get('enabled', True):
+                self.checkbox_enabled.select()
+            if printer.get('notes'):
+                self.entry_notes.insert(0, printer['notes'])
+
+        ctk.CTkButton(self, text='Salvar', width=100, command=self.save) \
+            .grid(row=8, column=0, padx=20, pady=15, sticky='e')
+        ctk.CTkButton(self, text='Cancelar', width=100, fg_color=BTN_RED,
+                      hover_color=BTN_HOVER_RED, command=self.destroy) \
+            .grid(row=8, column=1, padx=20, pady=15, sticky='w')
+
+    def save(self):
+        name = self.entry_name.get().strip()
+        display_name = self.entry_display.get().strip()
+        enabled = bool(self.checkbox_enabled.get())
+        notes = self.entry_notes.get().strip()
+
+        if not name:
+            PopUpWindow(self, 'Erro', 'Informe o nome Windows da impressora.')
+            return
+        if not display_name:
+            display_name = name
+
+        if not admin_service.verify_printer_available(name):
+            PopUpWindow(
+                self, 'Impressora não encontrada',
+                f'O Windows não encontrou a impressora:\n{name}\n\n'
+                'Verifique o nome ou instale a impressora neste PC.',
+            )
+            return
+
+        if self.printer and self.printer.get('id'):
+            ok = admin_service.update_registered_printer(
+                self.printer['id'], name, display_name, enabled, notes,
+            )
+            if not ok:
+                PopUpWindow(self, 'Erro', 'Não foi possível salvar. Nome Windows já cadastrado?')
+                return
+        else:
+            ok = admin_service.add_registered_printer(name, display_name, enabled, notes)
+            if not ok:
+                PopUpWindow(self, 'Erro', f'A impressora "{name}" já está cadastrada.')
+                return
+
+        self.on_save()
+        self.destroy()
+
+
+class ManagePrintersWindow(ctk.CTkToplevel):
+    _TABLE_HEIGHT = 4
+    _FRAME_H = 110
+    _WINDOW_W = 540
+    _WINDOW_H = 560
+
+    def __init__(self, master, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.iconbitmap(ICON)
+        self.title('Gerenciar Impressoras')
+        self.master = master
+        self.grab_set()
+
+        self.geometry(calculate_center_screen_with_monitor(
+            master, self._WINDOW_W, self._WINDOW_H, get_monitor(master),
+        ))
+        self.minsize(self._WINDOW_W, self._WINDOW_H)
+        self.maxsize(self._WINDOW_W, self._WINDOW_H)
+        self.resizable(False, False)
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+
+        body = ctk.CTkScrollableFrame(self, width=self._WINDOW_W - 20, height=self._WINDOW_H - 20)
+        body.grid(row=0, column=0, padx=10, pady=10, sticky='nsew')
+        body.grid_columnconfigure(0, weight=1)
+        body.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(body, text='Impressoras cadastradas', font=('Arial', 16, 'bold')) \
+            .grid(row=0, column=0, columnspan=2, pady=(0, 5), padx=5, sticky='w')
+
+        self.table_frame = ctk.CTkFrame(body, width=500, height=self._FRAME_H, corner_radius=0)
+        self.table_frame.grid_propagate(False)
+        self.table_frame.pack_propagate(False)
+        self.table_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
+
+        self.table = Table(
+            self.table_frame, ['Apelido', 'Nome Windows', 'Ativa', 'Obs.'],
+            show='headings', height=self._TABLE_HEIGHT,
+        )
+        self.table.column('#1', width=120)
+        self.table.column('#2', width=180)
+        self.table.column('#3', width=50)
+        self.table.column('#4', width=120)
+        self.table.pack(expand=True, fill='both', padx=2, pady=2)
+
+        btn_row = ctk.CTkFrame(body, fg_color='transparent')
+        btn_row.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
+
+        ctk.CTkButton(btn_row, text='Nova', width=80, command=self.add_printer) \
+            .pack(side='left', padx=(0, 5))
+        ctk.CTkButton(btn_row, text='Editar', width=80, command=self.edit_printer) \
+            .pack(side='left', padx=5)
+        ctk.CTkButton(btn_row, text='Remover', width=80, fg_color=BTN_RED,
+                      hover_color=BTN_HOVER_RED, command=self.remove_printer) \
+            .pack(side='left', padx=5)
+        ctk.CTkButton(btn_row, text='Verificar', width=90, command=self.verify_selected) \
+            .pack(side='right')
+
+        self.refresh_table()
+
+        ctk.CTkLabel(body, text='Descobrir impressoras neste PC', font=(FONT, 13, 'bold')) \
+            .grid(row=3, column=0, columnspan=2, padx=5, sticky='w', pady=(10, 0))
+
+        discover_row = ctk.CTkFrame(body, fg_color='transparent')
+        discover_row.grid(row=4, column=0, columnspan=2, padx=5, sticky='ew')
+
+        ctk.CTkButton(discover_row, text='Buscar no Windows', width=130, command=self.discover) \
+            .pack(side='left')
+        ctk.CTkButton(discover_row, text='Adicionar selecionada', width=140, command=self.add_from_discovery) \
+            .pack(side='right')
+
+        self.discover_frame = ctk.CTkFrame(body, width=500, height=self._FRAME_H, corner_radius=0)
+        self.discover_frame.grid_propagate(False)
+        self.discover_frame.pack_propagate(False)
+        self.discover_frame.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
+
+        self.discover_table = Table(
+            self.discover_frame, ['Impressora instalada'], show='headings', height=self._TABLE_HEIGHT,
+        )
+        self.discover_table.column('#1', width=460)
+        self.discover_table.pack(expand=True, fill='both', padx=2, pady=2)
+        self._discovered = []
+
+        ctk.CTkButton(body, text='Fechar', width=90, command=self.destroy) \
+            .grid(row=6, column=1, padx=5, pady=(10, 5), sticky='e')
+
+    def refresh_table(self):
+        self.table.remove_all()
+        self._registered = admin_service.list_registered_printers()
+        for item in self._registered:
+            notes = item['notes']
+            if len(notes) > 40:
+                notes = notes[:37] + '...'
+            self.table.add_item([
+                item['display_name'],
+                item['name'],
+                'Sim' if item['enabled'] else 'Não',
+                notes,
+            ], item_id=item['id'])
+
+    def _selected_registered(self):
+        selected = self.table.get_selected_items()
+        if not selected:
+            return None
+        row_id = self.table.selection()[0]
+        try:
+            printer_id = int(row_id)
+        except ValueError:
+            return None
+        for item in self._registered:
+            if item['id'] == printer_id:
+                return item
+        return None
+
+    def add_printer(self):
+        EditRegisteredPrinterWindow(self, on_save=self.refresh_table)
+
+    def edit_printer(self):
+        printer = self._selected_registered()
+        if not printer:
+            PopUpWindow(self, 'Aviso', 'Selecione uma impressora na lista.')
+            return
+        EditRegisteredPrinterWindow(self, on_save=self.refresh_table, printer=printer)
+
+    def remove_printer(self):
+        printer = self._selected_registered()
+        if not printer:
+            PopUpWindow(self, 'Aviso', 'Selecione uma impressora para remover.')
+            return
+        if admin_service.delete_registered_printer(printer['id']):
+            self.refresh_table()
+        else:
+            PopUpWindow(self, 'Erro', 'Não foi possível remover a impressora.')
+
+    def verify_selected(self):
+        printer = self._selected_registered()
+        if not printer:
+            PopUpWindow(self, 'Aviso', 'Selecione uma impressora para verificar.')
+            return
+        if admin_service.verify_printer_available(printer['name']):
+            PopUpWindow(self, 'OK', f'Impressora encontrada no Windows:\n{printer["name"]}')
+        else:
+            PopUpWindow(
+                self, 'Não encontrada',
+                f'O Windows não encontrou:\n{printer["name"]}\n\n'
+                'Instale ou corrija o nome da impressora neste PC.',
+            )
+
+    def discover(self):
+        self._registered = admin_service.list_registered_printers()
+        self._discovered = admin_service.discover_installed_printers()
+        self.discover_table.remove_all()
+        registered_names = {p['name'].lower() for p in self._registered}
+        for name in self._discovered:
+            suffix = ' (já cadastrada)' if name.lower() in registered_names else ''
+            self.discover_table.add_item([name + suffix], item_id=name)
+        if not self._discovered:
+            PopUpWindow(self, 'Descoberta', 'Nenhuma impressora instalada encontrada neste PC.')
+
+    def add_from_discovery(self):
+        selected = self.discover_table.get_selected_items()
+        if not selected:
+            PopUpWindow(self, 'Aviso', 'Selecione uma impressora descoberta.')
+            return
+        name = selected[0][0].replace(' (já cadastrada)', '').strip()
+        if any(p['name'].lower() == name.lower() for p in self._registered):
+            PopUpWindow(self, 'Aviso', f'"{name}" já está cadastrada.')
+            return
+        EditRegisteredPrinterWindow(
+            self,
+            on_save=self.refresh_table,
+            printer={'name': name, 'display_name': name, 'enabled': True, 'notes': ''},
+        )
+
+
+class ManageAccessWindow(ctk.CTkToplevel):
+    _TABLE_HEIGHT = 4
+    _AUTHORIZED_FRAME_H = 110
+    _RESULTS_FRAME_H = 110
+    _WINDOW_W = 520
+    _WINDOW_H = 580
+
+    def __init__(self, master, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.iconbitmap(ICON)
+
+        self.geometry(calculate_center_screen_with_monitor(
+            master, self._WINDOW_W, self._WINDOW_H, get_monitor(master),
+        ))
+        self.minsize(self._WINDOW_W, self._WINDOW_H)
+        self.maxsize(self._WINDOW_W, self._WINDOW_H)
+        self.resizable(False, False)
+        self.title('Gerenciar Acesso à Configuração')
+        self.master = master
+        self.grab_set()
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+
+        body = ctk.CTkScrollableFrame(self, width=self._WINDOW_W - 20, height=self._WINDOW_H - 20)
+        body.grid(row=0, column=0, padx=10, pady=10, sticky='nsew')
+        body.grid_columnconfigure(0, weight=1)
+        body.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(body, text='Usuários e grupos autorizados', font=('Arial', 16, 'bold')) \
+            .grid(row=0, column=0, columnspan=2, pady=(0, 5), padx=5, sticky='w')
+
+        self.table_frame = ctk.CTkFrame(
+            body, width=480, height=self._AUTHORIZED_FRAME_H, corner_radius=0,
+        )
+        self.table_frame.grid_propagate(False)
+        self.table_frame.pack_propagate(False)
+        self.table_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
+        self.table = Table(
+            self.table_frame, ['Nome', 'Tipo'], show='headings', height=self._TABLE_HEIGHT,
+        )
+        self.table.column('#1', width=320)
+        self.table.column('#2', width=80)
+        self.table.pack(expand=True, fill='both', padx=2, pady=2)
+        self.refresh_table()
+
+        self.btn_delete = ctk.CTkButton(
+            body, text='Remover selecionado', width=140, fg_color=BTN_RED,
+            hover_color=BTN_HOVER_RED, command=self.remove_selected,
+        )
+        self.btn_delete.grid(row=2, column=1, padx=5, pady=5, sticky='e')
+
+        ctk.CTkLabel(body, text='Pesquisar na rede / neste PC', font=(FONT, 13, 'bold')) \
+            .grid(row=3, column=0, columnspan=2, padx=5, sticky='w', pady=(10, 0))
+
+        search_frame = ctk.CTkFrame(body, fg_color='transparent')
+        search_frame.grid(row=4, column=0, columnspan=2, padx=5, sticky='ew')
+
+        self.entry_search = ctk.CTkEntry(search_frame, width=220, placeholder_text='Nome ou login')
+        self.entry_search.pack(side='left', padx=(0, 5))
+        self.entry_search.bind('<Return>', self.search_principals)
+
+        self.combo_type = ctk.CTkComboBox(
+            search_frame, width=100, values=['Usuário e Grupo', 'Usuário', 'Grupo'],
+        )
+        self.combo_type.pack(side='left', padx=5)
+
+        ctk.CTkButton(search_frame, text='Pesquisar', width=90, command=self.search_principals) \
+            .pack(side='left', padx=5)
+
+        self.results_frame = ctk.CTkFrame(
+            body, width=480, height=self._RESULTS_FRAME_H, corner_radius=0,
+        )
+        self.results_frame.grid_propagate(False)
+        self.results_frame.pack_propagate(False)
+        self.results_frame.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
+        self.results_table = Table(
+            self.results_frame, ['Resultado', 'Tipo'], show='headings', height=self._TABLE_HEIGHT,
+        )
+        self.results_table.column('#1', width=320)
+        self.results_table.column('#2', width=80)
+        self.results_table.pack(expand=True, fill='both', padx=2, pady=2)
+        self._search_results = []
+
+        ctk.CTkButton(body, text='Adicionar selecionado', width=140, command=self.add_selected) \
+            .grid(row=6, column=1, padx=5, pady=5, sticky='e')
+
+        ctk.CTkLabel(body, text='Ou informe manualmente (DOMÍNIO\\conta)', font=(FONT, 11)) \
+            .grid(row=7, column=0, columnspan=2, padx=5, sticky='w', pady=(8, 0))
+
+        manual_frame = ctk.CTkFrame(body, fg_color='transparent')
+        manual_frame.grid(row=8, column=0, columnspan=2, padx=5, sticky='ew')
+
+        self.entry_manual = ctk.CTkEntry(manual_frame, width=280, placeholder_text='EX: EMPRESA\\joao.silva')
+        self.entry_manual.pack(side='left', padx=(0, 5))
+        self.entry_manual.bind('<Return>', self.add_manual)
+
+        ctk.CTkButton(manual_frame, text='Adicionar', width=90, command=self.add_manual) \
+            .pack(side='left')
+
+        #ctk.CTkButton(body, text='Fechar', width=90, command=self.destroy) \
+        #    .grid(row=9, column=1, padx=5, pady=(10, 5), sticky='e')
+
+    def _type_filter(self):
+        mapping = {'Usuário': 'user', 'Grupo': 'group', 'Usuário e Grupo': 'both'}
+        return mapping.get(self.combo_type.get(), 'both')
+
+    def refresh_table(self):
+        self.table.remove_all()
+        for entry in admin_service.list_config_access():
+            tipo = 'Usuário' if entry['type'] == 'user' else 'Grupo'
+            self.table.add_item([entry['name'], tipo])
+
+    def search_principals(self, *args):
+        query = self.entry_search.get().strip()
+        if len(query) < 2:
+            PopUpWindow(self, 'Aviso', 'Digite pelo menos 2 caracteres para pesquisar.')
+            return
+        self._search_results = admin_service.search_windows_principals(query, self._type_filter())
+        self.results_table.remove_all()
+        for item in self._search_results:
+            tipo = 'Usuário' if item['type'] == 'user' else 'Grupo'
+            self.results_table.add_item([item['display'], tipo])
+        if not self._search_results:
+            PopUpWindow(self, 'Pesquisa', 'Nenhum usuário ou grupo encontrado.')
+
+    def _add_principal(self, name, ptype):
+        if not admin_service.add_config_access(name, ptype):
+            PopUpWindow(self, 'Aviso', f'"{name}" já está na lista de acesso.')
+            return
+        self.refresh_table()
+        PopUpWindow(self, 'Sucesso', f'"{name}" adicionado com sucesso.')
+
+    def add_selected(self):
+        selected = self.results_table.get_selected_items()
+        if not selected:
+            PopUpWindow(self, 'Aviso', 'Selecione um resultado da pesquisa.')
+            return
+        display = selected[0][0]
+        for item in self._search_results:
+            if item['display'] == display:
+                self._add_principal(item['name'], item['type'])
+                return
+        PopUpWindow(self, 'Erro', 'Não foi possível identificar o item selecionado.')
+
+    def add_manual(self, *args):
+        resolved = admin_service.resolve_windows_principal(self.entry_manual.get())
+        if not resolved:
+            PopUpWindow(self, 'Erro', 'Conta inválida. Use o formato DOMÍNIO\\usuário ou DOMÍNIO\\grupo.')
+            return
+        self._add_principal(resolved['name'], resolved['type'])
+        self.entry_manual.delete(0, 'end')
+
+    def remove_selected(self):
+        selected = self.table.get_selected_items()
+        if not selected:
+            PopUpWindow(self, 'Aviso', 'Selecione um usuário ou grupo para remover.')
+            return
+        name = selected[0][0]
+        if admin_service.delete_config_access(name):
+            self.refresh_table()
+        else:
+            PopUpWindow(self, 'Erro', f'Não foi possível remover "{name}".')
 
 
 class ManageGroupWindow(ctk.CTkToplevel):
@@ -609,110 +1023,5 @@ class AddClientWindow(ctk.CTkToplevel):
             self.master.update_client_list()
             self.func()
             self.destroy()
-
-
-class RegisterWindow(ctk.CTkToplevel):
-    def __init__(self, master, func=None, first_login=False, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.iconbitmap(ICON)
-
-        self.geometry(calculate_center_screen_with_monitor(master, 300, 300, get_monitor(master)))
-        self.resizable(False, False)
-        self.title("Cadastrar-se")
-        self.master = master
-        self.grab_set()
-        self.func = func
-
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkLabel(self, text='Cadastrar-se', font=('Arial', 18, 'bold')) \
-            .grid(row=0, column=0, columnspan=2, pady=5, padx=10)
-
-        if first_login:
-            text = 'Não há nenhum cadastro no banco ainda,\nrealize o primeiro cadastro'
-            ctk.CTkLabel(self, text=text, font=('Arial', 12, 'normal')) \
-                .grid(row=1, column=0, columnspan=2, pady=5, padx=10)
-
-        ctk.CTkLabel(self, text='Nome do usuário').grid(row=2, column=0, columnspan=2, padx=10, sticky='S')
-        self.entry_user = ctk.CTkEntry(self, width=200)
-        self.entry_user.grid(row=3, column=0, columnspan=2, padx=10)
-
-        ctk.CTkLabel(self, text='Senha').grid(row=4, column=0, columnspan=2, padx=10, sticky='S')
-        self.entry_password = ctk.CTkEntry(self, width=200, show="*")
-        self.entry_password.grid(row=5, column=0, columnspan=2, padx=10)
-
-        ctk.CTkLabel(self, text='Confirme a Senha').grid(row=6, column=0, columnspan=2, padx=10, sticky='S')
-        self.entry_confirm_password = ctk.CTkEntry(self, width=200, show="*")
-        self.entry_confirm_password.grid(row=7, column=0, columnspan=2, padx=10)
-
-        self.btn_ok = ctk.CTkButton(self, text="OK", width=120, command=self.register_user)
-        self.btn_ok.grid(row=8, column=0, pady=15, padx=20)
-
-        self.btn_cancelar = ctk.CTkButton(self, width=120, text="Cancelar", fg_color=BTN_RED,
-                                          hover_color=BTN_HOVER_RED, command=self.destroy)
-        self.btn_cancelar.grid(row=8, column=1, pady=15, padx=20)
-
-    def register_user(self):
-        if len(self.entry_user.get()) < 6:
-            PopUpWindow(self, 'Erro', 'A nome do usuário deve ter mais de 5 digitos')
-        elif len(self.entry_password.get()) < 7:
-            PopUpWindow(self, 'Erro', 'A senha deve ter mais de 6 digitos')
-        elif self.entry_password.get() != self.entry_confirm_password.get():
-            PopUpWindow(self, 'Erro', 'As senhas não correspondem. Tente novamente.')
-        else:
-            try:
-                admin_service.register_user(self.entry_user.get(), self.entry_password.get(), 'admin')
-                self.destroy()
-                if self.func:
-                    self.func()
-            except Exception as e:
-                PopUpWindow(self, 'Erro', f'Erro ao cadastrar o usuário\n{e}')
-
-
-class LoginWindow(ctk.CTkToplevel):
-    def __init__(self, master, func, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.iconbitmap(ICON)
-
-        self.geometry(calculate_center_screen_with_monitor(master, 300, 220, get_monitor(master)))
-        self.minsize(300, 220)
-        self.maxsize(300, 220)
-        self.resizable(False, False)
-        self.title("Login")
-        self.master = master
-        self.grab_set()
-        self.func = func
-
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkLabel(self, text='Login', font=('Arial', 18, 'bold')) \
-            .grid(row=0, column=0, columnspan=2, pady=5, padx=10)
-
-        ctk.CTkLabel(self, text='Nome do usuário').grid(row=2, column=0, columnspan=2, padx=10, sticky='S')
-        self.entry_user = ctk.CTkEntry(self, width=200)
-        self.entry_user.grid(row=3, column=0, columnspan=2, padx=10)
-        self.entry_user.focus()
-
-        ctk.CTkLabel(self, text='Senha').grid(row=4, column=0, columnspan=2, padx=10, sticky='S')
-        self.entry_password = ctk.CTkEntry(self, width=200, show="*")
-        self.entry_password.grid(row=5, column=0, columnspan=2, padx=10)
-
-        self.btn_ok = ctk.CTkButton(self, text="OK", width=120, command=self.login_user)
-        self.btn_ok.grid(row=8, column=0, pady=15, padx=20)
-
-        self.btn_cancelar = ctk.CTkButton(self, width=120, text="Cancelar", fg_color=BTN_RED,
-                                          hover_color=BTN_HOVER_RED, command=self.destroy)
-        self.btn_cancelar.grid(row=8, column=1, pady=15, padx=20)
-
-        self.bind("<Return>", self.login_user)
-
-    def login_user(self, *args):
-        if admin_service.verify_user(self.entry_user.get().lower(), self.entry_password.get()):
-            self.destroy()
-            self.func()
-        else:
-            PopUpWindow(self, 'Erro', 'Credenciais inválidas.')
 
 

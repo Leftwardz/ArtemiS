@@ -51,11 +51,21 @@ class RemakeWindow(ctk.CTkToplevel):
 
         ctk.CTkLabel(self.frame_printers, text="Impressora: ").grid(row=0, column=0, padx=5)
 
-        printers_list = ['Criar PDF']
-        printers_list.extend(admin_service.list_printers())
+        printers_list = self.master._printer_combo_values()
         self.printers_list = ctk.CTkComboBox(self.frame_printers, values=printers_list, width=200)
         self.printers_list.grid(row=0, column=1, padx=5)
-        self.printers_list.set(self.printer)
+        if self.printer in printers_list:
+            self.printers_list.set(self.printer)
+        elif self.printer != 'Criar PDF':
+            _labels, name_map = admin_service.get_printer_combo_options()
+            for label, name in name_map.items():
+                if name == self.printer:
+                    self.printers_list.set(label)
+                    break
+            else:
+                self.printers_list.set(self.printer)
+        else:
+            self.printers_list.set('Criar PDF')
 
         color_frame = ctk.CTkFrame(self.frame_info, fg_color='transparent')
         color_frame.grid(row=0, column=2)
@@ -183,6 +193,8 @@ class RemakeWindow(ctk.CTkToplevel):
         for item in items_to_remake:
             position_list.append(int(item[0]))
 
+        printer_name = admin_service.resolve_printer_name(self.printers_list.get())
+
         result = prepare_remake_job(
             admin_service.get_db(),
             self.client,
@@ -190,7 +202,7 @@ class RemakeWindow(ctk.CTkToplevel):
             self.file,
             self.filepath,
             position_list,
-            self.printers_list.get(),
+            printer_name,
         )
         if not result.ok:
             PopUpWindow(self, result.error_title, result.error_message)
@@ -201,7 +213,7 @@ class RemakeWindow(ctk.CTkToplevel):
             result.items,
             result.orientations,
             is_remake=True,
-            printer=self.printers_list.get(),
+            printer=printer_name,
         )
         self.exit()
 

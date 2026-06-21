@@ -42,13 +42,9 @@ def resolve_work_search_path(search_folder: str, group_flag: str, is_remake: boo
 
 def ensure_output_directories(search_folder: str):
     old_path = os.path.join(search_folder, 'Old')
-    pdfs_path = os.path.join(search_folder, 'PDFs')
 
     if not os.path.exists(old_path):
         os.mkdir(old_path)
-
-    if not os.path.exists(pdfs_path):
-        os.mkdir(pdfs_path)
 
 
 def is_empty_file(path: str) -> bool:

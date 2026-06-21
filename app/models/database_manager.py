@@ -2,7 +2,10 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker, attributes
 import hashlib
 
-from app.models.schema import Base, Client, Product, PrintingGroup, Printer, User, Drawing
+from app.models.schema import (
+    Base, Client, Product, PrintingGroup, Printer, RegisteredPrinter,
+    User, ConfigAccess, Drawing,
+)
 
 
 class DataBase:
@@ -39,7 +42,34 @@ class DataBase:
     def create_tables(self):
         self.connect_to_database('rw')
         Base.metadata.create_all(self.write_engine)
+        self.migrate_legacy_printers()
         self.session.close()
+
+    @staticmethod
+    def _printer_row_to_dict(row):
+        return {
+            'id': row.id,
+            'name': row.name,
+            'display_name': row.display_name or row.name,
+            'enabled': row.enabled == '1',
+            'notes': row.notes or '',
+        }
+
+    def migrate_legacy_printers(self):
+        """Copia tabela legada `printers` se `registered_printers` estiver vazia."""
+        existing = self.session.query(RegisteredPrinter).count()
+        if existing:
+            return
+        legacy = self.session.query(Printer).all()
+        for item in legacy:
+            self.session.add(RegisteredPrinter(
+                name=item.name,
+                display_name=item.name,
+                enabled='1',
+                notes='',
+            ))
+        if legacy:
+            self.session.commit()
 
     def search_clients(self, name=''):
         self.connect_to_database('ro')
@@ -222,6 +252,63 @@ class DataBase:
 
         self.session.close()
 
+    def list_registered_printers(self, enabled_only=False):
+        self.connect_to_database('ro')
+        query = self.session.query(RegisteredPrinter).order_by(RegisteredPrinter.display_name)
+        if enabled_only:
+            query = query.filter(RegisteredPrinter.enabled == '1')
+        rows = query.all()
+        result = [self._printer_row_to_dict(r) for r in rows]
+        self.session.close()
+        return result
+
+    def insert_registered_printer(self, name, display_name, enabled=True, notes=''):
+        self.connect_to_database('rw')
+        if self.session.query(RegisteredPrinter).filter_by(name=name).first():
+            self.session.close()
+            return False
+        self.session.add(RegisteredPrinter(
+            name=name,
+            display_name=display_name or name,
+            enabled='1' if enabled else '0',
+            notes=notes or '',
+        ))
+        self.session.commit()
+        self.session.close()
+        return True
+
+    def update_registered_printer(self, printer_id, name, display_name, enabled, notes):
+        self.connect_to_database('rw')
+        row = self.session.query(RegisteredPrinter).filter_by(id=printer_id).first()
+        if not row:
+            self.session.close()
+            return False
+        conflict = self.session.query(RegisteredPrinter).filter(
+            RegisteredPrinter.name == name,
+            RegisteredPrinter.id != printer_id,
+        ).first()
+        if conflict:
+            self.session.close()
+            return False
+        row.name = name
+        row.display_name = display_name or name
+        row.enabled = '1' if enabled else '0'
+        row.notes = notes or ''
+        self.session.commit()
+        self.session.close()
+        return True
+
+    def delete_registered_printer(self, printer_id):
+        self.connect_to_database('rw')
+        row = self.session.query(RegisteredPrinter).filter_by(id=printer_id).first()
+        if not row:
+            self.session.close()
+            return False
+        self.session.delete(row)
+        self.session.commit()
+        self.session.close()
+        return True
+
     def search_printers(self):
         self.connect_to_database('ro')
 
@@ -343,3 +430,32 @@ class DataBase:
             raise Exception(f'Grupo {name} não encontrado na base')
         self.session.commit()
         self.session.close()
+
+    def list_config_access(self):
+        self.connect_to_database('ro')
+        entries = self.session.query(ConfigAccess).order_by(ConfigAccess.principal_name).all()
+        result = [{'name': e.principal_name, 'type': e.principal_type} for e in entries]
+        self.session.close()
+        return result
+
+    def insert_config_access(self, principal_name, principal_type):
+        self.connect_to_database('rw')
+        existing = self.session.query(ConfigAccess).filter_by(principal_name=principal_name).first()
+        if existing:
+            self.session.close()
+            return False
+        self.session.add(ConfigAccess(principal_name=principal_name, principal_type=principal_type))
+        self.session.commit()
+        self.session.close()
+        return True
+
+    def delete_config_access(self, principal_name):
+        self.connect_to_database('rw')
+        entry = self.session.query(ConfigAccess).filter_by(principal_name=principal_name).first()
+        if entry:
+            self.session.delete(entry)
+            self.session.commit()
+            self.session.close()
+            return True
+        self.session.close()
+        return False

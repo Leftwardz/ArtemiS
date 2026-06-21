@@ -14,7 +14,7 @@ from app.services.production_service import (
     is_empty_file as work_is_empty_file,
 )
 from app.ui.components import PopUpWindow, WORK_QUEUE_WIDTH, WorkQueueList
-from app.ui.config_window import ConfigWindow, LoginWindow, RegisterWindow
+from app.ui.config_window import ConfigWindow
 from app.ui.constants import (
     APP_NAME,
     BTN_HOVER_RED,
@@ -77,9 +77,7 @@ class App(ctk.CTk):
         self.lbl_select_printer = ctk.CTkLabel(self.frame_printers, text="Selecione a impressora:")
         self.lbl_select_printer.grid(row=0, column=0, padx=10)
 
-        printers_list = ['Criar PDF']
-        printers_list.extend(admin_service.list_printers())
-        self.printers_list = ctk.CTkComboBox(self.frame_printers, values=printers_list, width=210)
+        self.printers_list = ctk.CTkComboBox(self.frame_printers, values=self._printer_combo_values(), width=210)
         self.printers_list.grid(row=0, column=1, padx=15)
 
         self.lbl_select_group = ctk.CTkLabel(self.frame_printers, text="Selecione Grupo:")
@@ -198,14 +196,27 @@ class App(ctk.CTk):
             self.txtbox_ar.delete('0.0', 'end')
 
     def open_toplevel(self):
-        def open_config():
-            self.config_window = ConfigWindow(self)
-            self.withdraw()
+        if not admin_service.can_access_config():
+            user = admin_service.get_current_windows_user()
+            PopUpWindow(
+                self,
+                'Acesso negado',
+                f'Seu usuário Windows ({user}) não tem permissão para abrir as configurações.\n\n'
+                'Administradores do PC ou da rede sempre têm acesso.\n'
+                'Demais usuários precisam ser liberados por um administrador.',
+            )
+            return
 
-        if admin_service.has_login():
-            LoginWindow(self, open_config)
-        else:
-            RegisterWindow(self, open_config, first_login=True)
+        self.config_window = ConfigWindow(self)
+        self.withdraw()
+
+    @staticmethod
+    def _printer_combo_values():
+        labels, _name_map = admin_service.get_printer_combo_options()
+        return ['Criar PDF'] + labels
+
+    def _selected_printer_name(self):
+        return admin_service.resolve_printer_name(self.printers_list.get())
 
     def get_work_paths(self):
         return self.work_queue.get_paths()
@@ -214,16 +225,17 @@ class App(ctk.CTk):
         return get_paper_size_from_path(self.get_work_paths()[0], admin_service.get_db())
 
     def btn_start(self):
-        if self.printers_list.get() != 'Criar PDF':
+        printer_name = self._selected_printer_name()
+        if printer_name != 'Criar PDF':
             paper_size = self.get_paper_size_from_worklist()
-            if not validate_printer_paper(self.printers_list.get(), paper_size):
+            if not validate_printer_paper(printer_name, paper_size):
                 PopUpWindow(self, 'Erro', get_printer_paper_error_message(paper_size))
                 return
 
         lines = self.open_files_from_worklist()
         items, orientations = self.get_items_and_orientation_from_worklist(lines)
 
-        self.create_pdf(lines, items, orientations, self.checkbox_remake.get(), printer=self.printers_list.get())
+        self.create_pdf(lines, items, orientations, self.checkbox_remake.get(), printer=printer_name)
 
     def _build_pdf_callbacks(self, progress_slot, printer):
         def on_progress(_printer_name, progress, text):
@@ -232,9 +244,9 @@ class App(ctk.CTk):
         def on_error(_printer_name, error_traceback):
             self.after(0, lambda: self.loading_frame.show_error(progress_slot, error_traceback))
 
-        def on_complete(joined_pdf_filepath, files_to_move, is_remake_flag, _printer_name):
+        def on_complete(pdf_bytes, files_to_move, is_remake_flag, _printer_name):
             self.after(0, lambda: self.open_or_print_pdf(
-                joined_pdf_filepath, files_to_move, is_remake_flag, printer, progress_slot))
+                pdf_bytes, files_to_move, is_remake_flag, printer, progress_slot))
 
         return on_progress, on_error, on_complete
 
@@ -243,11 +255,6 @@ class App(ctk.CTk):
         self.update_idletasks()
 
     def create_pdf(self, lines, items, orientations, is_remake=False, printer=None):
-        # this function must be separeted from btn star, due to the remake window
-
-        # setting PDF folder
-        folder_destination = os.path.join(get_search_folder(), 'PDFs')
-
         try:
             progress_slot = self.loading_frame.add_progressbar(printer)
         except Exception as e:
@@ -260,7 +267,6 @@ class App(ctk.CTk):
             items,
             lines,
             orientations,
-            get_search_folder(),
             is_remake,
             printer,
             on_progress,
@@ -374,7 +380,7 @@ class App(ctk.CTk):
             RemakeWindow(self, result.full_path, result.work, self.defined_color, self.printers_list.get())
             self.withdraw()
 
-    def open_or_print_pdf(self, filename='', file_to_move=[], is_remake=None, printer=None, progress_slot=None):
+    def open_or_print_pdf(self, pdf_data, file_to_move=[], is_remake=None, printer=None, progress_slot=None):
         slot = progress_slot if progress_slot is not None else printer
         try:
             self.loading_frame.update_progressbar(slot, 1, 'Imprimindo...')
@@ -383,7 +389,7 @@ class App(ctk.CTk):
             if printer != 'Criar PDF':
                 exe_index = self.loading_frame.get_exe_index(slot)
 
-            finish_print_job(filename, file_to_move, is_remake, printer, exe_index)
+            finish_print_job(pdf_data, file_to_move, is_remake, printer, exe_index)
             self.loading_frame.remove_progressbar(slot)
         except Exception:
             self.loading_frame.show_error(slot, traceback.format_exc())
@@ -417,9 +423,7 @@ class App(ctk.CTk):
         self.printers_list.configure(state='normal')
 
         # update the printers list, when it's included in the Printer List in configs
-        printers_list = ['Criar PDF']
-        printers_list.extend(admin_service.list_printers())
-        self.printers_list.configure(values=printers_list)
+        self.printers_list.configure(values=self._printer_combo_values())
 
         self.remove_printing_label()
         if self.progressbar:

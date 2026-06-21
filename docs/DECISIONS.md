@@ -285,6 +285,28 @@ Ao tomar uma nova decisão arquitetural durante a refatoração, adicionar entra
 
 ---
 
+## D-024 — Autenticação de configuração via identidade Windows
+
+| Campo | Valor |
+|-------|-------|
+| **Data** | 2026-06-21 |
+| **Decisão** | Substituir login/senha interno (`LoginWindow`, `RegisterWindow`, tabela `users`) por verificação da identidade Windows. Administradores locais e de domínio sempre acessam; demais usuários/grupos são cadastrados em `config_access`. Pesquisa AD/local via `app/utils/windows_auth.py`. |
+| **Motivo** | Requisito operacional: corporações já gerenciam identidade no Windows/AD; evitar cadastro e senhas duplicadas no ArtemiS. |
+| **Impacto esperado** | `admin_service.can_access_config()` substitui `verify_user`/`has_login`; UI ganha `ManageAccessWindow`; tabela `users` legada permanece no SQLite mas não é usada. |
+
+---
+
+## D-025 — Auth Windows com SQLite compartilhado em rede
+
+| Campo | Valor |
+|-------|-------|
+| **Data** | 2026-06-21 |
+| **Decisão** | Manter auth de configuração híbrido: **identidade validada localmente** em cada PC (`windows_auth`); **lista `config_access` centralizada** no mesmo SQLite compartilhado usado para layouts. Não replicar auth por senha no banco nem exigir login ArtemiS. |
+| **Motivo** | Deploy real: app roda localmente; `database.db` fica em UNC para várias estações. Liberar um grupo de domínio uma vez deve valer em todos os PCs. Produção não deve depender de auth. |
+| **Impacto esperado** | Sem conflito funcional com multi-PC. Riscos remanescentes: concorrência SQLite na rede (pré-existente); entradas `PC\usuario` só valem na máquina; admin local de cada estação sempre entra em config. Documentado em `PROJECT_OVERVIEW.md` → *Deploy em rede*. |
+
+---
+
 ## D-023 — Remoção de pontes legadas e aliases runtime (A3)
 
 | Campo | Valor |

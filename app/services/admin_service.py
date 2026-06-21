@@ -1,6 +1,8 @@
 """Acesso a dados de administração — UI não chama DataBase diretamente."""
 
 from app import runtime
+from app.utils import windows_auth
+from app.utils.printer_handler import enumerate_installed_printers, printer_is_available
 
 
 def get_db():
@@ -15,32 +17,91 @@ def list_products(client):
     return runtime.context.db.search_products(client)
 
 
-def list_users():
-    return runtime.context.db.users_list()
+def list_config_access():
+    return runtime.context.db.list_config_access()
 
 
-def delete_user(username):
-    return runtime.context.db.delete_user(username)
+def add_config_access(principal_name, principal_type):
+    return runtime.context.db.insert_config_access(principal_name, principal_type)
 
 
-def register_user(username, password, privileges='admin'):
-    return runtime.context.db.register_user(username, password, privileges)
+def delete_config_access(principal_name):
+    return runtime.context.db.delete_config_access(principal_name)
 
 
-def verify_user(username, password):
-    return runtime.context.db.verify_user(username, password)
+def can_access_config():
+    allowed = list_config_access()
+    return windows_auth.can_access_config(allowed)
 
 
-def has_login():
-    return runtime.context.db.has_login()
+def get_current_windows_user():
+    return windows_auth.get_current_principal()
 
 
-def list_printers():
-    return runtime.context.db.search_printers()
+def is_windows_admin():
+    return windows_auth.is_windows_admin()
 
 
-def save_printers(printers_list):
-    return runtime.context.db.save_printers(printers_list)
+def search_windows_principals(query, principal_type='both'):
+    return windows_auth.search_principals(query, principal_type)
+
+
+def resolve_windows_principal(text):
+    return windows_auth.resolve_manual_principal(text)
+
+
+def list_registered_printers(enabled_only=False):
+    return runtime.context.db.list_registered_printers(enabled_only=enabled_only)
+
+
+def add_registered_printer(name, display_name, enabled=True, notes=''):
+    return runtime.context.db.insert_registered_printer(name, display_name, enabled, notes)
+
+
+def update_registered_printer(printer_id, name, display_name, enabled, notes):
+    return runtime.context.db.update_registered_printer(
+        printer_id, name, display_name, enabled, notes,
+    )
+
+
+def delete_registered_printer(printer_id):
+    return runtime.context.db.delete_registered_printer(printer_id)
+
+
+def discover_installed_printers():
+    return enumerate_installed_printers()
+
+
+def verify_printer_available(name):
+    return printer_is_available(name)
+
+
+def get_printer_combo_options():
+    """
+    Retorna (labels para combo, mapa label → nome Windows).
+    Labels usam display_name; nomes duplicados recebem sufixo.
+    """
+    entries = list_registered_printers(enabled_only=True)
+    name_by_label = {}
+    labels = []
+    label_count = {}
+
+    for entry in entries:
+        base = (entry['display_name'] or entry['name']).strip()
+        count = label_count.get(base, 0) + 1
+        label_count[base] = count
+        label = base if count == 1 else f'{base} ({count})'
+        name_by_label[label] = entry['name']
+        labels.append(label)
+
+    return labels, name_by_label
+
+
+def resolve_printer_name(combo_label):
+    if combo_label == 'Criar PDF':
+        return combo_label
+    _labels, name_by_label = get_printer_combo_options()
+    return name_by_label.get(combo_label, combo_label)
 
 
 def list_print_groups():
