@@ -1,4 +1,4 @@
-from app import runtime
+from app.services import admin_service
 import customtkinter as ctk
 
 from app.services.remake_service import prepare_remake_job
@@ -14,7 +14,6 @@ class RemakeWindow(ctk.CTkToplevel):
         self.title('Remake')
 
         self.master = master
-        self.db = runtime.db
 
         self.geometry(calculate_center_screen_with_monitor(master, DEFAULT_WIDTH, 550, get_monitor(master)))
         self.minsize(DEFAULT_WIDTH, 550)
@@ -53,7 +52,7 @@ class RemakeWindow(ctk.CTkToplevel):
         ctk.CTkLabel(self.frame_printers, text="Impressora: ").grid(row=0, column=0, padx=5)
 
         printers_list = ['Criar PDF']
-        printers_list.extend(self.db.search_printers())
+        printers_list.extend(admin_service.list_printers())
         self.printers_list = ctk.CTkComboBox(self.frame_printers, values=printers_list, width=200)
         self.printers_list.grid(row=0, column=1, padx=5)
         self.printers_list.set(self.printer)
@@ -185,7 +184,7 @@ class RemakeWindow(ctk.CTkToplevel):
             position_list.append(int(item[0]))
 
         result = prepare_remake_job(
-            self.db,
+            admin_service.get_db(),
             self.client,
             self.product,
             self.file,

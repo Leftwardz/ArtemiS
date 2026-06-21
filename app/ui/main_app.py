@@ -27,6 +27,7 @@ from app.ui.constants import (
 )
 from app.ui.remake_window import RemakeWindow
 from app.utils.file_parser import FileUtils
+from app.services import admin_service
 from app.services.work_queue_service import search_work_for_queue
 from app.utils.window_geometry import calculate_center_screen
 
@@ -76,14 +77,14 @@ class App(ctk.CTk):
         self.lbl_select_printer.grid(row=0, column=0, padx=10)
 
         printers_list = ['Criar PDF']
-        printers_list.extend(runtime.db.search_printers())
+        printers_list.extend(admin_service.list_printers())
         self.printers_list = ctk.CTkComboBox(self.frame_printers, values=printers_list, width=210)
         self.printers_list.grid(row=0, column=1, padx=15)
 
         self.lbl_select_group = ctk.CTkLabel(self.frame_printers, text="Selecione Grupo:")
         self.lbl_select_group.grid(row=1, column=0, padx=10)
 
-        self.print_group_list = ctk.CTkComboBox(self.frame_printers, values=runtime.db.search_print_group(), width=210)
+        self.print_group_list = ctk.CTkComboBox(self.frame_printers, values=admin_service.list_print_groups(), width=210)
         self.print_group_list.grid(row=1, column=1, padx=15, pady=5)
 
         # ######################## Remake Checkbox ##############################
@@ -176,13 +177,13 @@ class App(ctk.CTk):
             self.config_window = ConfigWindow(self)
             self.withdraw()
 
-        if runtime.db.has_login():
+        if admin_service.has_login():
             LoginWindow(self, open_config)
         else:
             RegisterWindow(self, open_config, first_login=True)
 
     def get_paper_size_from_worklist(self):
-        return get_paper_size_from_path(self.works_paths[0], runtime.db)
+        return get_paper_size_from_path(self.works_paths[0], admin_service.get_db())
 
     def btn_start(self):
         if self.printers_list.get() != 'Criar PDF':
@@ -242,7 +243,7 @@ class App(ctk.CTk):
         self.refresh()
 
     def get_items_and_orientation_from_worklist(self, files):
-        return get_drawings_and_orientations(files, runtime.db)
+        return get_drawings_and_orientations(files, admin_service.get_db())
 
     def open_files_from_worklist(self, *args):
         return load_worklist_file_lines(self.works_paths)
@@ -288,7 +289,7 @@ class App(ctk.CTk):
             founded_works,
             self.defined_paper_size,
             self.defined_color,
-            runtime.db,
+            admin_service.get_db(),
         )
 
         if result.status == 'empty':
@@ -382,7 +383,7 @@ class App(ctk.CTk):
 
         # update the printers list, when it's included in the Printer List in configs
         printers_list = ['Criar PDF']
-        printers_list.extend(runtime.db.search_printers())
+        printers_list.extend(admin_service.list_printers())
         self.printers_list.configure(values=printers_list)
 
         self.remove_printing_label()
