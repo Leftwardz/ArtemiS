@@ -3,7 +3,7 @@
 Documento de onboarding para qualquer agente de IA (Cursor, Codex, Antigravity ou outro) que trabalhe neste repositório.  
 **Leia este arquivo antes de propor ou implementar alterações.**
 
-**Última atualização:** 2026-06-20 (Fases A1–C1, D1 e D2 concluídas)
+**Última atualização:** 2026-06-20 (Fases A–E, E1–E6, A3 concluídas)
 
 ---
 
@@ -43,40 +43,47 @@ Documento de onboarding para qualquer agente de IA (Cursor, Codex, Antigravity o
 
 ```
 ArtemiS/
-├── Main.py                 # Monolito: UI (22 classes) + bootstrap + orquestração (~2.678 linhas)
-├── Database.py             # Ponte → app/models/
-├── utils.py                # Ponte → app/utils/
-├── pdf_utils.py            # Ponte → app/services/pdf_service.py
+├── Main.py                 # Shim → app.bootstrap.main()
+├── main.py                 # Entry PyInstaller (idêntico a Main.py no Windows)
 ├── config.json             # Caminhos: database_location, search_folder
 ├── database.db             # SQLite
-├── Main.spec               # PyInstaller (entry: Main.py)
+├── Main.spec               # PyInstaller (entry: main.py)
 ├── fontes/                 # TTF/OTF para PDF e canvas
 ├── theme/                  # Recursos azure.tcl
 ├── img/                    # Ícones
 ├── temp/                   # Barcodes e PDFs intermediários
 └── app/
+    ├── bootstrap.py        # Inicialização config + db + App
+    ├── runtime.py          # ApplicationContext em runtime.context
+    ├── application_context.py
     ├── models/
-    │   ├── schema.py           # SQLAlchemy: Client, Product, Drawing, User, Printer, PrintingGroup
-    │   └── database_manager.py # Classe DataBase (CRUD, queries)
+    │   ├── schema.py
+    │   └── database_manager.py
     ├── utils/
-    │   ├── file_parser.py      # FileUtils, get_sequence_from_str
+    │   ├── file_parser.py
     │   ├── barcode_generator.py
-    │   ├── printer_handler.py  # print_pdf_file, is_papersize_a4
+    │   ├── printer_handler.py
     │   ├── window_geometry.py
-    │   └── text_utils.py
+    │   ├── text_utils.py
+    │   └── document_delivery.py
     ├── services/
-    │   ├── pdf_service.py      # Geração ReportLab (callbacks, sem Tkinter)
-    │   ├── print_service.py    # Pós-impressão, validação de papel, arquivamento
-    │   ├── production_service.py # Fila de WO, validações, payload produção/remake
-    │   └── designer_service.py   # Validação, serialização canvas, import/export
+    │   ├── pdf_service.py
+    │   ├── print_service.py
+    │   ├── production_service.py
+    │   ├── designer_service.py
+    │   ├── work_queue_service.py
+    │   ├── remake_service.py
+    │   ├── print_job_coordinator.py
+    │   ├── admin_service.py
+    │   └── settings_service.py
     ├── controllers/            # VAZIO — não criar controladores artificiais
     └── ui/
-        ├── constants.py        # APP_NAME, ICON, FONT, cores, dimensões, PAPER_COLOR_LIST
-        ├── components/         # Table, ListBox, SpinBox, Tooltip, popups
-        ├── remake_window.py    # RemakeWindow
-        ├── main_app.py         # App + LoadingBarFrame (tela principal)
-        ├── designer_window.py  # EditWindow + auxiliares do designer
-        └── config_window.py    # ConfigWindow + login/admin
+        ├── constants.py
+        ├── components/
+        ├── remake_window.py
+        ├── main_app.py
+        ├── designer_window.py
+        └── config_window.py
 ```
 
 ### Responsabilidades por camada
@@ -92,8 +99,8 @@ ArtemiS/
 | `app/ui/main_app` | Tela principal de produção + progresso paralelo | ✅ Concluído (D3) |
 | `app/ui/designer_window` | Editor de templates + janelas auxiliares | ✅ Concluído (D4) |
 | `app/ui/config_window` | Configurações, login, import/export | ✅ Concluído (D5) |
-| `Main.py` | Shim legado → `main.main()` | ✅ D6 |
-| `main.py` | Bootstrap (`config`, `db`, `App`) | ✅ D6 |
+| `Main.py` / `main.py` | Shim → `app.bootstrap.main()` | ✅ D6 + A3 |
+| `app/bootstrap.py` | Bootstrap (`config`, `db`, `App`) | ✅ D6 |
 
 ### Classes principais
 
@@ -110,8 +117,9 @@ ArtemiS/
 
 ### Globals importantes
 
-- `config` — dict carregado de `config.json` (instanciado em `app/bootstrap.py` → `app/runtime.py`).
-- `db` — instância de `DataBase` (mesmo fluxo).
+- `runtime.context` — `ApplicationContext` com `config` (dict de `config.json`) e `db` (`DataBase`).
+- Inicializado em `app/bootstrap.py` via `runtime.init(...)`.
+- UI não acessa `runtime` diretamente: usa `settings_service` e `admin_service`.
 
 ---
 
@@ -120,9 +128,9 @@ ArtemiS/
 ### Concluído ✅
 
 1. Estrutura `app/` com pacotes.
-2. Modelos + ponte `Database.py`.
-3. Utilitários + ponte `utils.py`.
-4. `pdf_service.py` + ponte `pdf_utils.py` — **desacoplado da UI (A1)**.
+2. Modelos em `app/models/` (sem ponte raiz).
+3. Utilitários em `app/utils/` (sem ponte raiz).
+4. `pdf_service.py` — **desacoplado da UI (A1)**.
 5. `print_service.py` — pós-impressão e validação de papel **(A2)**.
 6. `production_service.py` — fila de WO e remake **(B1)**.
 7. `designer_service.py` — editor de layouts **(C1)**.
@@ -132,11 +140,14 @@ ArtemiS/
 11. Designer em `app/ui/designer_window.py` **(D4)**.
 12. Config/admin em `app/ui/config_window.py` **(D5)**.
 13. Bootstrap em `app/bootstrap.py`; entry `main.py` **(D6)**.
-14. Estado em `app/runtime.py` **(Fase E)**.
+14. Estado em `app/runtime.py` (`ApplicationContext`) **(Fase E + A3)**.
+15. Desacoplamento E1–E6 **(serviços de orquestração, admin, settings)**.
+16. Pontes raiz removidas **(A3)**.
 
 ### Próximo passo opcional
 
-**A3** — substituir wildcards legados (`utils.py`, pontes) por imports explícitos onde ainda restarem.
+- Dividir `EditWindow` / `DataBase` (god objects) — longo prazo.
+- Testes automatizados headless dos serviços.
 
 ### Explicitamente fora do escopo imediato 🚫
 
@@ -153,7 +164,7 @@ ArtemiS/
 ### Obrigatório
 
 1. **Mudanças incrementais** — extrair blocos pequenos e testáveis; nunca reescrever módulos inteiros de uma vez.
-2. **Manter compatibilidade** — preservar pontes (`Database.py`, `utils.py`, `pdf_utils.py`) enquanto `Main.py` não migrar imports.
+2. **Imports explícitos `app.*`** — pontes raiz removidas (A3); não recriar `Database.py` / `utils.py` / `pdf_utils.py`.
 3. **Não criar camadas artificiais** — só extrair módulo quando há responsabilidade real observável no código.
 4. **Preservar comportamento** — refatoração estrutural, não alteração funcional (salvo bugs explicitamente solicitados).
 5. **Atualizar documentação** ao concluir cada etapa (ver Processo Obrigatório abaixo).

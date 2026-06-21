@@ -4,7 +4,7 @@ Documento permanente de acompanhamento da modularização incremental do projeto
 Para contexto funcional do sistema, consulte também `PROJECT_OVERVIEW.md`.  
 Para decisões arquiteturais registradas, consulte `DECISIONS.md`.
 
-**Última atualização:** 2026-06-20 (Fases A1–C1, D1–D6 e E concluídas)
+**Última atualização:** 2026-06-20 (Fases A1–E, D1–D6, E1–E6 e A3 concluídas)
 
 ---
 
@@ -15,39 +15,46 @@ O ArtemiS é uma aplicação desktop em Python (CustomTkinter/Tkinter). Entry po
 ### Arquitetura em camadas (estado real)
 
 ```
-main.py                          ← bootstrap (config, db, App.mainloop)
-Main.py                          ← shim legado → main.main()
-├── Database.py                  ← ponte → app/models/
-├── utils.py                     ← ponte → app/utils/
-├── pdf_utils.py                 ← ponte → app/services/pdf_service.py
+main.py / Main.py                ← entry → app/bootstrap.py
 └── app/
+    ├── bootstrap.py             ← config.json, DataBase, App.mainloop()
+    ├── runtime.py               ← ApplicationContext (runtime.context)
+    ├── application_context.py
     ├── models/                  ← SQLAlchemy schema + DataBase (concluído)
-    ├── utils/                   ← CSV, barcodes, impressora, geometria (concluído)
+    ├── utils/                   ← CSV, barcodes, impressora, geometria, document_delivery
     ├── services/
-    │   ├── pdf_service.py       ← geração ReportLab (desacoplado da UI via callbacks)
-    │   ├── print_service.py     ← pós-impressão, validação de papel, arquivamento
-    │   ├── production_service.py← fila de WO, validações, payload de produção/remake
-    │   └── designer_service.py  ← validação, serialização canvas, import/export JSON
+    │   ├── pdf_service.py
+    │   ├── print_service.py
+    │   ├── production_service.py
+    │   ├── designer_service.py
+    │   ├── work_queue_service.py
+    │   ├── remake_service.py
+    │   ├── print_job_coordinator.py
+    │   ├── admin_service.py
+    │   └── settings_service.py
     ├── controllers/             ← vazio (placeholder)
     └── ui/
-        ├── constants.py         ← APP_NAME, ícone, fontes, cores, dimensões, PAPER_COLOR_LIST
-        ├── components/          ← Table, ListBox, SpinBox, Tooltip, PopUpWindow, ConfirmWindow
-        ├── remake_window.py     ← RemakeWindow
-        ├── main_app.py          ← App + LoadingBarFrame (tela principal de produção)
-        ├── designer_window.py   ← EditWindow + janelas auxiliares do designer
-        └── config_window.py     ← ConfigWindow + login/registro/admin
+        ├── constants.py
+        ├── components/
+        ├── remake_window.py
+        ├── main_app.py
+        ├── designer_window.py
+        └── config_window.py
 ```
+
+Pontes raiz **`Database.py`**, **`utils.py`** e **`pdf_utils.py`** foram **removidas** (A3).
 
 ### Globals e bootstrap
 
-- `config` e `db` vivem em `app/runtime.py`, inicializados por `app/bootstrap.py`.
+- `ApplicationContext` (`config`, `db`) vive em `runtime.context`, inicializado por `app/bootstrap.py`.
+- Serviços (`admin_service`, `settings_service`) leem/mutam via `runtime.context`.
 - `main.py` / `Main.py` delegam para `app.bootstrap.main()`.
 - PyInstaller (`Main.spec`) aponta para `main.py`.
 
 ### Acoplamento remanescente
 
-- `App` e janelas UI acessam `db`/`config` via `app.runtime`.
-- Acesso direto ao banco (`db.*`) permanece nas classes UI (sem camada repository).
+- UI acessa config via `settings_service`; dados via `admin_service.get_db()` injetado nos serviços.
+- `DataBase` permanece god object (repositórios — longo prazo).
 
 ---
 
@@ -64,7 +71,8 @@ Main.py                          ← shim legado → main.main()
 |---------|----------|
 | `app/models/schema.py` | Entidades SQLAlchemy: `Client`, `Product`, `Drawing`, `User`, `Printer`, `PrintingGroup` |
 | `app/models/database_manager.py` | Classe `DataBase` — CRUD, desenhos, usuários, impressoras, grupos |
-| `Database.py` | Ponte de compatibilidade reexportando schema + `DataBase` |
+
+~~`Database.py`~~ — ponte removida (A3).
 
 ### Etapa 3 — Utilitários ✅
 
@@ -75,7 +83,8 @@ Main.py                          ← shim legado → main.main()
 | `app/utils/printer_handler.py` | `print_pdf_file`, `is_papersize_a4`, etc. |
 | `app/utils/window_geometry.py` | Centralização multi-monitor |
 | `app/utils/text_utils.py` | `break_line` |
-| `utils.py` | Ponte de compatibilidade |
+
+~~`utils.py`~~ — ponte removida (A3).
 
 ### Etapa 4 — Serviços ✅
 
@@ -84,8 +93,7 @@ Main.py                          ← shim legado → main.main()
 | `app/services/pdf_service.py` | ✅ Geração ReportLab; desacoplado da UI via callbacks |
 | `app/services/print_service.py` | ✅ Pós-impressão, validação de papel, arquivamento em `Old/` |
 | `app/services/production_service.py` | ✅ Fila de WO, validações, payload de produção/remake |
-| Ponte `pdf_utils.py` | ✅ Reexportador |
-| Imports diretos parciais em `Main.py` | 🔄 Serviços importados; utils/Database/pdf_utils ainda via wildcard |
+| Imports explícitos `app.*` | ✅ Sem pontes raiz (A3) |
 
 ### Fase B — Orquestração de produção ✅
 
@@ -96,9 +104,9 @@ Main.py                          ← shim legado → main.main()
 
 ## O que ainda está pendente
 
-### Fase A — Concluir serviços (restante)
+### ~~Fase A — Concluir serviços (restante)~~ ✅ Concluída
 
-- **A3:** (Opcional) Migrar imports restantes de `Main.py` para `app.*` de forma explícita (utils, Database, pdf_utils).
+- ~~**A3:** Migrar imports e remover pontes legadas~~ — concluído.
 
 ### ~~Fase B — Orquestração de produção~~ ✅ Concluída
 

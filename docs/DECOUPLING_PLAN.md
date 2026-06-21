@@ -3,7 +3,7 @@
 Documento de análise de acoplamentos **pós-refatoração** (Fases A–E concluídas).  
 Objetivo: mapear dependências que ainda impedem testes headless, manutenção isolada e evolução da arquitetura.
 
-**Status:** concluído (E1–E6 implementados).  
+**Status:** concluído (E1–E6 + A3 legado removido).  
 **Relacionado:** `REFACTOR_PLAN.md`, `DECISIONS.md`, `PROJECT_OVERVIEW.md`
 
 ---
@@ -15,7 +15,7 @@ Foram inspecionados:
 - `app/ui/` — janelas, componentes, bootstrap
 - `app/services/` — pdf, print, production, designer
 - `app/models/` — `DataBase`
-- `app/runtime.py`, pontes legadas (`pdf_utils.py`, `utils.py`, `Database.py`)
+- `app/runtime.py`, `ApplicationContext` (pontes `pdf_utils.py`, `utils.py`, `Database.py` **removidas**)
 - Fluxos cruzados: produção, remake, designer, config/admin
 
 ### O que já está bem desacoplado (baseline positivo)
@@ -167,7 +167,7 @@ Arquivo `config_window.py` concentra **7 classes** (config, login, registro, exp
 | `app/ui/components/list_box.py` | `command=self.focus` → `master.refresh` | **Baixa** | Callback opcional `on_selection_change` explícito |
 | `app/ui/config_window.py` | 7 classes no mesmo módulo | **Baixa** | Submodules: `login.py`, `export.py`, … (organização, não comportamento) |
 | `app/utils/printer_handler.py` | Dependência Windows (`win32print`) | **Baixa** | Documentar plataforma; interface stub para dev/teste off-line |
-| `pdf_utils.py` / `utils.py` / `Database.py` | Pontes legadas ainda importáveis | **Baixa** | A3: remover pontes após grep zero usages |
+| `pdf_utils.py` / `utils.py` / `Database.py` | Pontes legadas ainda importáveis | **Baixa** | ~~A3: remover pontes após grep zero usages~~ ✅ removido |
 | `app/services/pdf_service.py` → `generate_test_pdf` | Escreve em `temp/text.pdf` fixo | **Baixa** | Path via parâmetro / diretório configurável |
 
 ---
@@ -204,7 +204,7 @@ Ordem sugerida por **impacto / risco**, alinhada ao estilo incremental do projet
 | ID | Ação | Risco |
 |----|------|-------|
 | E4.1 | Introduzir `ApplicationContext`; bootstrap popula e injeta | Médio |
-| E4.2 | Deprecar `app/runtime.py` após migração | Baixo |
+| E4.2 | Deprecar `app/runtime.py` após migração | Baixo | ✅ aliases `config`/`db` removidos; usar `runtime.context` |
 
 ### Fase E5 — Modelo de dados (opcional, longo prazo)
 
@@ -217,7 +217,7 @@ Ordem sugerida por **impacto / risco**, alinhada ao estilo incremental do projet
 
 | ID | Ação | Risco |
 |----|------|-------|
-| E6.1 | A3: eliminar pontes `pdf_utils`, wildcards | Baixo |
+| E6.1 | A3: eliminar pontes `pdf_utils`, wildcards | Baixo | ✅ |
 | E6.2 | Abstrair `os.startfile` / impressão para testes | Baixo |
 
 ---
@@ -229,7 +229,19 @@ Ordem sugerida por **impacto / risco**, alinhada ao estilo incremental do projet
 - [x] `write_text_to_pdf` invocável via script com callbacks no-op
 - [x] `serialize_canvas_to_dict` removido de `designer_service`
 - [ ] `validate_queue_consistency` e fluxo de enqueue cobertos por teste sem GUI (testes não solicitados)
-- [x] Documentação atualizada por fase
+- [x] Pontes raiz `Database.py`, `utils.py`, `pdf_utils.py` eliminadas
+- [x] Estado via `runtime.context` (sem aliases `runtime.config` / `runtime.db`)
+
+---
+
+## Fase A3 — Remoção de legado (2026-06-20)
+
+| ID | Ação | Status |
+|----|------|--------|
+| A3.1 | Remover `Database.py`, `utils.py`, `pdf_utils.py` | ✅ |
+| A3.2 | Imports diretos `app.models.database_manager` no bootstrap/settings | ✅ |
+| A3.3 | `runtime.context` exclusivo; UI usa `settings_service` / `admin_service` | ✅ |
+| A3.4 | Aliases legados removidos de `admin_service` | ✅ |
 
 ---
 

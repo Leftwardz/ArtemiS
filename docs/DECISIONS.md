@@ -282,3 +282,14 @@ Ao tomar uma nova decisão arquitetural durante a refatoração, adicionar entra
 | E4 | `ApplicationContext` + `runtime.init` / `set_db` |
 | E5 | `parse_client_product_from_work_lines` em `production_service` |
 | E6 | `document_delivery.open_path`; imports diretos de `pdf_service`; `ListBox.on_select` |
+
+---
+
+## D-023 — Remoção de pontes legadas e aliases runtime (A3)
+
+| Campo | Valor |
+|-------|-------|
+| **Data** | 2026-06-20 |
+| **Decisão** | Remover `Database.py`, `utils.py`, `pdf_utils.py`; imports diretos de `app.models` / `app.utils` / `app.services`; eliminar aliases `runtime.config` e `runtime.db` — consumidores usam `runtime.context` ou serviços (`admin_service`, `settings_service`). |
+| **Motivo** | E6/A3: zero usages das pontes; estado global simplificado após E4. |
+| **Impacto esperado** | Código raiz limpo; `Main.py` permanece apenas como shim de entry point. |
