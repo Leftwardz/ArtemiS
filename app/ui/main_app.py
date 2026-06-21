@@ -3,6 +3,7 @@ import traceback
 
 import customtkinter as ctk
 
+from app import audit
 from app.services.print_job_coordinator import start_pdf_generation
 from app.services.print_service import finish_print_job, get_printer_paper_error_message, validate_printer_paper
 from app.services.production_service import (
@@ -519,6 +520,7 @@ class LoadingBarFrame(ctk.CTkFrame):
 
         path = 'Errors_Logs.txt'
         FileUtils.write_log_file(path, error_tracebak)
+        audit.log_error(detail=error_tracebak, printer=str(slot_id))
 
         ctk.CTkButton(frame, text='Visualizar', fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
                       command=lambda: self.visualize_error(slot_id, path)).grid(row=1)

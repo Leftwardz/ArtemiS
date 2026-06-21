@@ -1,7 +1,7 @@
 import json
 import os
 
-from app import runtime
+from app import audit, runtime
 from app.models.database_manager import DataBase
 from app.ui.main_app import App
 
@@ -18,6 +18,10 @@ def main():
                 "database_location": "database.db",
                 "search_folder": "C:\\AR",
                 "print_backend": "pdftoprinter",
+                "audit_enabled": True,
+                "audit_central_location": "",
+                "audit_flush_interval_seconds": 180,
+                "audit_retention_days": 180,
             }
             json.dump(config, config_file, indent=4)
         if not os.path.exists("C:\\AR"):
@@ -26,5 +30,10 @@ def main():
     runtime.init(config, DataBase(config["database_location"]))
     runtime.context.db.create_tables()
 
+    audit.init_audit(config)
+
     app = App()
-    app.mainloop()
+    try:
+        app.mainloop()
+    finally:
+        audit.shutdown_audit()

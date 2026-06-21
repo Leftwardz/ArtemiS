@@ -1,10 +1,13 @@
 import json
 import os
+import textwrap
 import traceback
 
 import customtkinter as ctk
+from tkinter import ttk
 from tkinter.filedialog import askdirectory, askopenfilename, asksaveasfilename
 
+from app import audit
 from app.services import admin_service
 from app.services.settings_service import (
     get_database_location,
@@ -145,6 +148,12 @@ class ConfigWindow(ctk.CTkToplevel):
             command=lambda: ManageAccessWindow(self),
         )
         self.btn_manage_access.grid(row=11, column=0, padx=10, pady=5, sticky='W')
+
+        self.btn_audit = ctk.CTkButton(
+            self.main_frame, text='Auditoria / Logs', width=120,
+            command=lambda: AuditWindow(self),
+        )
+        self.btn_audit.grid(row=12, column=0, padx=10, pady=5, sticky='W')
 
         # ------------------------------- Printers ---------------------------------------------
         ctk.CTkLabel(self.main_frame, text="Impressoras", font=(FONT, 15, "bold")) \
@@ -1078,5 +1087,239 @@ class AddClientWindow(ctk.CTkToplevel):
             self.master.update_client_list()
             self.func()
             self.destroy()
+
+
+class AuditWindow(ctk.CTkToplevel):
+    """Tela de auditoria global (somente leitura do banco central).
+
+    Cada registro ocupa duas linhas: a primeira com os metadados e a segunda
+    (continuação) com os arquivos impressos / detalhe, evitando corte de texto.
+    """
+
+    _WINDOW_W = 1080
+    _WINDOW_H = 620
+    _INFO_WRAP = 64          # caracteres por linha na coluna de info
+    _CATEGORY_LABELS = {
+        'Todas': None,
+        'Impressão': 'print',
+        'Cadastro': 'cadastro',
+        'Erro': 'error',
+    }
+    _COLUMNS = ('Data/Hora', 'PC', 'Usuário', 'Categoria', 'Ação', 'Impressora', 'OK',
+                'Arquivos / Detalhe')
+    _WIDTHS = (130, 90, 140, 95, 120, 140, 36, 470)
+
+    def __init__(self, master, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.iconbitmap(ICON)
+        self.geometry(calculate_center_screen_with_monitor(
+            master, self._WINDOW_W, self._WINDOW_H, get_monitor(master),
+        ))
+        self.minsize(self._WINDOW_W, self._WINDOW_H)
+        self.resizable(True, True)
+        self.title('Auditoria / Logs')
+        self.master = master
+        self.grab_set()
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
+        filters = ctk.CTkFrame(self, fg_color='transparent')
+        filters.grid(row=0, column=0, padx=10, pady=10, sticky='ew')
+
+        ctk.CTkLabel(filters, text='De (AAAA-MM-DD)').pack(side='left', padx=(0, 3))
+        self.entry_from = ctk.CTkEntry(filters, width=105)
+        self.entry_from.pack(side='left', padx=(0, 8))
+
+        ctk.CTkLabel(filters, text='Até').pack(side='left', padx=(0, 3))
+        self.entry_to = ctk.CTkEntry(filters, width=105)
+        self.entry_to.pack(side='left', padx=(0, 8))
+
+        ctk.CTkLabel(filters, text='Usuário').pack(side='left', padx=(0, 3))
+        self.entry_user = ctk.CTkEntry(filters, width=110)
+        self.entry_user.pack(side='left', padx=(0, 8))
+
+        ctk.CTkLabel(filters, text='Impressora').pack(side='left', padx=(0, 3))
+        self.entry_printer = ctk.CTkEntry(filters, width=110)
+        self.entry_printer.pack(side='left', padx=(0, 8))
+
+        ctk.CTkLabel(filters, text='Arquivo').pack(side='left', padx=(0, 3))
+        self.entry_file = ctk.CTkEntry(filters, width=120, placeholder_text='nome parcial')
+        self.entry_file.pack(side='left', padx=(0, 8))
+        self.entry_file.bind('<Return>', lambda _e: self.refresh())
+
+        self.combo_category = ctk.CTkComboBox(
+            filters, width=130, values=list(self._CATEGORY_LABELS.keys()),
+        )
+        self.combo_category.set('Todas')
+        self.combo_category.pack(side='left', padx=(0, 8))
+
+        ctk.CTkButton(filters, text='Buscar', width=80, command=self.refresh) \
+            .pack(side='left', padx=5)
+
+        ctk.CTkButton(filters, text='Copiar tudo', width=90, command=self.copy_all) \
+            .pack(side='left', padx=(12, 3))
+        ctk.CTkButton(filters, text='Copiar seleção', width=100, command=self.copy_selected) \
+            .pack(side='left', padx=3)
+
+        self._rows = []
+        self._item_to_index = {}
+
+        table_frame = ctk.CTkFrame(self, corner_radius=0)
+        table_frame.grid(row=1, column=0, padx=10, pady=(0, 5), sticky='nsew')
+
+        try:
+            ttk.Style().configure('Treeview', rowheight=22)
+        except Exception:
+            pass
+
+        self.table = Table(table_frame, list(self._COLUMNS), show='headings')
+        for i, width in enumerate(self._WIDTHS, start=1):
+            anchor = 'w' if i in (3, 5, 8) else 'center'
+            self.table.column(f'#{i}', width=width, anchor=anchor)
+        self.table.tag_configure('rec_a', background='#242729')
+        self.table.tag_configure('rec_b', background='#1b1d1e')
+        self.table.bind('<Control-c>', lambda _e: self.copy_selected())
+        self.table.bind('<Control-C>', lambda _e: self.copy_selected())
+        self.table.pack(expand=True, fill='both', padx=2, pady=2)
+
+        self.lbl_status = ctk.CTkLabel(self, text='', font=(FONT, 11), text_color='gray')
+        self.lbl_status.grid(row=2, column=0, padx=10, pady=(0, 8), sticky='w')
+
+        self.refresh()
+
+    def _date_bounds(self):
+        local_from = local_to = None
+        date_from = self.entry_from.get().strip()
+        date_to = self.entry_to.get().strip()
+        if date_from:
+            local_from = f'{date_from} 00:00:00'
+        if date_to:
+            local_to = f'{date_to} 23:59:59'
+        return local_from, local_to
+
+    @staticmethod
+    def _build_info(row):
+        """Texto da coluna larga: arquivos impressos e/ou detalhe."""
+        parts = []
+        product = (row.get('product') or '').strip()
+        if product:
+            parts.append(f'Arquivos: {product}')
+        detail = (row.get('detail') or '').replace('\n', ' ').strip()
+        if detail:
+            parts.append(f'Detalhe: {detail}')
+        return '   |   '.join(parts)
+
+    def _wrap_two_lines(self, info):
+        if not info:
+            return '', ''
+        lines = textwrap.wrap(info, width=self._INFO_WRAP) or ['']
+        line1 = lines[0]
+        line2 = lines[1] if len(lines) > 1 else ''
+        if len(lines) > 2:
+            line2 = line2[:self._INFO_WRAP - 1] + '…'
+        return line1, line2
+
+    def refresh(self):
+        for item in self.table.get_children():
+            self.table.delete(item)
+        self._item_to_index = {}
+
+        local_from, local_to = self._date_bounds()
+        rows = audit.query_events(
+            local_from=local_from,
+            local_to=local_to,
+            user=self.entry_user.get().strip() or None,
+            printer=self.entry_printer.get().strip() or None,
+            product=self.entry_file.get().strip() or None,
+            category=self._CATEGORY_LABELS.get(self.combo_category.get()),
+            limit=1000,
+        )
+        self._rows = rows
+
+        for index, row in enumerate(rows):
+            tag = 'rec_a' if index % 2 == 0 else 'rec_b'
+            success = row.get('success')
+            ok = '' if success is None else ('OK' if success else 'X')
+            line1, line2 = self._wrap_two_lines(self._build_info(row))
+
+            iid_main = self.table.insert('', 'end', tags=(tag,), values=(
+                row.get('ts_local') or '',
+                row.get('pc_name') or '',
+                row.get('windows_user') or '',
+                row.get('category') or '',
+                row.get('action') or '',
+                row.get('printer') or '',
+                ok,
+                line1,
+            ))
+            iid_cont = self.table.insert('', 'end', tags=(tag,), values=(
+                '', '', '', '', '', '', '', line2,
+            ))
+            self._item_to_index[iid_main] = index
+            self._item_to_index[iid_cont] = index
+
+        self.lbl_status.configure(
+            text=f'{len(rows)} registro(s) — banco central de auditoria',
+        )
+
+    _EXPORT_HEADERS = ('Data/Hora', 'PC', 'Usuário', 'Categoria', 'Ação',
+                       'Impressora', 'OK', 'Arquivos', 'Detalhe')
+
+    @staticmethod
+    def _clean_cell(value):
+        text = '' if value is None else str(value)
+        return text.replace('\t', ' ').replace('\r', ' ').replace('\n', ' ')
+
+    def _record_to_cells(self, row):
+        success = row.get('success')
+        ok = '' if success is None else ('OK' if success else 'X')
+        return [
+            self._clean_cell(row.get('ts_local')),
+            self._clean_cell(row.get('pc_name')),
+            self._clean_cell(row.get('windows_user')),
+            self._clean_cell(row.get('category')),
+            self._clean_cell(row.get('action')),
+            self._clean_cell(row.get('printer')),
+            ok,
+            self._clean_cell(row.get('product')),
+            self._clean_cell(row.get('detail')),
+        ]
+
+    def _rows_to_tsv(self, records):
+        lines = ['\t'.join(self._EXPORT_HEADERS)]
+        for row in records:
+            lines.append('\t'.join(self._record_to_cells(row)))
+        return '\n'.join(lines)
+
+    def _copy_to_clipboard(self, text, count):
+        try:
+            self.clipboard_clear()
+            self.clipboard_append(text)
+            self.update()  # garante que o clipboard persista após fechar a janela
+            self.lbl_status.configure(
+                text=f'{count} registro(s) copiado(s) — cole no Excel ou Notepad',
+            )
+        except Exception:
+            self.lbl_status.configure(text='Não foi possível copiar para a área de transferência.')
+
+    def copy_all(self):
+        if not self._rows:
+            self.lbl_status.configure(text='Nada para copiar.')
+            return
+        self._copy_to_clipboard(self._rows_to_tsv(self._rows), len(self._rows))
+
+    def copy_selected(self):
+        selection = self.table.selection()
+        indexes = []
+        for item in selection:
+            idx = self._item_to_index.get(item)
+            if idx is not None and idx not in indexes:
+                indexes.append(idx)
+        if not indexes:
+            self.copy_all()
+            return
+        records = [self._rows[i] for i in indexes]
+        self._copy_to_clipboard(self._rows_to_tsv(records), len(records))
 
 

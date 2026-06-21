@@ -1,6 +1,6 @@
 """Acesso a dados de administração — UI não chama DataBase diretamente."""
 
-from app import runtime
+from app import audit, runtime
 from app.utils import windows_auth
 from app.utils.printer_handler import enumerate_installed_printers, printer_is_available
 
@@ -22,11 +22,17 @@ def list_config_access():
 
 
 def add_config_access(principal_name, principal_type):
-    return runtime.context.db.insert_config_access(principal_name, principal_type)
+    result = runtime.context.db.insert_config_access(principal_name, principal_type)
+    if result:
+        audit.log_cadastro('access_add', detail=f'{principal_type}: {principal_name}')
+    return result
 
 
 def delete_config_access(principal_name):
-    return runtime.context.db.delete_config_access(principal_name)
+    result = runtime.context.db.delete_config_access(principal_name)
+    if result:
+        audit.log_cadastro('access_delete', detail=principal_name)
+    return result
 
 
 def can_access_config():
@@ -55,17 +61,41 @@ def list_registered_printers(enabled_only=False):
 
 
 def add_registered_printer(name, display_name, enabled=True, notes=''):
-    return runtime.context.db.insert_registered_printer(name, display_name, enabled, notes)
+    result = runtime.context.db.insert_registered_printer(name, display_name, enabled, notes)
+    if result:
+        audit.log_cadastro('printer_add', detail=f'{display_name} ({name})', printer=name)
+    return result
 
 
 def update_registered_printer(printer_id, name, display_name, enabled, notes):
-    return runtime.context.db.update_registered_printer(
+    current = next(
+        (p for p in list_registered_printers() if p.get('id') == printer_id),
+        None,
+    )
+    result = runtime.context.db.update_registered_printer(
         printer_id, name, display_name, enabled, notes,
     )
+    changed = bool(result) and (
+        current is None
+        or current.get('name') != name
+        or current.get('display_name') != (display_name or name)
+        or bool(current.get('enabled')) != bool(enabled)
+        or (current.get('notes') or '') != (notes or '')
+    )
+    if changed:
+        audit.log_cadastro(
+            'printer_update',
+            detail=f'#{printer_id} {display_name} ({name}) enabled={enabled}',
+            printer=name,
+        )
+    return result
 
 
 def delete_registered_printer(printer_id):
-    return runtime.context.db.delete_registered_printer(printer_id)
+    result = runtime.context.db.delete_registered_printer(printer_id)
+    if result:
+        audit.log_cadastro('printer_delete', detail=f'#{printer_id}')
+    return result
 
 
 def discover_installed_printers():
@@ -109,19 +139,28 @@ def list_print_groups():
 
 
 def insert_print_group(name):
-    return runtime.context.db.insert_print_group(name)
+    result = runtime.context.db.insert_print_group(name)
+    audit.log_cadastro('print_group_add', detail=name)
+    return result
 
 
 def delete_print_group(name):
-    return runtime.context.db.delete_print_group(name)
+    result = runtime.context.db.delete_print_group(name)
+    audit.log_cadastro('print_group_delete', detail=name)
+    return result
 
 
 def delete_client(client):
-    return runtime.context.db.delete_client(client)
+    result = runtime.context.db.delete_client(client)
+    if result:
+        audit.log_cadastro('client_delete', detail=client)
+    return result
 
 
 def insert_client(name):
-    return runtime.context.db.insert_client(name)
+    result = runtime.context.db.insert_client(name)
+    audit.log_cadastro('client_add', detail=name)
+    return result
 
 
 def search_product(client, product_name):

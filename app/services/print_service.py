@@ -1,8 +1,9 @@
 import os
 import shutil
+import traceback
 from threading import Thread
 
-from app import runtime
+from app import audit, runtime
 from app.services.settings_service import get_print_backend
 from app.utils.document_delivery import open_path
 from app.utils.printer_handler import is_papersize_a4, print_pdf_file
@@ -40,18 +41,31 @@ def finish_print_job(pdf_data, files_to_move, is_remake, printer_name, exe_index
     """
     temp_path = write_temp_pdf(pdf_data)
     defer_remove = False
+    product_hint = (
+        '; '.join(os.path.basename(f) for f in files_to_move)
+        if files_to_move else None
+    )
+    backend = get_print_backend()
     try:
         if printer_name == 'Criar PDF':
             open_path(temp_path)
             defer_remove = True
+            audit.log_print(
+                printer='Criar PDF', success=True, action='create_pdf',
+                product=product_hint,
+            )
         else:
             print_pdf_file(
                 os.path.abspath(temp_path),
                 printer_name,
                 exe_index=exe_index,
                 paper_size=paper_size,
-                backend=get_print_backend(),
+                backend=backend,
                 config=runtime.context.config,
+            )
+            audit.log_print(
+                printer=printer_name, success=True, backend=backend,
+                paper_size=paper_size, product=product_hint,
             )
 
         for file in files_to_move:
@@ -68,6 +82,12 @@ def finish_print_job(pdf_data, files_to_move, is_remake, printer_name, exe_index
             except shutil.Error:
                 pass
     except Exception:
+        if printer_name != 'Criar PDF':
+            audit.log_print(
+                printer=printer_name, success=False, backend=backend,
+                paper_size=paper_size, product=product_hint,
+                detail=traceback.format_exc(),
+            )
         remove_temp_pdf(temp_path)
         raise
     else:

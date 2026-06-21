@@ -2,6 +2,8 @@ import base64
 import json
 from typing import List, Optional
 
+from app import audit
+
 
 ORIENTATION_LABELS = [
     '3 por Folha - Vertical',
@@ -44,10 +46,15 @@ def save_product_with_drawings(
     db.change_or_add_product_name(client, current_name, new_name, color, orientation_type, paper_size)
     db.del_all_drawing_from_product(client, new_name)
     db.save_drawings(client, new_name, drawings)
+    renamed = '' if current_name == new_name else f' (renomeado de "{current_name}")'
+    audit.log_cadastro('product_save', detail=f'{client} / {new_name}{renamed}')
 
 
 def delete_product(client: str, product_name: str, db) -> bool:
-    return db.delete_product(client, product_name)
+    result = db.delete_product(client, product_name)
+    if result:
+        audit.log_cadastro('product_delete', detail=f'{client} / {product_name}')
+    return result
 
 
 def duplicate_product(
@@ -70,6 +77,10 @@ def duplicate_product(
     )
     items = db.consult_drawings_from_product(source_client, source_product)
     db.save_drawings(target_client, target_product, items)
+    audit.log_cadastro(
+        'product_duplicate',
+        detail=f'{source_client}/{source_product} -> {target_client}/{target_product}',
+    )
     return None
 
 
@@ -105,6 +116,7 @@ def parse_import_file(file_path: str) -> dict:
 def replace_imported_drawings(client_name: str, product_name: str, items: list, db):
     db.del_all_drawing_from_product(client_name, product_name)
     db.save_drawings(client_name, product_name, items)
+    audit.log_cadastro('product_import_replace', detail=f'{client_name} / {product_name}')
 
 
 def import_product_for_existing_client(
@@ -118,6 +130,7 @@ def import_product_for_existing_client(
 ):
     db.insert_product(product_name, client_name, color, orientation, paper_size)
     db.save_drawings(client_name, product_name, items)
+    audit.log_cadastro('product_import', detail=f'{client_name} / {product_name}')
 
 
 def import_product_with_new_client(
@@ -132,6 +145,10 @@ def import_product_with_new_client(
     db.insert_client(client_name)
     db.insert_product(product_name, client_name, color, orientation, paper_size)
     db.save_drawings(client_name, product_name, items)
+    audit.log_cadastro(
+        'product_import_new_client',
+        detail=f'cliente novo "{client_name}" / produto "{product_name}"',
+    )
 
 
 def has_unsaved_changes(

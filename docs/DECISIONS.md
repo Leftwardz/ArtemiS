@@ -296,6 +296,17 @@ Ao tomar uma nova decisão arquitetural durante a refatoração, adicionar entra
 
 ---
 
+## D-027 — Auditoria local-first com agregação central (multi-PC)
+
+| Campo | Valor |
+|-------|-------|
+| **Data** | 2026-06-21 |
+| **Decisão** | Novo módulo `app/audit/` com SQLite dedicado (sqlite3 puro, fora do banco de produção). Topologia híbrida: grava local por PC (assíncrono via fila+worker, fallback JSONL) e um `Aggregator` copia em lote para um SQLite central na rede. Tela "Auditoria / Logs" com visão global (somente leitura do central). Registra impressões, acesso à config, cadastros e erros. |
+| **Motivo** | Necessidade de auditoria confiável em ambiente de até 30 PCs com SQLite compartilhado, sem interferir na impressão (fluxo crítico) nem migrar/alterar o banco de produção. SQLite em rede tem risco de lock/corrupção; escrita por-evento na rede foi descartada. |
+| **Impacto esperado** | Best-effort: log nunca bloqueia/atrasa a impressão e nunca propaga exceção. Central é store derivado (reconstruível dos locais). Config em `config.json` (`audit_enabled`, `audit_central_location`, `audit_flush_interval_seconds`, `audit_retention_days`, ~6 meses). Init/shutdown em `bootstrap.py` + `atexit`. Documentado em `docs/AUDIT_LOG.md`. |
+
+---
+
 ## D-026 — Camada de impressão desacoplada com múltiplos backends
 
 | Campo | Valor |
