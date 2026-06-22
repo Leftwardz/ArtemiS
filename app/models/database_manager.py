@@ -1,80 +1,13 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, LargeBinary
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import relationship
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker, attributes
 import hashlib
-Base = declarative_base()
+import os
+import stat
 
-
-class Client(Base):
-    __tablename__ = 'clients'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String, unique=True)
-    products = relationship('Product', back_populates='client', cascade="all, delete")
-    drawings = relationship('Drawing', back_populates='client', cascade="all, delete")
-
-
-class Product(Base):
-    __tablename__ = 'products'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String)
-    client_id = Column(Integer, ForeignKey('clients.id'))
-    client = relationship('Client', back_populates='products')
-    drawings = relationship('Drawing', back_populates='product', cascade="all, delete")
-    paper_color = Column(String)
-    orientation = Column(String)
-    paper_size = Column(String)
-
-
-class PrintingGroup(Base):
-    __tablename__ = 'printing_groups'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String)
-
-
-class Printer(Base):
-    __tablename__ = 'printers'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String, unique=True)
-
-
-class User(Base):
-    __tablename__ = 'users'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    username = Column(String, unique=True)
-    password = Column(String)
-    privileges = Column(String)
-
-
-class Drawing(Base):
-    __tablename__ = 'drawings'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    product_id = Column(Integer, ForeignKey('products.id'))
-    client_id = Column(Integer, ForeignKey('clients.id'))
-    client = relationship('Client', back_populates='drawings')
-    product = relationship('Product', back_populates='drawings')
-    item_type = Column(String)
-    x1 = Column(String)
-    x2 = Column(String)
-    y1 = Column(String)
-    y2 = Column(String)
-    font_name = Column(String)
-    font_size = Column(String)
-    font_style = Column(String)
-    orientation = Column(String)
-    thickness = Column(String)
-    dashed = Column(String)
-    text = Column(String)
-    file_columns = Column(String)
-    barcode_height = Column(String)
-    barcode_width = Column(String)
-    line_distance = Column(String)
-    segment_id = Column(String)
-    tag = Column(String)
-    proportion = Column(String)
-    image = Column(LargeBinary)
-    char_limit = Column(String)
+from app.models.schema import (
+    Base, Client, Product, PrintingGroup, Printer, RegisteredPrinter,
+    User, ConfigAccess, Drawing,
+)
 
 
 class DataBase:
@@ -102,15 +35,52 @@ class DataBase:
             else:
                 raise(f'O modo {mode} não existe, deve ser "ro" ou "rw"')
 
-            Session = sessionmaker(bind=self.write_engine)
+            Session = sessionmaker(bind=self.write_engine if mode == 'rw' else self.read_engine)
             self.session = Session()
 
         except Exception as e:
             raise(f'Erro ao conectar com o banco: {e}')
 
+    def _clear_readonly_attribute(self):
+        """Remove o atributo somente-leitura do arquivo .db (best-effort)."""
+        if os.path.isfile(self.db_location):
+            try:
+                os.chmod(self.db_location, stat.S_IWRITE | stat.S_IREAD)
+            except OSError:
+                pass
+
     def create_tables(self):
+        self._clear_readonly_attribute()
         self.connect_to_database('rw')
         Base.metadata.create_all(self.write_engine)
+        self.migrate_legacy_printers()
+        self.session.close()
+
+    @staticmethod
+    def _printer_row_to_dict(row):
+        return {
+            'id': row.id,
+            'name': row.name,
+            'display_name': row.display_name or row.name,
+            'enabled': row.enabled == '1',
+            'notes': row.notes or '',
+        }
+
+    def migrate_legacy_printers(self):
+        """Copia tabela legada `printers` se `registered_printers` estiver vazia."""
+        existing = self.session.query(RegisteredPrinter).count()
+        if existing:
+            return
+        legacy = self.session.query(Printer).all()
+        for item in legacy:
+            self.session.add(RegisteredPrinter(
+                name=item.name,
+                display_name=item.name,
+                enabled='1',
+                notes='',
+            ))
+        if legacy:
+            self.session.commit()
 
     def search_clients(self, name=''):
         self.connect_to_database('ro')
@@ -229,16 +199,12 @@ class DataBase:
         return result
 
     def save_drawings(self, client_name, product_name, drawings):
-        """
-        :param drawings_dict: []
-
-        """
         self.connect_to_database('rw')
 
         client_id = self.session.query(Client).filter_by(name=client_name).first().id
         product = self.session.query(Product).filter_by(name=product_name, client_id=client_id).first()
 
-        batch_size = 100  # Tamanho do lote para inserção em lotes
+        batch_size = 100
         batch = []
         for drawings_dict in drawings:
             drawing = Drawing(
@@ -246,36 +212,11 @@ class DataBase:
                 product_id=product.id,
                 **drawings_dict
             )
-                # item_type=drawings_dict['item_type'],
-                # x1=drawings_dict['x1'],
-                # x2=drawings_dict['x2'],
-                # y2=drawings_dict['y2'],
-                # y1=drawings_dict['y1'],
-                # font_name=drawings_dict['font_name'],
-                # font_size=drawings_dict['font_size'],
-                # font_style=drawings_dict['font_style'],
-                # orientation=drawings_dict['orientation'],
-                # thickness=drawings_dict['thickness'],
-                # dashed=drawings_dict['dashed'],
-                # text=drawings_dict['text'],
-                # file_columns=drawings_dict['file_columns'],
-                # barcode_height=drawings_dict['barcode_height'],
-                # barcode_width=drawings_dict['barcode_width'],
-                # line_distance=drawings_dict['line_distance'],
-                # segment_id=drawings_dict['segment_id'],
-                # tag=drawings_dict['tag'],
-                # proportion=drawings_dict['proportion'],
-                # image=drawings_dict['image'],
-                # char_limit=drawings_dict['char_limit']
-            # )
             batch.append(drawing)
 
             if len(batch) >= batch_size:
                 self.session.bulk_save_objects(batch)
                 batch = []
-
-            # product.drawings.append(drawing)
-            # self.session.add(drawing)
 
         if batch:
             self.session.bulk_save_objects(batch)
@@ -322,12 +263,70 @@ class DataBase:
 
         self.session.close()
 
+    def list_registered_printers(self, enabled_only=False):
+        self.connect_to_database('ro')
+        query = self.session.query(RegisteredPrinter).order_by(RegisteredPrinter.display_name)
+        if enabled_only:
+            query = query.filter(RegisteredPrinter.enabled == '1')
+        rows = query.all()
+        result = [self._printer_row_to_dict(r) for r in rows]
+        self.session.close()
+        return result
+
+    def insert_registered_printer(self, name, display_name, enabled=True, notes=''):
+        self.connect_to_database('rw')
+        if self.session.query(RegisteredPrinter).filter_by(name=name).first():
+            self.session.close()
+            return False
+        self.session.add(RegisteredPrinter(
+            name=name,
+            display_name=display_name or name,
+            enabled='1' if enabled else '0',
+            notes=notes or '',
+        ))
+        self.session.commit()
+        self.session.close()
+        return True
+
+    def update_registered_printer(self, printer_id, name, display_name, enabled, notes):
+        self.connect_to_database('rw')
+        row = self.session.query(RegisteredPrinter).filter_by(id=printer_id).first()
+        if not row:
+            self.session.close()
+            return False
+        conflict = self.session.query(RegisteredPrinter).filter(
+            RegisteredPrinter.name == name,
+            RegisteredPrinter.id != printer_id,
+        ).first()
+        if conflict:
+            self.session.close()
+            return False
+        row.name = name
+        row.display_name = display_name or name
+        row.enabled = '1' if enabled else '0'
+        row.notes = notes or ''
+        self.session.commit()
+        self.session.close()
+        return True
+
+    def delete_registered_printer(self, printer_id):
+        self.connect_to_database('rw')
+        row = self.session.query(RegisteredPrinter).filter_by(id=printer_id).first()
+        if not row:
+            self.session.close()
+            return False
+        self.session.delete(row)
+        self.session.commit()
+        self.session.close()
+        return True
+
     def search_printers(self):
         self.connect_to_database('ro')
 
         result = self.session.execute(select(Printer.__table__.columns.name))
-
-        return [i.name for i in result]
+        printers = [i.name for i in result]
+        self.session.close()
+        return printers
 
     def save_printers(self, printers_list):
         self.connect_to_database('rw')
@@ -342,7 +341,6 @@ class DataBase:
             self.session.add(Printer(name=printer))
 
         self.session.commit()
-
         self.session.close()
 
     def has_login(self):
@@ -380,8 +378,9 @@ class DataBase:
         self.connect_to_database('rw')
 
         users_in_db = self.session.query(User).all()
-
-        return [i.username.capitalize() for i in users_in_db]
+        user_names = [i.username.capitalize() for i in users_in_db]
+        self.session.close()
+        return user_names
 
     def delete_user(self, username):
         self.connect_to_database('rw')
@@ -391,12 +390,12 @@ class DataBase:
         if user_in_db:
             self.session.delete(user_in_db)
         else:
-            raise f'Usuário {username} não encontrado na base'
+            self.session.close()
+            raise Exception(f'Usuário {username} não encontrado na base')
         self.session.commit()
         self.session.close()
 
     def product_exists(self, client_name, product_name):
-
         self.connect_to_database('ro')
 
         client = self.session.query(Client).filter_by(name=client_name).first()
@@ -416,8 +415,9 @@ class DataBase:
         self.connect_to_database('ro')
 
         result = self.session.execute(select(PrintingGroup.__table__.columns.name))
-
-        return [i.name for i in result]
+        groups = [i.name for i in result]
+        self.session.close()
+        return groups
 
     def insert_print_group(self, name):
         self.connect_to_database('rw')
@@ -437,14 +437,36 @@ class DataBase:
         if print_group:
             self.session.delete(print_group)
         else:
-            raise Exception(f'Grupo {print_group} não encontrado na base')
+            self.session.close()
+            raise Exception(f'Grupo {name} não encontrado na base')
         self.session.commit()
         self.session.close()
 
+    def list_config_access(self):
+        self.connect_to_database('ro')
+        entries = self.session.query(ConfigAccess).order_by(ConfigAccess.principal_name).all()
+        result = [{'name': e.principal_name, 'type': e.principal_type} for e in entries]
+        self.session.close()
+        return result
 
-if __name__ == '__main__':
-    db = DataBase('database.db')
-    db.create_tables()
-    print(db.has_login())
-    print(db.verify_user('nathan', '1234f567'))
+    def insert_config_access(self, principal_name, principal_type):
+        self.connect_to_database('rw')
+        existing = self.session.query(ConfigAccess).filter_by(principal_name=principal_name).first()
+        if existing:
+            self.session.close()
+            return False
+        self.session.add(ConfigAccess(principal_name=principal_name, principal_type=principal_type))
+        self.session.commit()
+        self.session.close()
+        return True
 
+    def delete_config_access(self, principal_name):
+        self.connect_to_database('rw')
+        entry = self.session.query(ConfigAccess).filter_by(principal_name=principal_name).first()
+        if entry:
+            self.session.delete(entry)
+            self.session.commit()
+            self.session.close()
+            return True
+        self.session.close()
+        return False
