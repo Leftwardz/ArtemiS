@@ -20,6 +20,8 @@ from app.utils.barcode_generator import (
     create_datamatrix_bytes,
 )
 from app.utils.text_utils import break_line
+from app.models.sheet_layout import SheetLayout
+from app.services.layout_service import resolve_layout_for_orientation
 
 # Font registration
 pdfmetrics.registerFont(TTFont('Arial', 'fontes/Arial.ttf'))
@@ -119,8 +121,13 @@ def filter_segments(segment_id, item_list, test):
         return list(filter(lambda item: item['segment_id'] == segment_id and 'IGNORE' not in item['tag'], item_list))
 
 
-def generate_test_pdf(items=None, path="temp/text.pdf", orientation='Default'):
-    pdf = canvas.Canvas(path, pagesize=A4)
+def generate_test_pdf(items=None, path="temp/text.pdf", orientation='Default', layout=None):
+    if orientation == 4:
+        layout = layout or SheetLayout.default()
+        pagesize = layout.page_size_pt()
+    else:
+        pagesize = A4
+    pdf = canvas.Canvas(path, pagesize=pagesize)
     qtd_pages = 1
     for page in range(qtd_pages):
         pdf.setDash([10, 4])
@@ -170,6 +177,13 @@ def generate_test_pdf(items=None, path="temp/text.pdf", orientation='Default'):
             for i in range(2):
                 draw_ar(items, pdf, offset_y=position_dict[i], is_test=True)
 
+        elif orientation == 4:
+            layout = layout or SheetLayout.default()
+            _draw_custom_slot_guides(pdf, layout)
+            pdf.setDash([])
+            for offset_x, offset_y in layout.slot_offsets_pt():
+                draw_ar(items, pdf, offset_x=offset_x, offset_y=offset_y, is_test=True)
+
         pdf.showPage()
     pdf.save()
 
@@ -180,7 +194,7 @@ def _report_progress(on_progress, printer, progress, text):
 
 
 def write_text_to_pdf(items, files_lines, orientation_list, path=None, is_remake=False, printer=None,
-                      on_progress=None, on_error=None, on_complete=None):
+                      on_progress=None, on_error=None, on_complete=None, layout_config_list=None):
     completed_pdfs = []
     files_to_move = []
     total = len(files_lines)
@@ -194,7 +208,11 @@ def write_text_to_pdf(items, files_lines, orientation_list, path=None, is_remake
                 filename = filename + '_Remake_' + date
 
             buffer = io.BytesIO()
-            pdf = canvas.Canvas(buffer, pagesize=A4)
+            layout = None
+            if layout_config_list and i < len(layout_config_list):
+                layout = resolve_layout_for_orientation(orientation_list[i], layout_config_list[i])
+            pagesize = layout.page_size_pt() if layout else A4
+            pdf = canvas.Canvas(buffer, pagesize=pagesize)
             lines = lines[:-1]
 
             if orientation_list[i] == '0':
@@ -205,6 +223,11 @@ def write_text_to_pdf(items, files_lines, orientation_list, path=None, is_remake
                 configure_full_A4_ar(pdf, lines, items, i, total, printer, filename, on_progress)
             elif orientation_list[i] == '3':
                 configure_2vertical_ar(pdf, lines, items, i, total, printer, filename, on_progress)
+            elif orientation_list[i] == '4':
+                configure_custom_layout(
+                    pdf, lines, items, i, total, printer, filename,
+                    layout or SheetLayout.default(), on_progress,
+                )
 
             pdf.save()
             buffer.seek(0)
@@ -313,6 +336,45 @@ def configure_horizontal_ar(pdf, filelines, items, current_index, total, printer
         pdf.line((A4[0] // 2), 0, (A4[0] // 2), A4[1])
         pdf.setDash([])
 
+        pdf.showPage()
+        progress = (page + 1) / qtd_pages
+        text = f'{current_index + 1}/{total}'
+        _report_progress(on_progress, printer, progress, text)
+
+
+def _draw_custom_slot_guides(pdf_canvas, layout: SheetLayout):
+    if not layout.show_cut_guides:
+        return
+    pdf_canvas.setDash([6, 3])
+    pdf_canvas.setLineWidth(0.5)
+    for x_mm, y_mm in layout.compute_slot_origins_mm():
+        x = SheetLayout.mm_to_pt(x_mm)
+        y = SheetLayout.mm_to_pt(y_mm)
+        w = SheetLayout.mm_to_pt(layout.label_width_mm)
+        h = SheetLayout.mm_to_pt(layout.label_height_mm)
+        pdf_canvas.rect(x, y, w, h)
+    pdf_canvas.setDash([])
+
+
+def configure_custom_layout(pdf, filelines, items, current_index, total, printer, filename,
+                            layout: SheetLayout, on_progress=None):
+    slots = layout.slot_offsets_pt()
+    slot_count = max(1, len(slots))
+    qtd_pages = math.ceil(len(filelines) / slot_count)
+
+    for page in range(qtd_pages):
+        for slot_idx, (offset_x, offset_y) in enumerate(slots):
+            record_index = page * slot_count + slot_idx
+            if record_index >= len(filelines):
+                continue
+            record = filelines[record_index]
+            draw_ar(
+                items[current_index], pdf, record[1],
+                offset_x=offset_x, offset_y=offset_y,
+                counter=record[0], filename=filename,
+            )
+
+        _draw_custom_slot_guides(pdf, layout)
         pdf.showPage()
         progress = (page + 1) / qtd_pages
         text = f'{current_index + 1}/{total}'

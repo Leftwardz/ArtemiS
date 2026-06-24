@@ -23,6 +23,7 @@ class Product(Base):
     paper_color = Column(String)
     orientation = Column(String)
     paper_size = Column(String)
+    layout_config = Column(String)
 
 
 class PrintingGroup(Base):

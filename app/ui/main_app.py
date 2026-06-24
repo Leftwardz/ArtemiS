@@ -234,9 +234,10 @@ class App(ctk.CTk):
                 return
 
         lines = self.open_files_from_worklist()
-        items, orientations = self.get_items_and_orientation_from_worklist(lines)
+        items, orientations, layout_configs = self.get_items_and_orientation_from_worklist(lines)
 
-        self.create_pdf(lines, items, orientations, self.checkbox_remake.get(), printer=printer_name)
+        self.create_pdf(lines, items, orientations, self.checkbox_remake.get(), printer=printer_name,
+                        layout_config_list=layout_configs)
 
     def _build_pdf_callbacks(self, progress_slot, printer):
         def on_progress(_printer_name, progress, text):
@@ -255,7 +256,7 @@ class App(ctk.CTk):
         self.loading_frame.update_progressbar(progress_slot, progress, text)
         self.update_idletasks()
 
-    def create_pdf(self, lines, items, orientations, is_remake=False, printer=None):
+    def create_pdf(self, lines, items, orientations, is_remake=False, printer=None, layout_config_list=None):
         try:
             progress_slot = self.loading_frame.add_progressbar(printer)
         except Exception as e:
@@ -273,6 +274,7 @@ class App(ctk.CTk):
             on_progress,
             on_error,
             on_complete,
+            layout_config_list=layout_config_list,
         )
 
         self.refresh()

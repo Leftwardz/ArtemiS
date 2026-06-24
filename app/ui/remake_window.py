@@ -214,6 +214,7 @@ class RemakeWindow(ctk.CTkToplevel):
             result.orientations,
             is_remake=True,
             printer=printer_name,
+            layout_config_list=result.layout_configs,
         )
         self.exit()
 

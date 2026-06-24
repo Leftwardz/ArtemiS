@@ -3,6 +3,7 @@ import json
 from typing import List, Optional
 
 from app import audit
+from app.models.sheet_layout import CUSTOM_ORIENTATION_INDEX
 
 
 ORIENTATION_LABELS = [
@@ -10,6 +11,7 @@ ORIENTATION_LABELS = [
     '2 por Folha - Horizontal',
     '1 por folha - A4',
     '2 por folha - Vertical',
+    'Customizado',
 ]
 
 
@@ -42,8 +44,11 @@ def save_product_with_drawings(
     paper_size: str,
     drawings: list,
     db,
+    layout_config: Optional[str] = None,
 ):
-    db.change_or_add_product_name(client, current_name, new_name, color, orientation_type, paper_size)
+    db.change_or_add_product_name(
+        client, current_name, new_name, color, orientation_type, paper_size, layout_config,
+    )
     db.del_all_drawing_from_product(client, new_name)
     db.save_drawings(client, new_name, drawings)
     renamed = '' if current_name == new_name else f' (renomeado de "{current_name}")'
@@ -74,6 +79,7 @@ def duplicate_product(
         product_obj.paper_color,
         product_obj.orientation,
         product_obj.paper_size,
+        getattr(product_obj, 'layout_config', None),
     )
     items = db.consult_drawings_from_product(source_client, source_product)
     db.save_drawings(target_client, target_product, items)
@@ -98,6 +104,7 @@ def build_export_payload(client: str, product: str, db) -> dict:
         'paper_size': product_db.paper_size,
         'color': db.search_color(client, product),
         'orientation': product_db.orientation,
+        'layout_config': getattr(product_db, 'layout_config', None),
         'items': items,
     }
 
@@ -127,8 +134,9 @@ def import_product_for_existing_client(
     paper_size: str,
     items: list,
     db,
+    layout_config: Optional[str] = None,
 ):
-    db.insert_product(product_name, client_name, color, orientation, paper_size)
+    db.insert_product(product_name, client_name, color, orientation, paper_size, layout_config)
     db.save_drawings(client_name, product_name, items)
     audit.log_cadastro('product_import', detail=f'{client_name} / {product_name}')
 
@@ -141,9 +149,10 @@ def import_product_with_new_client(
     paper_size: str,
     items: list,
     db,
+    layout_config: Optional[str] = None,
 ):
     db.insert_client(client_name)
-    db.insert_product(product_name, client_name, color, orientation, paper_size)
+    db.insert_product(product_name, client_name, color, orientation, paper_size, layout_config)
     db.save_drawings(client_name, product_name, items)
     audit.log_cadastro(
         'product_import_new_client',
@@ -161,6 +170,7 @@ def has_unsaved_changes(
     current_drawings: list,
     saved_drawings: list,
     db,
+    layout_config: Optional[str] = None,
 ) -> bool:
     product = db.search_product(client, product_name)
     if not product:
@@ -174,5 +184,10 @@ def has_unsaved_changes(
         return True
     if paper_size != product.paper_size:
         return True
+    if orientation_index == CUSTOM_ORIENTATION_INDEX:
+        saved_layout = getattr(product, 'layout_config', None) or ''
+        current_layout = layout_config or ''
+        if current_layout != saved_layout:
+            return True
     return False
 

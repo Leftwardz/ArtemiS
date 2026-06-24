@@ -16,6 +16,8 @@ from app.services.designer_service import (
     save_product_with_drawings,
     validate_product_name,
 )
+from app.models.sheet_layout import CUSTOM_ORIENTATION_INDEX, SheetLayout
+from app.services.layout_service import PAGE_PRESET_LABELS, build_grid_layout
 from app.models.drawing_items import (
     BarcodeObject, BarcodeTextObject, CounterObject, ImageObject, LineObject,
     RectangleObject, SegmentLine, SegmentObject, TextObject, new_object_id,
@@ -134,10 +136,12 @@ class EditWindow(ctk.CTkToplevel):
             product_color = product.paper_color
             product_orientation = product.orientation
             product_paper_size = product.paper_size
+            self.sheet_layout = SheetLayout.from_json(getattr(product, 'layout_config', None))
         else:
             product_orientation = '0'
             product_color = 'Branco'
             product_paper_size = '9'
+            self.sheet_layout = SheetLayout.default()
 
         ctk.CTkLabel(self.frame_paper_color, text='Cor do Papel: ').grid(row=0, column=0, padx=2)
         self.paper_color_list = ctk.CTkComboBox(self.frame_paper_color, values=list(PAPER_COLOR_LIST.keys()),
@@ -173,7 +177,13 @@ class EditWindow(ctk.CTkToplevel):
         self.combobox_type = ctk.CTkComboBox(self.frame_type, values=self.orient_values, width=180,
                                              command=self.change_orientation)
         self.combobox_type.grid(row=0, column=1)
-        self.combobox_type.set(self.orient_values[int(product_orientation)])
+        orient_idx = int(product_orientation) if str(product_orientation).isdigit() else 0
+        if orient_idx >= len(self.orient_values):
+            orient_idx = 0
+        self.combobox_type.set(self.orient_values[orient_idx])
+        product_orientation = str(orient_idx)
+
+        self._build_custom_layout_panel()
         # ----------------------------- Canvas -------------------------------------------
         self.grid_rowconfigure(3, weight=1)
 
@@ -184,8 +194,11 @@ class EditWindow(ctk.CTkToplevel):
             '2': {'width': 1180, 'height': 1680}, # Full A4 AR
             '3': {'width': 1180, 'height': 840}  # 2 ARs folha - Vertical
         }
-        canvas_width = self.resolution[product_orientation]['width']
-        canvas_height = self.resolution[product_orientation]['height']
+        if product_orientation == str(CUSTOM_ORIENTATION_INDEX):
+            canvas_width, canvas_height = self.sheet_layout.label_canvas_size()
+        else:
+            canvas_width = self.resolution[product_orientation]['width']
+            canvas_height = self.resolution[product_orientation]['height']
 
         canvas_container = ctk.CTkFrame(self)
         canvas_container.grid(row=3, column=0, columnspan=5, padx=5, pady=10, sticky="nswe")
@@ -251,12 +264,171 @@ class EditWindow(ctk.CTkToplevel):
         self.canvas.bind('<Button>', self.update_save_button)
 
         self.draw_items_into_canvas(self.canvas_db_saved_items)
+        self._toggle_custom_layout_panel()
         self.focus_force()
 
+    def _build_custom_layout_panel(self):
+        layout = self.sheet_layout
+        self.frame_custom_layout = ctk.CTkFrame(self.frame_type, fg_color='transparent')
+        self.frame_custom_layout.grid(row=1, column=0, columnspan=2, padx=4, sticky='W')
+
+        ctk.CTkLabel(self.frame_custom_layout, text='Layout customizado', font=('Arial', 13, 'bold')) \
+            .grid(row=0, column=0, columnspan=8, sticky='W', pady=(0, 4))
+
+        ctk.CTkLabel(self.frame_custom_layout, text='Folha:').grid(row=1, column=0, padx=4, sticky='E')
+        self.custom_page_preset = ctk.CTkComboBox(
+            self.frame_custom_layout, values=PAGE_PRESET_LABELS, width=120,
+            command=self._on_custom_page_preset,
+        )
+        self.custom_page_preset.grid(row=1, column=1, padx=4, sticky='W')
+        self.custom_page_preset.set(layout.page_preset)
+
+        ctk.CTkLabel(self.frame_custom_layout, text='L×A folha (mm):').grid(row=1, column=2, padx=4, sticky='E')
+        self.custom_page_w = ctk.CTkEntry(self.frame_custom_layout, width=60)
+        self.custom_page_w.grid(row=1, column=3, padx=2)
+        self.custom_page_w.insert(0, str(layout.page_width_mm))
+        self.custom_page_h = ctk.CTkEntry(self.frame_custom_layout, width=60)
+        self.custom_page_h.grid(row=1, column=4, padx=2)
+        self.custom_page_h.insert(0, str(layout.page_height_mm))
+
+        ctk.CTkLabel(self.frame_custom_layout, text='Etiqueta (mm):').grid(row=2, column=0, padx=4, sticky='E')
+        self.custom_label_w = ctk.CTkEntry(self.frame_custom_layout, width=60)
+        self.custom_label_w.grid(row=2, column=1, padx=2, sticky='W')
+        self.custom_label_w.insert(0, str(layout.label_width_mm))
+        self.custom_label_h = ctk.CTkEntry(self.frame_custom_layout, width=60)
+        self.custom_label_h.grid(row=2, column=2, padx=2, sticky='W')
+        self.custom_label_h.insert(0, str(layout.label_height_mm))
+
+        ctk.CTkLabel(self.frame_custom_layout, text='Grade:').grid(row=2, column=3, padx=4, sticky='E')
+        self.custom_cols = ctk.CTkEntry(self.frame_custom_layout, width=40)
+        self.custom_cols.grid(row=2, column=4, padx=2)
+        self.custom_cols.insert(0, str(layout.columns))
+        ctk.CTkLabel(self.frame_custom_layout, text='×').grid(row=2, column=5)
+        self.custom_rows = ctk.CTkEntry(self.frame_custom_layout, width=40)
+        self.custom_rows.grid(row=2, column=6, padx=2)
+        self.custom_rows.insert(0, str(layout.rows))
+
+        ctk.CTkLabel(self.frame_custom_layout, text='Margens L/T/R/B (mm):').grid(row=3, column=0, padx=4, sticky='E')
+        self.custom_margin_l = ctk.CTkEntry(self.frame_custom_layout, width=45)
+        self.custom_margin_l.grid(row=3, column=1, padx=2)
+        self.custom_margin_l.insert(0, str(layout.margin_left_mm))
+        self.custom_margin_t = ctk.CTkEntry(self.frame_custom_layout, width=45)
+        self.custom_margin_t.grid(row=3, column=2, padx=2)
+        self.custom_margin_t.insert(0, str(layout.margin_top_mm))
+        self.custom_margin_r = ctk.CTkEntry(self.frame_custom_layout, width=45)
+        self.custom_margin_r.grid(row=3, column=3, padx=2)
+        self.custom_margin_r.insert(0, str(layout.margin_right_mm))
+        self.custom_margin_b = ctk.CTkEntry(self.frame_custom_layout, width=45)
+        self.custom_margin_b.grid(row=3, column=4, padx=2)
+        self.custom_margin_b.insert(0, str(layout.margin_bottom_mm))
+
+        ctk.CTkLabel(self.frame_custom_layout, text='Espaço X/Y (mm):').grid(row=3, column=5, padx=4, sticky='E')
+        self.custom_gap_x = ctk.CTkEntry(self.frame_custom_layout, width=45)
+        self.custom_gap_x.grid(row=3, column=6, padx=2)
+        self.custom_gap_x.insert(0, str(layout.gap_x_mm))
+        self.custom_gap_y = ctk.CTkEntry(self.frame_custom_layout, width=45)
+        self.custom_gap_y.grid(row=3, column=7, padx=2)
+        self.custom_gap_y.insert(0, str(layout.gap_y_mm))
+
+        self.custom_layout_status = ctk.CTkLabel(self.frame_custom_layout, text='', text_color='gray')
+        self.custom_layout_status.grid(row=4, column=0, columnspan=8, sticky='W', padx=4, pady=(4, 0))
+
+        for widget in (
+            self.custom_page_w, self.custom_page_h, self.custom_label_w, self.custom_label_h,
+            self.custom_cols, self.custom_rows, self.custom_margin_l, self.custom_margin_t,
+            self.custom_margin_r, self.custom_margin_b, self.custom_gap_x, self.custom_gap_y,
+        ):
+            widget.bind('<KeyRelease>', self._on_custom_layout_change)
+
+    def _is_custom_orientation(self):
+        return self.combobox_type.get() == ORIENTATION_LABELS[CUSTOM_ORIENTATION_INDEX]
+
+    def _toggle_custom_layout_panel(self):
+        if self._is_custom_orientation():
+            self.frame_custom_layout.grid()
+            self._refresh_custom_layout_status()
+        else:
+            self.frame_custom_layout.grid_remove()
+
+    def _float_entry(self, entry, default):
+        try:
+            return float(str(entry.get()).replace(',', '.'))
+        except (TypeError, ValueError):
+            return default
+
+    def _int_entry(self, entry, default):
+        try:
+            return int(float(str(entry.get()).replace(',', '.')))
+        except (TypeError, ValueError):
+            return default
+
+    def _build_layout_from_form(self) -> SheetLayout:
+        return build_grid_layout(
+            page_preset=self.custom_page_preset.get(),
+            page_width_mm=self._float_entry(self.custom_page_w, 210),
+            page_height_mm=self._float_entry(self.custom_page_h, 297),
+            label_width_mm=self._float_entry(self.custom_label_w, 100),
+            label_height_mm=self._float_entry(self.custom_label_h, 50),
+            columns=self._int_entry(self.custom_cols, 2),
+            rows=self._int_entry(self.custom_rows, 2),
+            margin_left_mm=self._float_entry(self.custom_margin_l, 5),
+            margin_top_mm=self._float_entry(self.custom_margin_t, 5),
+            margin_right_mm=self._float_entry(self.custom_margin_r, 5),
+            margin_bottom_mm=self._float_entry(self.custom_margin_b, 5),
+            gap_x_mm=self._float_entry(self.custom_gap_x, 2),
+            gap_y_mm=self._float_entry(self.custom_gap_y, 2),
+        )
+
+    def _refresh_custom_layout_status(self):
+        layout = self._build_layout_from_form()
+        error = layout.validate()
+        if error:
+            self.custom_layout_status.configure(text=f'⚠ {error}', text_color='#c0392b')
+        else:
+            self.custom_layout_status.configure(
+                text=f'{layout.slot_count} etiqueta(s) por folha — preenchimento sequencial',
+                text_color='gray',
+            )
+
+    def _on_custom_layout_change(self, *_args):
+        self._refresh_custom_layout_status()
+        if self._is_custom_orientation():
+            layout = self._build_layout_from_form()
+            w, h = layout.label_canvas_size()
+            if w != self.base_canvas_width or h != self.base_canvas_height:
+                self.base_canvas_width = w
+                self.base_canvas_height = h
+                self.canvas.configure(width=w, height=h)
+                self._update_view()
+        self.update_save_button()
+
+    def _on_custom_page_preset(self, preset):
+        from app.services.layout_service import PAGE_PRESETS
+        if preset in PAGE_PRESETS and preset != 'Personalizado':
+            w, h = PAGE_PRESETS[preset]
+            self.custom_page_w.delete(0, 'end')
+            self.custom_page_w.insert(0, str(w))
+            self.custom_page_h.delete(0, 'end')
+            self.custom_page_h.insert(0, str(h))
+        self._on_custom_layout_change()
+
+    def _current_layout_config_json(self):
+        if not self._is_custom_orientation():
+            return None
+        return self._build_layout_from_form().to_json()
+
     def change_orientation(self, event):
-        index = self.orient_values.index(self.combobox_type.get())
-        canvas_width = self.resolution[str(index)]['width']
-        canvas_height = self.resolution[str(index)]['height']
+        self._toggle_custom_layout_panel()
+        if self._is_custom_orientation():
+            layout = self._build_layout_from_form()
+            error = layout.validate()
+            if error:
+                PopUpWindow(self, 'Layout inválido', error)
+            canvas_width, canvas_height = layout.label_canvas_size()
+        else:
+            index = self.orient_values.index(self.combobox_type.get())
+            canvas_width = self.resolution[str(index)]['width']
+            canvas_height = self.resolution[str(index)]['height']
 
         self.base_canvas_width = canvas_width
         self.base_canvas_height = canvas_height
@@ -289,6 +461,7 @@ class EditWindow(ctk.CTkToplevel):
             self.pass_canvas_to_dict(),
             self.consult_drawings_from_db(),
             admin_service.get_db(),
+            layout_config=self._current_layout_config_json(),
         )
 
     def testes(self, *args):
@@ -305,8 +478,12 @@ class EditWindow(ctk.CTkToplevel):
     def show_pdf(self, *args):
         try:
             orientation = self.orient_values.index(self.combobox_type.get())
-
-            generate_test_pdf(self.pass_canvas_to_dict(), orientation=orientation)
+            layout = self._build_layout_from_form() if orientation == CUSTOM_ORIENTATION_INDEX else None
+            if layout:
+                error = layout.validate()
+                if error:
+                    raise ValueError(error)
+            generate_test_pdf(self.pass_canvas_to_dict(), orientation=orientation, layout=layout)
             open_path('temp/text.pdf')
         except PermissionError:
             PopUpWindow(self, 'Erro', 'Erro ao abrir o PDF, por favor fechar o aplicativo de PDF\n'
@@ -363,6 +540,7 @@ class EditWindow(ctk.CTkToplevel):
                 paper_size,
                 self.pass_canvas_to_dict(),
                 admin_service.get_db(),
+                layout_config=self._current_layout_config_json(),
             )
 
             self.product_name = new_name

@@ -157,6 +157,7 @@ def parse_client_product_from_work_lines(file_lines) -> Tuple[str, str]:
 def get_drawings_and_orientations(files_lines, db):
     all_items = []
     orientations = []
+    layout_configs = []
 
     for file in files_lines:
         client, product = parse_client_product_from_work_lines(file)
@@ -166,8 +167,9 @@ def get_drawings_and_orientations(files_lines, db):
 
         product_obj = db.search_product(client, product)
         orientations.append(product_obj.orientation)
+        layout_configs.append(getattr(product_obj, 'layout_config', None))
 
-    return all_items, orientations
+    return all_items, orientations, layout_configs
 
 
 def get_paper_size_from_path(path: str, db) -> Optional[str]:

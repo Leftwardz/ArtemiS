@@ -427,6 +427,7 @@ class ConfigWindow(ctk.CTkToplevel):
         paper_size = product_file['paper_size']
         color = product_file['color']
         orientation = product_file['orientation']
+        layout_config = product_file.get('layout_config')
         items = product_file['items']
 
         if admin_service.list_client_names(client_name):
@@ -443,7 +444,8 @@ class ConfigWindow(ctk.CTkToplevel):
             else:
                 try:
                     import_product_for_existing_client(
-                        client_name, product_name, color, orientation, paper_size, items, admin_service.get_db()
+                        client_name, product_name, color, orientation, paper_size, items,
+                        admin_service.get_db(), layout_config=layout_config,
                     )
                     PopUpWindow(self, 'Sucesso', 'Produto salvo com sucesso!')
                 except Exception as e:
@@ -451,7 +453,8 @@ class ConfigWindow(ctk.CTkToplevel):
         else:
             try:
                 import_product_with_new_client(
-                    client_name, product_name, color, orientation, paper_size, items, admin_service.get_db()
+                    client_name, product_name, color, orientation, paper_size, items,
+                    admin_service.get_db(), layout_config=layout_config,
                 )
                 PopUpWindow(self, 'Sucesso', 'Cliente e Produto importados com sucesso!')
             except Exception as e:

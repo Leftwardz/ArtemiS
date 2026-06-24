@@ -14,6 +14,7 @@ class RemakeJobResult:
     lines: Optional[list] = None
     items: Optional[list] = None
     orientations: Optional[list] = None
+    layout_configs: Optional[list] = None
 
 
 def prepare_remake_job(
@@ -47,9 +48,11 @@ def prepare_remake_job(
 
     items = [db.consult_drawings_from_product(client, product)]
     orientations = [product_obj.orientation]
+    layout_configs = [getattr(product_obj, 'layout_config', None)]
     return RemakeJobResult(
         ok=True,
         lines=[lines],
         items=items,
         orientations=orientations,
+        layout_configs=layout_configs,
     )

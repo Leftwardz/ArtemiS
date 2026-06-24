@@ -54,6 +54,7 @@ class DataBase:
         self.connect_to_database('rw')
         Base.metadata.create_all(self.write_engine)
         self.migrate_legacy_printers()
+        self.migrate_layout_config()
         self.session.close()
 
     @staticmethod
@@ -80,6 +81,15 @@ class DataBase:
                 notes='',
             ))
         if legacy:
+            self.session.commit()
+
+    def migrate_layout_config(self):
+        """Adiciona coluna layout_config em bases existentes."""
+        from sqlalchemy import text
+        try:
+            self.session.execute(text('SELECT layout_config FROM products LIMIT 1'))
+        except Exception:
+            self.session.execute(text('ALTER TABLE products ADD COLUMN layout_config TEXT'))
             self.session.commit()
 
     def search_clients(self, name=''):
@@ -158,12 +168,18 @@ class DataBase:
         self.session.close()
         return color
 
-    def insert_product(self, product_name, client_name, color, orientation, paper_size):
+    def insert_product(self, product_name, client_name, color, orientation, paper_size, layout_config=None):
         self.connect_to_database('rw')
 
         client_object = self.session.query(Client).filter_by(name=client_name).first()
 
-        product = Product(name=product_name, paper_color=color, orientation=orientation, paper_size=paper_size)
+        product = Product(
+            name=product_name,
+            paper_color=color,
+            orientation=orientation,
+            paper_size=paper_size,
+            layout_config=layout_config,
+        )
 
         client_object.products.append(product)
 
@@ -172,7 +188,8 @@ class DataBase:
 
         self.session.close()
 
-    def change_or_add_product_name(self, client_name, product_name, new_name, color, orientation, paper_size):
+    def change_or_add_product_name(self, client_name, product_name, new_name, color, orientation, paper_size,
+                                   layout_config=None):
         self.connect_to_database('rw')
 
         client_id = self.session.query(Client).filter_by(name=client_name).first().id
@@ -182,9 +199,10 @@ class DataBase:
             product.paper_color = color
             product.orientation = orientation
             product.paper_size = paper_size
+            product.layout_config = layout_config
             self.session.commit()
         else:
-            self.insert_product(new_name, client_name, color, orientation, paper_size)
+            self.insert_product(new_name, client_name, color, orientation, paper_size, layout_config)
 
         self.session.close()
 
