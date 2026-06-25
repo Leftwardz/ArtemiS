@@ -16,7 +16,7 @@ from app.services.designer_service import (
     save_product_with_drawings,
     validate_product_name,
 )
-from app.models.sheet_layout import CUSTOM_ORIENTATION_INDEX, SheetLayout
+from app.models.sheet_layout import CUSTOM_ORIENTATION_INDEX, SCOPE_SHEET, SCOPE_SLOT, SheetLayout
 from app.services.layout_service import PAGE_PRESET_LABELS, build_grid_layout
 from app.models.drawing_items import (
     BarcodeObject, BarcodeTextObject, CounterObject, ImageObject, LineObject,
@@ -333,6 +333,18 @@ class EditWindow(ctk.CTkToplevel):
         self.custom_layout_status = ctk.CTkLabel(self.frame_custom_layout, text='', text_color='gray')
         self.custom_layout_status.grid(row=4, column=0, columnspan=8, sticky='W', padx=4, pady=(4, 0))
 
+        self.frame_editor_scope = ctk.CTkFrame(self.frame_custom_layout, fg_color='transparent')
+        self.frame_editor_scope.grid(row=5, column=0, columnspan=8, sticky='W', pady=(6, 0))
+        ctk.CTkLabel(self.frame_editor_scope, text='Editar:').grid(row=0, column=0, padx=4)
+        self.btn_editor_scope = ctk.CTkSegmentedButton(
+            self.frame_editor_scope,
+            values=['Etiqueta', 'Cabeçalho da folha'],
+            command=self._on_editor_scope_button,
+        )
+        self.btn_editor_scope.grid(row=0, column=1, padx=4)
+        self.btn_editor_scope.set('Etiqueta')
+        self.editor_scope = SCOPE_SLOT
+
         for widget in (
             self.custom_page_w, self.custom_page_h, self.custom_label_w, self.custom_label_h,
             self.custom_cols, self.custom_rows, self.custom_margin_l, self.custom_margin_t,
@@ -347,8 +359,75 @@ class EditWindow(ctk.CTkToplevel):
         if self._is_custom_orientation():
             self.frame_custom_layout.grid()
             self._refresh_custom_layout_status()
+            if hasattr(self, 'frame_editor_scope'):
+                self.frame_editor_scope.grid()
         else:
             self.frame_custom_layout.grid_remove()
+            if hasattr(self, 'frame_editor_scope'):
+                self.frame_editor_scope.grid_remove()
+
+    def _on_editor_scope_button(self, label):
+        new_scope = SCOPE_SHEET if label == 'Cabeçalho da folha' else SCOPE_SLOT
+        self._switch_editor_scope(new_scope)
+
+    def _switch_editor_scope(self, new_scope):
+        if new_scope == self.editor_scope:
+            return
+        self.pass_canvas_to_dict()
+        self.clear_selection()
+        self.editor_scope = new_scope
+        label = 'Cabeçalho da folha' if new_scope == SCOPE_SHEET else 'Etiqueta'
+        self.btn_editor_scope.set(label)
+        w, h = self._editor_canvas_size()
+        self.base_canvas_width = w
+        self.base_canvas_height = h
+        self.canvas.configure(width=w, height=h)
+        self._redraw_editor_view()
+        self.update_save_button()
+
+    def _editor_canvas_size(self):
+        if self._is_custom_orientation():
+            layout = self._build_layout_from_form()
+            if self.editor_scope == SCOPE_SHEET:
+                return layout.page_canvas_size()
+            return layout.label_canvas_size()
+        index = self.orient_values.index(self.combobox_type.get())
+        res = self.resolution[str(index)]
+        return res['width'], res['height']
+
+    def _active_editor_scope(self):
+        if self._is_custom_orientation():
+            return self.editor_scope
+        return SCOPE_SLOT
+
+    def _redraw_editor_view(self):
+        """Redisena papel, guias de slot e objetos do escopo ativo."""
+        for cid in list(self.canvas.find_all()):
+            tags = self.canvas.gettags(cid)
+            if 'paper' not in tags:
+                self.canvas.delete(cid)
+        self.canvas_dict_images.clear()
+        self.drawing_store.canvas_to_object.clear()
+        self.drawing_store._segment_canvas_lines.clear()
+        self._update_view()
+        if self._is_custom_orientation() and self.editor_scope == SCOPE_SHEET:
+            layout = self._build_layout_from_form()
+            for x1, y1, x2, y2 in layout.slot_guide_rects_logical():
+                self.canvas.create_rectangle(
+                    self._zs(x1), self._zs(y1), self._zs(x2), self._zs(y2),
+                    outline='#aaaaaa', dash=(4, 4), width=1, tags=('slot_guide',),
+                )
+        for obj in self.drawing_store.objects_for_scope(self._active_editor_scope()):
+            self._render_object(obj)
+        self.canvas.tag_lower('slot_guide')
+        self.canvas.tag_lower('paper')
+
+    def _apply_editor_canvas_size(self):
+        w, h = self._editor_canvas_size()
+        self.base_canvas_width = w
+        self.base_canvas_height = h
+        self.canvas.configure(width=w, height=h)
+        self._update_view()
 
     def _float_entry(self, entry, default):
         try:
@@ -393,13 +472,12 @@ class EditWindow(ctk.CTkToplevel):
     def _on_custom_layout_change(self, *_args):
         self._refresh_custom_layout_status()
         if self._is_custom_orientation():
-            layout = self._build_layout_from_form()
-            w, h = layout.label_canvas_size()
+            w, h = self._editor_canvas_size()
             if w != self.base_canvas_width or h != self.base_canvas_height:
                 self.base_canvas_width = w
                 self.base_canvas_height = h
                 self.canvas.configure(width=w, height=h)
-                self._update_view()
+                self._redraw_editor_view()
         self.update_save_button()
 
     def _on_custom_page_preset(self, preset):
@@ -418,22 +496,20 @@ class EditWindow(ctk.CTkToplevel):
         return self._build_layout_from_form().to_json()
 
     def change_orientation(self, event):
+        self.pass_canvas_to_dict()
         self._toggle_custom_layout_panel()
         if self._is_custom_orientation():
             layout = self._build_layout_from_form()
             error = layout.validate()
             if error:
                 PopUpWindow(self, 'Layout inválido', error)
-            canvas_width, canvas_height = layout.label_canvas_size()
         else:
-            index = self.orient_values.index(self.combobox_type.get())
-            canvas_width = self.resolution[str(index)]['width']
-            canvas_height = self.resolution[str(index)]['height']
+            self.editor_scope = SCOPE_SLOT
+            if hasattr(self, 'btn_editor_scope'):
+                self.btn_editor_scope.set('Etiqueta')
 
-        self.base_canvas_width = canvas_width
-        self.base_canvas_height = canvas_height
-        self.canvas.configure(width=canvas_width, height=canvas_height)
-        self._update_view()
+        self._apply_editor_canvas_size()
+        self._redraw_editor_view()
         self.update_save_button()
 
     def change_color(self, event):
@@ -561,8 +637,10 @@ class EditWindow(ctk.CTkToplevel):
             PopUpWindow(self, 'Erro', traceback.format_exc())
 
     def pass_canvas_to_dict(self, *args):
-        return serialize_canvas_to_dict(self.canvas, self.canvas_dict_images, self.drawing_store,
-                                        zoom=self.zoom)
+        return serialize_canvas_to_dict(
+            self.canvas, self.canvas_dict_images, self.drawing_store,
+            zoom=self.zoom, active_scope=self._active_editor_scope(),
+        )
 
     def _group_canvas_ids(self, canvas_id):
         return self.drawing_store.group_canvas_ids(canvas_id)
@@ -671,6 +749,7 @@ class EditWindow(ctk.CTkToplevel):
             bt = make_barcode_text_object(
                 int(obj.x), int(obj.y) + 22, text, obj.file_column, parent_id=obj.object_id,
             )
+            bt.scope = obj.scope
             self.drawing_store.register(bt)
             tcid = self.canvas.create_text(
                 self._zs(bt.x), self._zs(bt.y), text=text, fill='black',
@@ -681,9 +760,10 @@ class EditWindow(ctk.CTkToplevel):
     def draw_items_into_canvas(self, items):
         self.clean_canvas()
         self.drawing_store.load_from_db(items)
-        self._update_view()
-        for obj in list(self.drawing_store.objects.values()):
-            self._render_object(obj)
+        if not self._is_custom_orientation():
+            self.editor_scope = SCOPE_SLOT
+        self._apply_editor_canvas_size()
+        self._redraw_editor_view()
 
     # ------------------------------- Zoom -------------------------------------------
     def _paper_dims(self):
@@ -732,7 +812,7 @@ class EditWindow(ctk.CTkToplevel):
         # 3) aplica zoom e redesenha
         self.zoom = new_zoom
         self._apply_canvas_size()
-        self._redraw_from_store()
+        self._redraw_editor_view()
         # 4) restaura seleção
         self.selected_items = []
         for oid in sel_oids:
@@ -818,6 +898,7 @@ class EditWindow(ctk.CTkToplevel):
             seg.anchor_x, seg.anchor_y = new_lines[0].x, new_lines[0].y
 
     def register_new_canvas_item(self, canvas_id, obj):
+        obj.scope = self._active_editor_scope()
         self.drawing_store.register(obj)
         self.drawing_store.bind_canvas(canvas_id, obj.object_id)
 
@@ -827,6 +908,9 @@ class EditWindow(ctk.CTkToplevel):
         items = self.canvas.find_overlapping(x - 2, y - 2, x + 2, y + 2)
         for cid in reversed(items):
             if cid == self.rubber_band:
+                continue
+            tags = self.canvas.gettags(cid)
+            if 'slot_guide' in tags:
                 continue
             if self.drawing_store.get_by_canvas(cid) is not None:
                 return cid
@@ -1118,8 +1202,10 @@ class EditWindow(ctk.CTkToplevel):
         self.properties_window.refresh()
 
     def paint_object(self, object_id, color):
-        if object_id and 'paper' in self.canvas.gettags(object_id):
-            return
+        if object_id:
+            tags = self.canvas.gettags(object_id)
+            if 'paper' in tags or 'slot_guide' in tags:
+                return
         if object_id:
             for i in self._group_canvas_ids(object_id):
                 if self.canvas.type(i) == 'rectangle':
@@ -2028,6 +2114,7 @@ class GetTextWindow(ctk.CTkToplevel):
                 self.text.get(), fonte[0], fonte[1], fonte[2],
                 self.orientation.get(), is_counter=bool(self.counter_var.get()),
             )
+            obj.scope = self.master._active_editor_scope()
             self.master.drawing_store.register(obj)
             self.master._render_object(obj)
             self.master.reset_all()
@@ -2118,6 +2205,7 @@ class GetBarcodeWindow(ctk.CTkToplevel):
                 kind, int(round(self.master._zl(self.x))), int(round(self.master._zl(self.y))),
                 f, text, w, h,
             )
+            obj.scope = self.master._active_editor_scope()
             self.master.drawing_store.register(obj)
             self.master._render_barcode(obj, companion_text=False)
             self.master.properties_window.refresh()
@@ -2274,6 +2362,7 @@ class GetSegmentWindow(ctk.CTkToplevel):
         else:
             seg = SegmentObject(
                 object_id=new_object_id('seg-'),
+                scope=self.master._active_editor_scope(),
                 columns=columns,
                 labels=labels,
                 line_distance=str(self.input_distancia.get()),

@@ -100,6 +100,88 @@ class DrawingStore:
             segment.anchor_x = lines[0].x
             segment.anchor_y = lines[0].y
 
+    def objects_for_scope(self, scope: str) -> list[DrawingObject]:
+        return [obj for obj in self.objects.values() if getattr(obj, 'scope', 'slot') == scope]
+
+    def serialize_all_to_db(self, canvas, canvas_dict_images: dict, zoom: float, active_scope: str) -> list[dict]:
+        """Serializa todos os objetos; sincroniza o escopo ativo a partir do canvas."""
+        seen_segments: set[str] = set()
+        synced_ids: set[str] = set()
+        result: list[dict] = []
+
+        for canvas_id in canvas.find_all():
+            tags = canvas.gettags(canvas_id)
+            if 'paper' in tags or 'slot_guide' in tags:
+                continue
+            obj = self.get_by_canvas(canvas_id)
+            if obj is None:
+                continue
+            if getattr(obj, 'scope', 'slot') != active_scope:
+                continue
+            if isinstance(obj, SegmentObject):
+                if obj.object_id in seen_segments:
+                    continue
+                seen_segments.add(obj.object_id)
+                synced_ids.add(obj.object_id)
+                self.sync_segment_lines_from_canvas(obj, canvas, zoom)
+                self._sync_segment_font_from_canvas(obj, canvas, zoom)
+                result.extend(obj.to_db_rows())
+                continue
+
+            row = self._serialize_canvas_item(canvas, canvas_id, canvas_dict_images, obj, zoom)
+            if row:
+                synced_ids.add(obj.object_id)
+                result.append(row)
+
+        serialized_segment_ids = {r.get('segment_id') for r in result if r.get('item_type') == 'segment'}
+        for obj in self.objects.values():
+            if obj.object_id in synced_ids:
+                continue
+            if isinstance(obj, SegmentObject) and obj.object_id in serialized_segment_ids:
+                continue
+            result.extend(self._object_to_db_rows(obj, canvas_dict_images))
+        return result
+
+    def _object_to_db_rows(self, obj: DrawingObject, canvas_dict_images: dict) -> list[dict]:
+        if isinstance(obj, SegmentObject):
+            return obj.to_db_rows()
+        if isinstance(obj, LineObject):
+            return [obj.to_db_dict(
+                x1=obj.x1, y1=obj.y1, x2=obj.x2, y2=obj.y2,
+                thickness=obj.thickness, dashed=obj.dashed,
+            )]
+        if isinstance(obj, RectangleObject):
+            return [obj.to_db_dict(
+                x1=obj.x1, y1=obj.y1, x2=obj.x2, y2=obj.y2,
+                thickness=obj.thickness, dashed=obj.dashed,
+            )]
+        if isinstance(obj, (TextObject, CounterObject)):
+            return [obj.to_db_dict(
+                x1=obj.x, y1=obj.y, text=obj.text,
+                font_name=obj.font_name, font_size=obj.font_size,
+                font_style=obj.font_style, orientation=obj.orientation,
+            )]
+        if isinstance(obj, BarcodeTextObject):
+            return [obj.to_db_dict(
+                x1=obj.x, y1=obj.y, text=obj.text,
+                font_name=obj.font_name, font_size=obj.font_size,
+                font_style=obj.font_style, orientation=obj.orientation,
+                file_columns=obj.file_column,
+            )]
+        if isinstance(obj, BarcodeObject):
+            return [obj.to_db_dict(
+                x1=obj.x, y1=obj.y, text=obj.placeholder.replace('_', ' '),
+                barcode_width=obj.barcode_width, barcode_height=obj.barcode_height,
+                file_columns=obj.file_column, proportion=obj.proportion,
+                orientation=obj.orientation,
+            )]
+        if isinstance(obj, ImageObject):
+            return [obj.to_db_dict(
+                x1=obj.x, y1=obj.y, proportion=obj.proportion,
+                orientation=obj.orientation, image=obj.image_blob,
+            )]
+        return []
+
     def serialize_to_db(self, canvas, canvas_dict_images: dict, zoom: float = 1.0) -> list[dict]:
         """Serializa canvas + objetos para o formato flat do banco (coords lógicas)."""
         seen_segments: set[str] = set()
@@ -107,6 +189,8 @@ class DrawingStore:
 
         for canvas_id in canvas.find_all():
             obj = self.get_by_canvas(canvas_id)
+            if obj is None:
+                continue
             if isinstance(obj, SegmentObject):
                 if obj.object_id in seen_segments:
                     continue
@@ -156,8 +240,7 @@ class DrawingStore:
             tag_str += ' IGNORE'
 
         if obj is None:
-            from app.ui.designer_canvas_adapter import _legacy_row_from_canvas
-            return _legacy_row_from_canvas(canvas, canvas_id, canvas_dict_images)
+            return None
 
         if isinstance(obj, LineObject):
             x1, y1, x2, y2 = canvas.coords(canvas_id)

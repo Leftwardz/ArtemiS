@@ -3,9 +3,17 @@
 from app.utils.barcode_generator import convert_image_to_blob
 
 
-def serialize_canvas_to_dict(canvas, canvas_dict_images: dict, drawing_store=None, zoom: float = 1.0) -> list:
+def serialize_canvas_to_dict(
+    canvas,
+    canvas_dict_images: dict,
+    drawing_store=None,
+    zoom: float = 1.0,
+    active_scope: str = 'slot',
+) -> list:
     if drawing_store is not None:
-        return drawing_store.serialize_to_db(canvas, canvas_dict_images, zoom=zoom)
+        return drawing_store.serialize_all_to_db(
+            canvas, canvas_dict_images, zoom=zoom, active_scope=active_scope,
+        )
     return _serialize_legacy(canvas, canvas_dict_images)
 
 

@@ -55,6 +55,7 @@ class DrawingObject:
     """Base para todos os itens do layout."""
     object_id: str
     item_type: str = ''
+    scope: str = 'slot'
 
     def canvas_tags(self) -> tuple[str, ...]:
         return (f'obj:{self.object_id}',)
@@ -68,6 +69,7 @@ class DrawingObject:
     def to_db_dict(self, **canvas_fields) -> dict:
         row = {
             'item_type': self.item_type,
+            'scope': self.scope,
             'x1': None, 'x2': None, 'y1': None, 'y2': None,
             'font_name': None, 'font_size': None, 'font_style': None,
             'orientation': None, 'text': None, 'thickness': None, 'dashed': None,
@@ -302,6 +304,7 @@ class SegmentObject(DrawingObject):
 
         obj = cls(
             object_id=segment_id,
+            scope=first.get('scope') or 'slot',
             columns=columns,
             labels=labels or [f'Placeholder {i}' for i in range(len(columns))],
             line_distance=_s(line_distance),
@@ -329,6 +332,7 @@ class SegmentObject(DrawingObject):
             tag = self.legacy_tag_for_line(line)
             rows.append({
                 'item_type': 'segment',
+                'scope': self.scope,
                 'x1': line.x,
                 'y1': line.y,
                 'x2': None,
@@ -358,10 +362,12 @@ def object_from_db_row(row: dict) -> DrawingObject:
     item_type = row.get('item_type') or ''
     tag = row.get('tag') or ''
     oid = new_object_id()
+    scope = row.get('scope') or 'slot'
 
     if item_type == 'text' and not tag.startswith(('segment', 'counter', 'barcode')):
         return TextObject(
             object_id=oid,
+            scope=scope,
             text=row.get('text') or '',
             font_name=row.get('font_name') or 'arial',
             font_size=_s(row.get('font_size') or '10'),
@@ -373,6 +379,7 @@ def object_from_db_row(row: dict) -> DrawingObject:
     if item_type == 'counter' or tag.startswith('counter'):
         return CounterObject(
             object_id=oid,
+            scope=scope,
             text=row.get('text') or '0000001',
             font_name=row.get('font_name') or 'arial',
             font_size=_s(row.get('font_size') or '10'),
@@ -386,6 +393,7 @@ def object_from_db_row(row: dict) -> DrawingObject:
         col = parts[3] if len(parts) > 3 else row.get('file_columns') or ''
         return BarcodeTextObject(
             object_id=oid,
+            scope=scope,
             text=row.get('text') or '',
             file_column=col,
             font_name=row.get('font_name') or 'arial',
@@ -399,6 +407,7 @@ def object_from_db_row(row: dict) -> DrawingObject:
         parts = _split_tag_fields(tag)
         return BarcodeObject(
             object_id=oid,
+            scope=scope,
             barcode_kind=item_type,
             placeholder=row.get('text') or (parts[4].replace('_', ' ') if len(parts) > 4 else ''),
             file_column=parts[3] if len(parts) > 3 else row.get('file_columns') or '',
@@ -412,6 +421,7 @@ def object_from_db_row(row: dict) -> DrawingObject:
     if item_type == 'line':
         return LineObject(
             object_id=oid,
+            scope=scope,
             x1=_s(row.get('x1')), y1=_s(row.get('y1')),
             x2=_s(row.get('x2')), y2=_s(row.get('y2')),
             thickness=_s(row.get('thickness') or '1'),
@@ -420,6 +430,7 @@ def object_from_db_row(row: dict) -> DrawingObject:
     if item_type == 'rectangle':
         return RectangleObject(
             object_id=oid,
+            scope=scope,
             x1=_s(row.get('x1')), y1=_s(row.get('y1')),
             x2=_s(row.get('x2')), y2=_s(row.get('y2')),
             thickness=_s(row.get('thickness') or '1'),
@@ -428,6 +439,7 @@ def object_from_db_row(row: dict) -> DrawingObject:
     if item_type == 'image':
         return ImageObject(
             object_id=oid,
+            scope=scope,
             proportion=_s(row.get('proportion') or '100'),
             orientation=_s(row.get('orientation') or '0'),
             x=_s(row.get('x1') or '0'),

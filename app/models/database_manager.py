@@ -55,6 +55,7 @@ class DataBase:
         Base.metadata.create_all(self.write_engine)
         self.migrate_legacy_printers()
         self.migrate_layout_config()
+        self.migrate_drawing_scope()
         self.session.close()
 
     @staticmethod
@@ -90,6 +91,15 @@ class DataBase:
             self.session.execute(text('SELECT layout_config FROM products LIMIT 1'))
         except Exception:
             self.session.execute(text('ALTER TABLE products ADD COLUMN layout_config TEXT'))
+            self.session.commit()
+
+    def migrate_drawing_scope(self):
+        """Adiciona coluna scope em bases existentes."""
+        from sqlalchemy import text
+        try:
+            self.session.execute(text('SELECT scope FROM drawings LIMIT 1'))
+        except Exception:
+            self.session.execute(text("ALTER TABLE drawings ADD COLUMN scope TEXT DEFAULT 'slot'"))
             self.session.commit()
 
     def search_clients(self, name=''):

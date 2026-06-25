@@ -20,8 +20,20 @@ from app.utils.barcode_generator import (
     create_datamatrix_bytes,
 )
 from app.utils.text_utils import break_line
-from app.models.sheet_layout import SheetLayout
+from app.models.sheet_layout import SCOPE_SHEET, SheetLayout
 from app.services.layout_service import resolve_layout_for_orientation
+
+
+def partition_drawings_by_scope(items):
+    """Separa itens de etiqueta (slot) dos de cabeçalho de folha (sheet)."""
+    slot_items = []
+    sheet_items = []
+    for item in items or []:
+        if (item.get('scope') or 'slot') == SCOPE_SHEET:
+            sheet_items.append(item)
+        else:
+            slot_items.append(item)
+    return slot_items, sheet_items
 
 # Font registration
 pdfmetrics.registerFont(TTFont('Arial', 'fontes/Arial.ttf'))
@@ -179,10 +191,13 @@ def generate_test_pdf(items=None, path="temp/text.pdf", orientation='Default', l
 
         elif orientation == 4:
             layout = layout or SheetLayout.default()
+            slot_items, sheet_items = partition_drawings_by_scope(items)
             _draw_custom_slot_guides(pdf, layout)
             pdf.setDash([])
+            if sheet_items:
+                draw_ar(sheet_items, pdf, is_test=True)
             for offset_x, offset_y in layout.slot_offsets_pt():
-                draw_ar(items, pdf, offset_x=offset_x, offset_y=offset_y, is_test=True)
+                draw_ar(slot_items, pdf, offset_x=offset_x, offset_y=offset_y, is_test=True)
 
         pdf.showPage()
     pdf.save()
@@ -361,15 +376,24 @@ def configure_custom_layout(pdf, filelines, items, current_index, total, printer
     slots = layout.slot_offsets_pt()
     slot_count = max(1, len(slots))
     qtd_pages = math.ceil(len(filelines) / slot_count)
+    slot_items, sheet_items = partition_drawings_by_scope(items[current_index])
 
     for page in range(qtd_pages):
+        first_record_index = page * slot_count
+        first_record = filelines[first_record_index] if first_record_index < len(filelines) else None
+        if sheet_items and first_record:
+            draw_ar(
+                sheet_items, pdf, first_record[1],
+                counter=first_record[0], filename=filename,
+            )
+
         for slot_idx, (offset_x, offset_y) in enumerate(slots):
             record_index = page * slot_count + slot_idx
             if record_index >= len(filelines):
                 continue
             record = filelines[record_index]
             draw_ar(
-                items[current_index], pdf, record[1],
+                slot_items, pdf, record[1],
                 offset_x=offset_x, offset_y=offset_y,
                 counter=record[0], filename=filename,
             )

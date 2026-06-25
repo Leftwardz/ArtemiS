@@ -14,6 +14,9 @@ CUSTOM_ORIENTATION_INDEX = 4
 PACKING_SEQUENTIAL = 'sequential'
 PACKING_COLUMN_DEPTH = 'column_depth'  # reservado para layouts legados / futuro
 
+SCOPE_SLOT = 'slot'
+SCOPE_SHEET = 'sheet'
+
 
 @dataclass
 class SheetLayout:
@@ -69,6 +72,22 @@ class SheetLayout:
 
     def slot_offsets_pt(self) -> list[tuple[float, float]]:
         return [(self.mm_to_pt(x), self.mm_to_pt(y)) for x, y in self.compute_slot_origins_mm()]
+
+    def page_canvas_size(self) -> tuple[int, int]:
+        width = max(1, int(round(self.mm_to_pt(self.page_width_mm) * CANVAS_SCALE)))
+        height = max(1, int(round(self.mm_to_pt(self.page_height_mm) * CANVAS_SCALE)))
+        return width, height
+
+    def slot_guide_rects_logical(self) -> list[tuple[int, int, int, int]]:
+        """Retângulos guia dos slots em coords lógicas do canvas da folha."""
+        rects: list[tuple[int, int, int, int]] = []
+        lw = int(round(self.mm_to_pt(self.label_width_mm) * CANVAS_SCALE))
+        lh = int(round(self.mm_to_pt(self.label_height_mm) * CANVAS_SCALE))
+        for x_mm, y_mm in self.compute_slot_origins_mm():
+            x = int(round(self.mm_to_pt(x_mm) * CANVAS_SCALE))
+            y = int(round(self.mm_to_pt(y_mm) * CANVAS_SCALE))
+            rects.append((x, y, x + lw, y + lh))
+        return rects
 
     def validate(self) -> Optional[str]:
         if self.label_width_mm <= 0 or self.label_height_mm <= 0:

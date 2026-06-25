@@ -90,3 +90,4 @@ class Drawing(Base):
     proportion = Column(String)
     image = Column(LargeBinary)
     char_limit = Column(String)
+    scope = Column(String)
