@@ -123,13 +123,13 @@ class EditWindow(ctk.CTkToplevel):
                                                         'Texto Fixo', 'Segmento', 'Código Barras', 'Imagem'],
                                                 command=self.reset_all
                                                 )
-        self.btn_tools.grid(row=2, column=0, columnspan=2, padx=0, pady=0)
+        self.btn_tools.grid(row=2, column=0, columnspan=2, padx=0, pady=(0, 4), sticky='ew')
         self.btn_tools.set(value='Selecionar')
 
 
         # ------------------------ Paper Color --------------------------------------------
         self.frame_paper_color = ctk.CTkFrame(self, fg_color='transparent')
-        self.frame_paper_color.grid(row=2, column=1, padx=30, sticky='E')
+        self.frame_paper_color.grid(row=3, column=1, padx=30, sticky='E')
 
         product = admin_service.get_db().search_product(self.client, self.product_name)
         if product:
@@ -168,7 +168,7 @@ class EditWindow(ctk.CTkToplevel):
 
         # ------------------------ Frame Choose Type Orientation --------------------------------------
         self.frame_type = ctk.CTkFrame(self, fg_color='transparent')
-        self.frame_type.grid(row=2, column=0, padx=30, sticky='W')
+        self.frame_type.grid(row=3, column=0, padx=30, sticky='W')
 
         ctk.CTkLabel(self.frame_type, text='Orientação:').grid(row=0, column=0, padx=10)
 
@@ -185,7 +185,7 @@ class EditWindow(ctk.CTkToplevel):
 
         self._build_custom_layout_panel()
         # ----------------------------- Canvas -------------------------------------------
-        self.grid_rowconfigure(3, weight=1)
+        self.grid_rowconfigure(5, weight=1)
 
         # Resolution changes according to the orientation values from the product # see self.orient_values
         self.resolution = {
@@ -201,7 +201,7 @@ class EditWindow(ctk.CTkToplevel):
             canvas_height = self.resolution[product_orientation]['height']
 
         canvas_container = ctk.CTkFrame(self)
-        canvas_container.grid(row=3, column=0, columnspan=5, padx=5, pady=10, sticky="nswe")
+        canvas_container.grid(row=5, column=0, columnspan=5, padx=5, pady=(4, 10), sticky="nswe")
         canvas_container.grid_rowconfigure(0, weight=1)
         canvas_container.grid_columnconfigure(0, weight=1)
 
@@ -233,7 +233,7 @@ class EditWindow(ctk.CTkToplevel):
         self.canvas_db_saved_items = self.consult_drawings_from_db()
         self.history.append(self.canvas_db_saved_items)
         self.lbl_testes = ctk.CTkLabel(self, text='X: , Y:', width=150)
-        self.lbl_testes.grid(row=4, column=1, padx=10, sticky='SE')
+        self.lbl_testes.grid(row=6, column=1, padx=10, sticky='SE')
         # --------------------- Variables and Windows ------------------------------------
         self.properties_window = ListOfPropertiesWindow(self)
         self.start_x = None
@@ -267,13 +267,27 @@ class EditWindow(ctk.CTkToplevel):
         self._toggle_custom_layout_panel()
         self.focus_force()
 
+    def _mm_spin(self, parent, value, entry_width=52):
+        spin = SpinBox(parent, step=1.0, func=self._on_custom_layout_change)
+        spin.entry.configure(width=entry_width)
+        spin.set(value)
+        spin.entry.bind('<KeyRelease>', self._on_custom_layout_change)
+        return spin
+
+    def _int_spin(self, parent, value, entry_width=40):
+        spin = SpinBox(parent, step=1, func=self._on_custom_layout_change)
+        spin.entry.configure(width=entry_width)
+        spin.set(max(1, int(value)))
+        spin.entry.bind('<KeyRelease>', self._on_custom_layout_change)
+        return spin
+
     def _build_custom_layout_panel(self):
         layout = self.sheet_layout
-        self.frame_custom_layout = ctk.CTkFrame(self.frame_type, fg_color='transparent')
-        self.frame_custom_layout.grid(row=1, column=0, columnspan=2, padx=4, sticky='W')
+        self.frame_custom_layout = ctk.CTkFrame(self, fg_color='transparent')
+        self.frame_custom_layout.grid(row=4, column=0, columnspan=2, padx=30, sticky='EW', pady=(0, 4))
 
         ctk.CTkLabel(self.frame_custom_layout, text='Layout customizado', font=('Arial', 13, 'bold')) \
-            .grid(row=0, column=0, columnspan=8, sticky='W', pady=(0, 4))
+            .grid(row=0, column=0, columnspan=10, sticky='W', pady=(0, 4))
 
         ctk.CTkLabel(self.frame_custom_layout, text='Folha:').grid(row=1, column=0, padx=4, sticky='E')
         self.custom_page_preset = ctk.CTkComboBox(
@@ -284,57 +298,45 @@ class EditWindow(ctk.CTkToplevel):
         self.custom_page_preset.set(layout.page_preset)
 
         ctk.CTkLabel(self.frame_custom_layout, text='L×A folha (mm):').grid(row=1, column=2, padx=4, sticky='E')
-        self.custom_page_w = ctk.CTkEntry(self.frame_custom_layout, width=60)
+        self.custom_page_w = self._mm_spin(self.frame_custom_layout, layout.page_width_mm)
         self.custom_page_w.grid(row=1, column=3, padx=2)
-        self.custom_page_w.insert(0, str(layout.page_width_mm))
-        self.custom_page_h = ctk.CTkEntry(self.frame_custom_layout, width=60)
+        self.custom_page_h = self._mm_spin(self.frame_custom_layout, layout.page_height_mm)
         self.custom_page_h.grid(row=1, column=4, padx=2)
-        self.custom_page_h.insert(0, str(layout.page_height_mm))
 
         ctk.CTkLabel(self.frame_custom_layout, text='Etiqueta (mm):').grid(row=2, column=0, padx=4, sticky='E')
-        self.custom_label_w = ctk.CTkEntry(self.frame_custom_layout, width=60)
+        self.custom_label_w = self._mm_spin(self.frame_custom_layout, layout.label_width_mm)
         self.custom_label_w.grid(row=2, column=1, padx=2, sticky='W')
-        self.custom_label_w.insert(0, str(layout.label_width_mm))
-        self.custom_label_h = ctk.CTkEntry(self.frame_custom_layout, width=60)
+        self.custom_label_h = self._mm_spin(self.frame_custom_layout, layout.label_height_mm)
         self.custom_label_h.grid(row=2, column=2, padx=2, sticky='W')
-        self.custom_label_h.insert(0, str(layout.label_height_mm))
 
         ctk.CTkLabel(self.frame_custom_layout, text='Grade:').grid(row=2, column=3, padx=4, sticky='E')
-        self.custom_cols = ctk.CTkEntry(self.frame_custom_layout, width=40)
+        self.custom_cols = self._int_spin(self.frame_custom_layout, layout.columns)
         self.custom_cols.grid(row=2, column=4, padx=2)
-        self.custom_cols.insert(0, str(layout.columns))
         ctk.CTkLabel(self.frame_custom_layout, text='×').grid(row=2, column=5)
-        self.custom_rows = ctk.CTkEntry(self.frame_custom_layout, width=40)
+        self.custom_rows = self._int_spin(self.frame_custom_layout, layout.rows)
         self.custom_rows.grid(row=2, column=6, padx=2)
-        self.custom_rows.insert(0, str(layout.rows))
 
         ctk.CTkLabel(self.frame_custom_layout, text='Margens L/T/R/B (mm):').grid(row=3, column=0, padx=4, sticky='E')
-        self.custom_margin_l = ctk.CTkEntry(self.frame_custom_layout, width=45)
+        self.custom_margin_l = self._mm_spin(self.frame_custom_layout, layout.margin_left_mm, entry_width=44)
         self.custom_margin_l.grid(row=3, column=1, padx=2)
-        self.custom_margin_l.insert(0, str(layout.margin_left_mm))
-        self.custom_margin_t = ctk.CTkEntry(self.frame_custom_layout, width=45)
+        self.custom_margin_t = self._mm_spin(self.frame_custom_layout, layout.margin_top_mm, entry_width=44)
         self.custom_margin_t.grid(row=3, column=2, padx=2)
-        self.custom_margin_t.insert(0, str(layout.margin_top_mm))
-        self.custom_margin_r = ctk.CTkEntry(self.frame_custom_layout, width=45)
+        self.custom_margin_r = self._mm_spin(self.frame_custom_layout, layout.margin_right_mm, entry_width=44)
         self.custom_margin_r.grid(row=3, column=3, padx=2)
-        self.custom_margin_r.insert(0, str(layout.margin_right_mm))
-        self.custom_margin_b = ctk.CTkEntry(self.frame_custom_layout, width=45)
+        self.custom_margin_b = self._mm_spin(self.frame_custom_layout, layout.margin_bottom_mm, entry_width=44)
         self.custom_margin_b.grid(row=3, column=4, padx=2)
-        self.custom_margin_b.insert(0, str(layout.margin_bottom_mm))
 
         ctk.CTkLabel(self.frame_custom_layout, text='Espaço X/Y (mm):').grid(row=3, column=5, padx=4, sticky='E')
-        self.custom_gap_x = ctk.CTkEntry(self.frame_custom_layout, width=45)
+        self.custom_gap_x = self._mm_spin(self.frame_custom_layout, layout.gap_x_mm, entry_width=44)
         self.custom_gap_x.grid(row=3, column=6, padx=2)
-        self.custom_gap_x.insert(0, str(layout.gap_x_mm))
-        self.custom_gap_y = ctk.CTkEntry(self.frame_custom_layout, width=45)
+        self.custom_gap_y = self._mm_spin(self.frame_custom_layout, layout.gap_y_mm, entry_width=44)
         self.custom_gap_y.grid(row=3, column=7, padx=2)
-        self.custom_gap_y.insert(0, str(layout.gap_y_mm))
 
         self.custom_layout_status = ctk.CTkLabel(self.frame_custom_layout, text='', text_color='gray')
-        self.custom_layout_status.grid(row=4, column=0, columnspan=8, sticky='W', padx=4, pady=(4, 0))
+        self.custom_layout_status.grid(row=4, column=0, columnspan=10, sticky='W', padx=4, pady=(4, 0))
 
         self.frame_editor_scope = ctk.CTkFrame(self.frame_custom_layout, fg_color='transparent')
-        self.frame_editor_scope.grid(row=5, column=0, columnspan=8, sticky='W', pady=(6, 0))
+        self.frame_editor_scope.grid(row=5, column=0, columnspan=10, sticky='W', pady=(6, 0))
         ctk.CTkLabel(self.frame_editor_scope, text='Editar:').grid(row=0, column=0, padx=4)
         self.btn_editor_scope = ctk.CTkSegmentedButton(
             self.frame_editor_scope,
@@ -344,13 +346,6 @@ class EditWindow(ctk.CTkToplevel):
         self.btn_editor_scope.grid(row=0, column=1, padx=4)
         self.btn_editor_scope.set('Etiqueta')
         self.editor_scope = SCOPE_SLOT
-
-        for widget in (
-            self.custom_page_w, self.custom_page_h, self.custom_label_w, self.custom_label_h,
-            self.custom_cols, self.custom_rows, self.custom_margin_l, self.custom_margin_t,
-            self.custom_margin_r, self.custom_margin_b, self.custom_gap_x, self.custom_gap_y,
-        ):
-            widget.bind('<KeyRelease>', self._on_custom_layout_change)
 
     def _is_custom_orientation(self):
         return self.combobox_type.get() == ORIENTATION_LABELS[CUSTOM_ORIENTATION_INDEX]
@@ -437,7 +432,7 @@ class EditWindow(ctk.CTkToplevel):
 
     def _int_entry(self, entry, default):
         try:
-            return int(float(str(entry.get()).replace(',', '.')))
+            return max(1, int(float(str(entry.get()).replace(',', '.'))))
         except (TypeError, ValueError):
             return default
 
@@ -471,23 +466,27 @@ class EditWindow(ctk.CTkToplevel):
 
     def _on_custom_layout_change(self, *_args):
         self._refresh_custom_layout_status()
-        if self._is_custom_orientation():
-            w, h = self._editor_canvas_size()
-            if w != self.base_canvas_width or h != self.base_canvas_height:
-                self.base_canvas_width = w
-                self.base_canvas_height = h
-                self.canvas.configure(width=w, height=h)
-                self._redraw_editor_view()
+        if not self._is_custom_orientation():
+            self.update_save_button()
+            return
+
+        w, h = self._editor_canvas_size()
+        size_changed = w != self.base_canvas_width or h != self.base_canvas_height
+        if size_changed:
+            self.base_canvas_width = w
+            self.base_canvas_height = h
+            self.canvas.configure(width=w, height=h)
+
+        if size_changed or self.editor_scope == SCOPE_SHEET:
+            self._redraw_editor_view()
         self.update_save_button()
 
     def _on_custom_page_preset(self, preset):
         from app.services.layout_service import PAGE_PRESETS
         if preset in PAGE_PRESETS and preset != 'Personalizado':
             w, h = PAGE_PRESETS[preset]
-            self.custom_page_w.delete(0, 'end')
-            self.custom_page_w.insert(0, str(w))
-            self.custom_page_h.delete(0, 'end')
-            self.custom_page_h.insert(0, str(h))
+            self.custom_page_w.set(w)
+            self.custom_page_h.set(h)
         self._on_custom_layout_change()
 
     def _current_layout_config_json(self):
