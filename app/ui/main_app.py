@@ -28,6 +28,7 @@ from app.ui.constants import (
     PAPER_COLOR_LIST,
 )
 from app.ui.remake_window import RemakeWindow
+from app.ui.ttk_theme import apply_azure_dark_theme
 from app.utils.document_delivery import open_path
 from app.utils.file_parser import FileUtils
 from app.services import admin_service
@@ -43,6 +44,7 @@ class App(ctk.CTk):
         self.iconbitmap(ICON)
         ctk.set_default_color_theme("dark-blue")
         ctk.set_appearance_mode("dark")
+        apply_azure_dark_theme(self)
         self.option_add("*Font", ("Segoe UI", 15))
 
         self.winfo_screenwidth()

@@ -6,12 +6,6 @@ class Table(ttk.Treeview):
     def __init__(self, master, cols_names, *args, **kwargs):
         super().__init__(master, *args, **kwargs)
 
-        try:
-            self.tk.call("source", "azure.tcl")
-            self.tk.call("set_theme", "dark")
-        except Exception:
-            pass
-
         self.configure(columns=cols_names)
 
         for i, col_name in enumerate(cols_names, start=1):

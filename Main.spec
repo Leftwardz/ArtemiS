@@ -5,7 +5,16 @@ block_cipher = None
 import os
 
 base_dir = os.path.abspath('.')
-dll_path = os.path.join(base_dir, 'venv', 'Lib', 'site-packages', 'pylibdmtx', 'libdmtx-64.dll')
+
+def _find_dll():
+    for venv_name in ('.venv', 'venv'):
+        candidate = os.path.join(base_dir, venv_name, 'Lib', 'site-packages',
+                                 'pylibdmtx', 'libdmtx-64.dll')
+        if os.path.isfile(candidate):
+            return candidate
+    raise FileNotFoundError('libdmtx-64.dll nao encontrado em .venv/venv')
+
+dll_path = _find_dll()
 
 # Ghostscript empacotado (rodar scripts/fetch_ghostscript.ps1 antes do build)
 gs_bin = os.path.join(base_dir, 'vendor', 'ghostscript', 'bin')
@@ -16,11 +25,23 @@ if os.path.isdir(gs_bin):
 if os.path.isdir(gs_lib):
     gs_datas.append((gs_lib, os.path.join('vendor', 'ghostscript', 'lib')))
 
+resource_datas = []
+for _res in ('img', 'fontes', 'theme'):
+    _res_path = os.path.join(base_dir, _res)
+    if os.path.isdir(_res_path):
+        resource_datas.append((_res_path, _res))
+
+_azure_tcl = os.path.join(base_dir, 'azure.tcl')
+if os.path.isfile(_azure_tcl):
+    resource_datas.append((_azure_tcl, '.'))
+
+all_datas = gs_datas + resource_datas
+
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[(dll_path, '.')],
-    datas=gs_datas,
+    datas=all_datas,
     hiddenimports=[
         'reportlab.graphics.barcode.usps4s',
         'reportlab.graphics.barcode.code128',
