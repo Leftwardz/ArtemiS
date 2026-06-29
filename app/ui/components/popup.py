@@ -1,5 +1,6 @@
 import customtkinter as ctk
 
+from app.i18n import t
 from app.ui.constants import BTN_HOVER_RED, BTN_RED, ICON
 from app.utils.window_geometry import calculate_center_screen_with_monitor, get_monitor
 
@@ -22,7 +23,7 @@ class PopUpWindow(ctk.CTkToplevel):
 
         self.btn_close = ctk.CTkButton(
             self.frame,
-            text='Fechar',
+            text=t('popup.close'),
             fg_color=BTN_RED,
             hover_color=BTN_HOVER_RED,
             command=self.destroy,
@@ -66,19 +67,19 @@ class ConfirmWindow(ctk.CTkToplevel):
         lbl_text.grid(row=0, column=0, columnspan=2, pady=5, padx=10)
 
         if has_confirm:
-            lbl_text = ctk.CTkLabel(self, text='Digite "Confirmo" abaixo para validar', font=('Arial', 10, 'bold'))
+            lbl_text = ctk.CTkLabel(self, text=t('popup.confirm_prompt'), font=('Arial', 10, 'bold'))
             lbl_text.grid(row=1, column=0, columnspan=2, pady=5, padx=10)
 
             self.entry_confirm = ctk.CTkEntry(self)
             self.entry_confirm.grid(row=2, column=0, columnspan=2, pady=5, padx=10)
 
-        self.btn_ok = ctk.CTkButton(self, text="OK", width=120, command=self.confirm_destroy)
+        self.btn_ok = ctk.CTkButton(self, text=t('popup.ok'), width=120, command=self.confirm_destroy)
         self.btn_ok.grid(row=6, column=0, pady=10, padx=20)
 
         self.btn_cancelar = ctk.CTkButton(
             self,
             width=120,
-            text="Cancelar",
+            text=t('popup.cancel'),
             fg_color=BTN_RED,
             hover_color=BTN_HOVER_RED,
             command=self.destroy,
@@ -88,11 +89,12 @@ class ConfirmWindow(ctk.CTkToplevel):
     def confirm_destroy(self):
         if self.has_confirm:
             value = self.entry_confirm.get()
-            if value.upper() == 'CONFIRMO':
+            keyword = t('popup.confirm_keyword')
+            if value.upper() == keyword.upper():
                 self.destroy()
                 self.func()
             else:
-                PopUpWindow(self, 'Erro', f'O valor digitado "{value}" não confere')
+                PopUpWindow(self, t('popup.error'), t('popup.confirm_mismatch', value=value))
         else:
             self.destroy()
             self.func()

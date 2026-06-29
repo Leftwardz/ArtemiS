@@ -1,6 +1,8 @@
 from app.services import admin_service
 import customtkinter as ctk
 
+from app.i18n import PDF_MODE_SENTINEL, is_pdf_mode_label, pdf_mode_label, t
+from app.services.production_service import build_remake_file_lines
 from app.services.remake_service import prepare_remake_job
 from app.ui.components import PopUpWindow, Table
 from app.ui.constants import DEFAULT_WIDTH, FONT, PAPER_COLOR_LIST
@@ -11,7 +13,7 @@ from app.utils.window_geometry import calculate_center_screen_with_monitor, get_
 class RemakeWindow(ctk.CTkToplevel):
     def __init__(self, master, filepath, work_order, color, printer, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.title('Remake')
+        self.title(t('remake.title'))
 
         self.master = master
 
@@ -31,7 +33,7 @@ class RemakeWindow(ctk.CTkToplevel):
         self.client = self.file.get_first_line_column(0).split('-')[0].strip()
         self.product = self.file.get_first_line_column(0).split('-')[1].strip()
 
-        self.lbl_title = ctk.CTkLabel(self, text="Selecionar Remake", font=(FONT, 25, "bold"))
+        self.lbl_title = ctk.CTkLabel(self, text=t('remake.select_title'), font=(FONT, 25, "bold"))
         self.lbl_title.grid(row=0, column=0, columnspan=2, pady=5, sticky='ew')
 
         self.frame_info = ctk.CTkFrame(self)
@@ -42,21 +44,21 @@ class RemakeWindow(ctk.CTkToplevel):
         self.frame_info.grid_columnconfigure(2, weight=1)
 
         work = self.file.get_first_line_column(3)
-        text = f'WO:{work} - (Total: {len(self.file.lines)})'
+        text = t('remake.work_total', work=work, total=len(self.file.lines))
         self.lbl_title = ctk.CTkLabel(self.frame_info, text=text, font=(FONT, 15, "bold"))
         self.lbl_title.grid(row=0, column=0)
 
         self.frame_printers = ctk.CTkFrame(self.frame_info, fg_color='transparent')
         self.frame_printers.grid(row=0, column=1)
 
-        ctk.CTkLabel(self.frame_printers, text="Impressora: ").grid(row=0, column=0, padx=5)
+        ctk.CTkLabel(self.frame_printers, text=t('remake.printer')).grid(row=0, column=0, padx=5)
 
         printers_list = self.master._printer_combo_values()
         self.printers_list = ctk.CTkComboBox(self.frame_printers, values=printers_list, width=200)
         self.printers_list.grid(row=0, column=1, padx=5)
         if self.printer in printers_list:
             self.printers_list.set(self.printer)
-        elif self.printer != 'Criar PDF':
+        elif self.printer != PDF_MODE_SENTINEL:
             _labels, name_map = admin_service.get_printer_combo_options()
             for label, name in name_map.items():
                 if name == self.printer:
@@ -65,11 +67,11 @@ class RemakeWindow(ctk.CTkToplevel):
             else:
                 self.printers_list.set(self.printer)
         else:
-            self.printers_list.set('Criar PDF')
+            self.printers_list.set(pdf_mode_label())
 
         color_frame = ctk.CTkFrame(self.frame_info, fg_color='transparent')
         color_frame.grid(row=0, column=2)
-        ctk.CTkLabel(color_frame, text='Cor do Papel:').grid(row=0, column=0)
+        ctk.CTkLabel(color_frame, text=t('main.paper_color')).grid(row=0, column=0)
         ctk.CTkFrame(color_frame, fg_color=PAPER_COLOR_LIST[color], width=20, height=20, corner_radius=0) \
             .grid(row=0, column=1, padx=10)
 
@@ -83,36 +85,36 @@ class RemakeWindow(ctk.CTkToplevel):
 
         validation = self.register(lambda i: i.isdigit() or ',' in i or '-' in i or i == '')
 
-        ctk.CTkLabel(self.inputs_frame, text='Range (ex.: 1-3,5,10)').grid(row=0, column=0, padx=5, pady=2, sticky='w')
+        ctk.CTkLabel(self.inputs_frame, text=t('remake.range_label')).grid(row=0, column=0, padx=5, pady=2, sticky='w')
         self.range_input = ctk.CTkEntry(self.inputs_frame, width=150, border_width=2, corner_radius=0,
                                         validate='key', validatecommand=(validation, "%P"))
         self.range_input.bind('<FocusIn>', self.clear_other_entries)
         self.range_input.grid(row=1, column=0, padx=5, sticky='w')
 
-        ctk.CTkLabel(self.inputs_frame, text='RankInJob (ex.: 1-3,5,10)').grid(row=0, column=1, padx=5, sticky='w')
+        ctk.CTkLabel(self.inputs_frame, text=t('remake.rankjob_label')).grid(row=0, column=1, padx=5, sticky='w')
         self.rankjob_input = ctk.CTkEntry(self.inputs_frame, width=150, border_width=2, corner_radius=0,
                                           validate='key', validatecommand=(validation, "%P"))
         self.rankjob_input.bind('<FocusIn>', self.clear_other_entries)
         self.rankjob_input.grid(row=1, column=1, padx=5, sticky='w')
 
-        ctk.CTkLabel(self.inputs_frame, text='Número do AR:').grid(row=0, column=2, padx=5, sticky='w')
+        ctk.CTkLabel(self.inputs_frame, text=t('remake.ar_label')).grid(row=0, column=2, padx=5, sticky='w')
         self.ar_input = ctk.CTkEntry(self.inputs_frame, width=170, border_width=2, corner_radius=0)
         self.ar_input.bind('<FocusIn>', self.clear_other_entries)
         self.ar_input.grid(row=1, column=2, padx=5, sticky='w')
 
-        ctk.CTkLabel(self.inputs_frame, text='Nome Embossing:').grid(row=0, column=3, padx=5, sticky='w')
+        ctk.CTkLabel(self.inputs_frame, text=t('remake.name_label')).grid(row=0, column=3, padx=5, sticky='w')
         self.name_input = ctk.CTkEntry(self.inputs_frame, width=205, border_width=2, corner_radius=0)
         self.name_input.bind('<FocusIn>', self.clear_other_entries)
         self.name_input.grid(row=1, column=3, padx=5, sticky='w')
 
-        self.btn_search = ctk.CTkButton(self.inputs_frame, text="Procurar", font=(FONT, 14, "bold"),
+        self.btn_search = ctk.CTkButton(self.inputs_frame, text=t('remake.search'), font=(FONT, 14, "bold"),
                                         width=110, command=self.search)
         self.btn_search.grid(row=2, column=0, columnspan=4, padx=20, pady=10, sticky='e')
 
         self.table_frame = ctk.CTkFrame(self, width=500, height=310, corner_radius=0)
         self.table_frame.grid(row=3, rowspan=5, column=0, padx=10, pady=5, sticky="nwse")
 
-        columns = ['ID', 'RankJob', 'Nª AR', 'Nome']
+        columns = [t('remake.col_id'), t('remake.col_rankjob'), t('remake.col_ar'), t('remake.col_name')]
         self.table = Table(self.table_frame, columns, show="headings")
         self.table.pack(expand=True, fill="both")
 
@@ -120,19 +122,19 @@ class RemakeWindow(ctk.CTkToplevel):
         self.btn_frame.grid(row=3, rowspan=5, column=1, pady=5, sticky="nwse")
         self.btn_frame.grid_rowconfigure(6, weight=1)
 
-        self.btn_remove = ctk.CTkButton(self.btn_frame, text="Remover", font=(FONT, 14, "bold"),
+        self.btn_remove = ctk.CTkButton(self.btn_frame, text=t('remake.remove'), font=(FONT, 14, "bold"),
                                         width=110, command=self.btn_remove)
         self.btn_remove.grid(row=3, column=0, pady=3, sticky='N')
 
-        self.btn_clean_all = ctk.CTkButton(self.btn_frame, text="Limpar Tudo",
+        self.btn_clean_all = ctk.CTkButton(self.btn_frame, text=t('remake.clear_all'),
                                            font=(FONT, 14, "bold"), width=110, command=self.btn_remove_all)
         self.btn_clean_all.grid(row=4, column=0, pady=3, sticky='N')
 
-        self.btn_start = ctk.CTkButton(self.btn_frame, text="Start", fg_color='green', hover_color='dark green',
+        self.btn_start = ctk.CTkButton(self.btn_frame, text=t('remake.start'), fg_color='green', hover_color='dark green',
                                        font=(FONT, 14, "bold"), width=110, command=self.btn_start)
         self.btn_start.grid(row=5, column=0, pady=3, sticky='N')
 
-        self.qtd_label = ctk.CTkLabel(self.btn_frame, text='Quantidade: 0')
+        self.qtd_label = ctk.CTkLabel(self.btn_frame, text=t('remake.quantity', count=0))
         self.qtd_label.grid(row=6, column=0, pady=3, sticky='S')
 
         self.bind('<Return>', self.search)
@@ -162,7 +164,7 @@ class RemakeWindow(ctk.CTkToplevel):
             items = []
 
         if not items:
-            PopUpWindow(self, 'Não Encontrado', 'Registro não encontrado')
+            PopUpWindow(self, t('common.not_found'), t('remake.not_found'))
 
         for item in items:
             row = item[1]
@@ -228,7 +230,7 @@ class RemakeWindow(ctk.CTkToplevel):
 
     def update_quantity(self):
         total = len(self.table.get_children())
-        self.qtd_label.configure(text=f'Quantidade: {total}')
+        self.qtd_label.configure(text=t('remake.quantity', count=total))
 
     def exit(self):
         self.master.focus_set()

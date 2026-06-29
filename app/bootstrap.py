@@ -22,6 +22,8 @@ def main():
                 "audit_central_location": "",
                 "audit_flush_interval_seconds": 180,
                 "audit_retention_days": 180,
+                "language": "pt",
+                "locales_folder": "",
             }
             json.dump(config, config_file, indent=4)
         if not os.path.exists("C:\\AR"):
@@ -29,6 +31,9 @@ def main():
 
     runtime.init(config, DataBase(config["database_location"]))
     runtime.context.db.create_tables()
+
+    from app.i18n import init_i18n
+    init_i18n(config)
 
     audit.init_audit(config)
 

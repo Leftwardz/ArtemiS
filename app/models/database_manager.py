@@ -56,6 +56,7 @@ class DataBase:
         self.migrate_legacy_printers()
         self.migrate_layout_config()
         self.migrate_drawing_scope()
+        self.migrate_drawing_stack_order()
         self.session.close()
 
     @staticmethod
@@ -100,6 +101,15 @@ class DataBase:
             self.session.execute(text('SELECT scope FROM drawings LIMIT 1'))
         except Exception:
             self.session.execute(text("ALTER TABLE drawings ADD COLUMN scope TEXT DEFAULT 'slot'"))
+            self.session.commit()
+
+    def migrate_drawing_stack_order(self):
+        """Adiciona coluna stack_order em bases existentes."""
+        from sqlalchemy import text
+        try:
+            self.session.execute(text('SELECT stack_order FROM drawings LIMIT 1'))
+        except Exception:
+            self.session.execute(text('ALTER TABLE drawings ADD COLUMN stack_order INTEGER DEFAULT 0'))
             self.session.commit()
 
     def search_clients(self, name=''):
@@ -265,7 +275,11 @@ class DataBase:
         product = self.session.query(Product).filter_by(name=product_name, client_id=client_id).first()
         if product:
             result = []
-            for draw in product.drawings:
+            drawings = sorted(
+                product.drawings,
+                key=lambda d: (d.stack_order if d.stack_order is not None else 0, d.id or 0),
+            )
+            for draw in drawings:
                 draw_dict = attributes.instance_dict(draw)
                 draw_dict.pop('_sa_instance_state')
                 draw_dict.pop('product_id')

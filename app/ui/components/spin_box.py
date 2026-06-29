@@ -2,7 +2,8 @@ import customtkinter as ctk
 
 
 class SpinBox(ctk.CTkFrame):
-    def __init__(self, master, step=1, func=None, *args, **kwargs):
+    def __init__(self, master, step=1, func=None, entry_width=100, entry_height=26,
+                 btn_width=20, btn_height=10, *args, **kwargs):
         super().__init__(master, *args, **kwargs)
 
         self.configure(fg_color='transparent', corner_radius=0)
@@ -11,17 +12,22 @@ class SpinBox(ctk.CTkFrame):
         self.func = func
         self.step = step
 
-        self.entry = ctk.CTkEntry(self, width=100, height=26, border_width=0, corner_radius=0)
+        self.entry = ctk.CTkEntry(
+            self, width=entry_width, height=entry_height, border_width=0, corner_radius=0,
+        )
         self.entry.grid(row=0, column=0, rowspan=2)
         self.entry.insert(1, 1)
 
+        btn_font = ('arial', 7 if entry_height >= 30 else 6)
         self.btn_up = ctk.CTkButton(
-            self, text='▲', font=('arial', 6), width=20, height=10, corner_radius=0, command=self.increase
+            self, text='▲', font=btn_font, width=btn_width, height=btn_height,
+            corner_radius=0, command=self.increase,
         )
         self.btn_up.grid(row=0, column=0, sticky='E')
 
         self.btn_down = ctk.CTkButton(
-            self, text='▼', font=('arial', 6), width=20, height=10, corner_radius=0, command=self.decrease
+            self, text='▼', font=btn_font, width=btn_width, height=btn_height,
+            corner_radius=0, command=self.decrease,
         )
         self.btn_down.grid(row=1, column=0, sticky='E')
 

@@ -56,6 +56,7 @@ class DrawingObject:
     object_id: str
     item_type: str = ''
     scope: str = 'slot'
+    stack_order: int = 0
 
     def canvas_tags(self) -> tuple[str, ...]:
         return (f'obj:{self.object_id}',)
@@ -70,6 +71,7 @@ class DrawingObject:
         row = {
             'item_type': self.item_type,
             'scope': self.scope,
+            'stack_order': self.stack_order,
             'x1': None, 'x2': None, 'y1': None, 'y2': None,
             'font_name': None, 'font_size': None, 'font_style': None,
             'orientation': None, 'text': None, 'thickness': None, 'dashed': None,
@@ -305,6 +307,7 @@ class SegmentObject(DrawingObject):
         obj = cls(
             object_id=segment_id,
             scope=first.get('scope') or 'slot',
+            stack_order=int(first.get('stack_order') or 0),
             columns=columns,
             labels=labels or [f'Placeholder {i}' for i in range(len(columns))],
             line_distance=_s(line_distance),
@@ -333,6 +336,7 @@ class SegmentObject(DrawingObject):
             rows.append({
                 'item_type': 'segment',
                 'scope': self.scope,
+                'stack_order': self.stack_order,
                 'x1': line.x,
                 'y1': line.y,
                 'x2': None,
@@ -363,11 +367,13 @@ def object_from_db_row(row: dict) -> DrawingObject:
     tag = row.get('tag') or ''
     oid = new_object_id()
     scope = row.get('scope') or 'slot'
+    stack_order = int(row.get('stack_order') or 0)
 
     if item_type == 'text' and not tag.startswith(('segment', 'counter', 'barcode')):
         return TextObject(
             object_id=oid,
             scope=scope,
+            stack_order=stack_order,
             text=row.get('text') or '',
             font_name=row.get('font_name') or 'arial',
             font_size=_s(row.get('font_size') or '10'),
@@ -380,6 +386,7 @@ def object_from_db_row(row: dict) -> DrawingObject:
         return CounterObject(
             object_id=oid,
             scope=scope,
+            stack_order=stack_order,
             text=row.get('text') or '0000001',
             font_name=row.get('font_name') or 'arial',
             font_size=_s(row.get('font_size') or '10'),
@@ -394,6 +401,7 @@ def object_from_db_row(row: dict) -> DrawingObject:
         return BarcodeTextObject(
             object_id=oid,
             scope=scope,
+            stack_order=stack_order,
             text=row.get('text') or '',
             file_column=col,
             font_name=row.get('font_name') or 'arial',
@@ -408,6 +416,7 @@ def object_from_db_row(row: dict) -> DrawingObject:
         return BarcodeObject(
             object_id=oid,
             scope=scope,
+            stack_order=stack_order,
             barcode_kind=item_type,
             placeholder=row.get('text') or (parts[4].replace('_', ' ') if len(parts) > 4 else ''),
             file_column=parts[3] if len(parts) > 3 else row.get('file_columns') or '',
@@ -422,6 +431,7 @@ def object_from_db_row(row: dict) -> DrawingObject:
         return LineObject(
             object_id=oid,
             scope=scope,
+            stack_order=stack_order,
             x1=_s(row.get('x1')), y1=_s(row.get('y1')),
             x2=_s(row.get('x2')), y2=_s(row.get('y2')),
             thickness=_s(row.get('thickness') or '1'),
@@ -431,6 +441,7 @@ def object_from_db_row(row: dict) -> DrawingObject:
         return RectangleObject(
             object_id=oid,
             scope=scope,
+            stack_order=stack_order,
             x1=_s(row.get('x1')), y1=_s(row.get('y1')),
             x2=_s(row.get('x2')), y2=_s(row.get('y2')),
             thickness=_s(row.get('thickness') or '1'),
@@ -440,6 +451,7 @@ def object_from_db_row(row: dict) -> DrawingObject:
         return ImageObject(
             object_id=oid,
             scope=scope,
+            stack_order=stack_order,
             proportion=_s(row.get('proportion') or '100'),
             orientation=_s(row.get('orientation') or '0'),
             x=_s(row.get('x1') or '0'),
@@ -450,19 +462,23 @@ def object_from_db_row(row: dict) -> DrawingObject:
 
 
 def load_objects_from_db(items: list[dict]) -> list[DrawingObject]:
-    """Reconstrói objetos a partir das linhas do banco (agrupa segmentos)."""
+    """Reconstrói objetos a partir das linhas do banco (agrupa segmentos, preserva stack_order)."""
     segment_rows: dict[str, list[dict]] = {}
-    others: list[dict] = []
     for row in items:
         if row.get('item_type') == 'segment':
             sid = row.get('segment_id') or _split_tag_fields(row.get('tag') or '')[0]
             segment_rows.setdefault(sid, []).append(row)
-        else:
-            others.append(row)
 
+    ordered = sorted(enumerate(items), key=lambda pair: (pair[1].get('stack_order') or 0, pair[0]))
+    seen_segments: set[str] = set()
     objects: list[DrawingObject] = []
-    for rows in segment_rows.values():
-        objects.append(SegmentObject.from_db_rows(rows))
-    for row in others:
-        objects.append(object_from_db_row(row))
+    for _, row in ordered:
+        if row.get('item_type') == 'segment':
+            sid = row.get('segment_id') or _split_tag_fields(row.get('tag') or '')[0]
+            if sid in seen_segments:
+                continue
+            seen_segments.add(sid)
+            objects.append(SegmentObject.from_db_rows(segment_rows[sid]))
+        else:
+            objects.append(object_from_db_row(row))
     return objects

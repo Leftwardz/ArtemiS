@@ -35,6 +35,10 @@ class DrawingStore:
         self._segment_canvas_lines.clear()
 
     def register(self, obj: DrawingObject) -> None:
+        if obj.object_id not in self.objects and self.objects:
+            max_order = max(o.stack_order for o in self.objects.values())
+            if obj.stack_order <= max_order:
+                obj.stack_order = max_order + 1
         self.objects[obj.object_id] = obj
 
     def get(self, object_id: str) -> Optional[DrawingObject]:
@@ -80,14 +84,21 @@ class DrawingStore:
         for obj in load_objects_from_db(items):
             self.register(obj)
 
-    def sync_segment_lines_from_canvas(self, segment: SegmentObject, canvas, zoom: float = 1.0) -> None:
+    def sync_segment_lines_from_canvas(
+        self, segment: SegmentObject, canvas, zoom: float = 1.0,
+        preserve_preview_text: bool = False,
+    ) -> None:
         """Atualiza coordenadas das linhas do segmento a partir do canvas (em coords lógicas)."""
         canvas_ids = self.segment_canvas_ids(segment.object_id)
+        existing = list(segment.lines) if preserve_preview_text else []
         lines: list[SegmentLine] = []
-        for cid in canvas_ids:
+        for i, cid in enumerate(canvas_ids):
             is_wrap = 'wrap' in canvas.gettags(cid)
             x, y = canvas.coords(cid)
-            text = canvas.itemcget(cid, 'text')
+            if preserve_preview_text and i < len(existing):
+                text = existing[i].preview_text
+            else:
+                text = canvas.itemcget(cid, 'text')
             lines.append(SegmentLine(
                 preview_text=text,
                 x=str(int(round(x / zoom))),
@@ -101,45 +112,68 @@ class DrawingStore:
             segment.anchor_y = lines[0].y
 
     def objects_for_scope(self, scope: str) -> list[DrawingObject]:
-        return [obj for obj in self.objects.values() if getattr(obj, 'scope', 'slot') == scope]
+        items = [obj for obj in self.objects.values() if getattr(obj, 'scope', 'slot') == scope]
+        return sorted(items, key=lambda o: o.stack_order)
 
-    def serialize_all_to_db(self, canvas, canvas_dict_images: dict, zoom: float, active_scope: str) -> list[dict]:
-        """Serializa todos os objetos; sincroniza o escopo ativo a partir do canvas."""
-        seen_segments: set[str] = set()
+    def sync_stack_order_from_canvas(self, canvas) -> None:
+        """Atualiza stack_order dos objetos visíveis, por escopo (slot/sheet)."""
+        seen: set[str] = set()
+        scope_counters: dict[str, int] = {}
+        for canvas_id in canvas.find_all():
+            tags = canvas.gettags(canvas_id)
+            if 'paper' in tags or 'slot_guide' in tags or 'slot_preview' in tags:
+                continue
+            obj = self.get_by_canvas(canvas_id)
+            if obj is None or obj.object_id in seen:
+                continue
+            seen.add(obj.object_id)
+            scope = getattr(obj, 'scope', 'slot') or 'slot'
+            obj.stack_order = scope_counters.get(scope, 0)
+            scope_counters[scope] = obj.stack_order + 1
+
+    def serialize_all_to_db(
+        self, canvas, canvas_dict_images: dict, zoom: float, active_scope: str,
+        preserve_placeholder_text: bool = False,
+    ) -> list[dict]:
+        """Serializa todos os objetos; sincroniza coords do canvas e preserva stack_order."""
+        self.sync_stack_order_from_canvas(canvas)
+        synced_segments: set[str] = set()
         synced_ids: set[str] = set()
-        result: list[dict] = []
 
         for canvas_id in canvas.find_all():
             tags = canvas.gettags(canvas_id)
-            if 'paper' in tags or 'slot_guide' in tags:
+            if 'paper' in tags or 'slot_guide' in tags or 'slot_preview' in tags:
                 continue
             obj = self.get_by_canvas(canvas_id)
             if obj is None:
                 continue
-            if getattr(obj, 'scope', 'slot') != active_scope:
-                continue
             if isinstance(obj, SegmentObject):
-                if obj.object_id in seen_segments:
+                if obj.object_id in synced_segments:
                     continue
-                seen_segments.add(obj.object_id)
+                synced_segments.add(obj.object_id)
                 synced_ids.add(obj.object_id)
-                self.sync_segment_lines_from_canvas(obj, canvas, zoom)
+                self.sync_segment_lines_from_canvas(
+                    obj, canvas, zoom, preserve_preview_text=preserve_placeholder_text,
+                )
                 self._sync_segment_font_from_canvas(obj, canvas, zoom)
-                result.extend(obj.to_db_rows())
                 continue
-
-            row = self._serialize_canvas_item(canvas, canvas_id, canvas_dict_images, obj, zoom)
-            if row:
-                synced_ids.add(obj.object_id)
-                result.append(row)
-
-        serialized_segment_ids = {r.get('segment_id') for r in result if r.get('item_type') == 'segment'}
-        for obj in self.objects.values():
             if obj.object_id in synced_ids:
                 continue
-            if isinstance(obj, SegmentObject) and obj.object_id in serialized_segment_ids:
-                continue
-            result.extend(self._object_to_db_rows(obj, canvas_dict_images))
+            synced_ids.add(obj.object_id)
+            self._serialize_canvas_item(
+                canvas, canvas_id, canvas_dict_images, obj, zoom,
+                preserve_placeholder_text=preserve_placeholder_text,
+            )
+
+        result: list[dict] = []
+        for obj in sorted(
+            self.objects.values(),
+            key=lambda o: (0 if getattr(o, 'scope', 'slot') == 'slot' else 1, o.stack_order),
+        ):
+            if isinstance(obj, SegmentObject):
+                result.extend(obj.to_db_rows())
+            else:
+                result.extend(self._object_to_db_rows(obj, canvas_dict_images))
         return result
 
     def _object_to_db_rows(self, obj: DrawingObject, canvas_dict_images: dict) -> list[dict]:
@@ -232,7 +266,10 @@ class DrawingStore:
                 segment.font_style = parts[2]
         segment.orientation = canvas.itemcget(cid, 'angle').replace('.0', '')
 
-    def _serialize_canvas_item(self, canvas, canvas_id, canvas_dict_images, obj, zoom: float = 1.0) -> Optional[dict]:
+    def _serialize_canvas_item(
+        self, canvas, canvas_id, canvas_dict_images, obj, zoom: float = 1.0,
+        preserve_placeholder_text: bool = False,
+    ) -> Optional[dict]:
         ctype = canvas.type(canvas_id)
         tag = canvas.gettags(canvas_id)
         tag_str = tag[0] if tag else ''
@@ -283,7 +320,8 @@ class DrawingStore:
                     obj.font_size = self._logical_font_size(parts[1], zoom)
                     obj.font_style = parts[2]
             obj.orientation = canvas.itemcget(canvas_id, 'angle').replace('.0', '')
-            obj.text = canvas.itemcget(canvas_id, 'text')
+            if not (preserve_placeholder_text and isinstance(obj, BarcodeTextObject)):
+                obj.text = canvas.itemcget(canvas_id, 'text')
             fc = obj.file_column if isinstance(obj, BarcodeTextObject) else None
             return obj.to_db_dict(
                 x1=obj.x, y1=obj.y, text=obj.text,

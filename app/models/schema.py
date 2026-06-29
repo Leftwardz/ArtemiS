@@ -91,3 +91,4 @@ class Drawing(Base):
     image = Column(LargeBinary)
     char_limit = Column(String)
     scope = Column(String)
+    stack_order = Column(Integer)

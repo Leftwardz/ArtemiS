@@ -16,7 +16,10 @@ from app.services.designer_service import (
     save_product_with_drawings,
     validate_product_name,
 )
-from app.models.sheet_layout import CUSTOM_ORIENTATION_INDEX, SCOPE_SHEET, SCOPE_SLOT, SheetLayout
+from app.models.sheet_layout import (
+    CUSTOM_ORIENTATION_INDEX, PACKING_COLUMN_DEPTH, PACKING_SEQUENTIAL,
+    PACKING_UI_LABELS, PACKING_VALUE_TO_LABEL, SCOPE_SHEET, SCOPE_SLOT, SheetLayout,
+)
 from app.services.layout_service import PAGE_PRESET_LABELS, build_grid_layout
 from app.models.drawing_items import (
     BarcodeObject, BarcodeTextObject, CounterObject, ImageObject, LineObject,
@@ -50,9 +53,11 @@ from app.utils.barcode_generator import (
     create_qrcode,
     get_image,
 )
+from app.utils.file_parser import FileUtils
 from app.utils.text_utils import break_line
 from app.utils.window_geometry import calculate_center_screen_with_monitor, get_monitor
-from app.services.pdf_service import generate_test_pdf
+from app.services.pdf_service import _apply_sheet_page_placeholders, generate_test_pdf
+from app.services.sheet_grouping import build_sheet_pages
 from app.utils.document_delivery import open_path
 
 
@@ -64,12 +69,12 @@ class EditWindow(ctk.CTkToplevel):
         ctk.deactivate_automatic_dpi_awareness()
 
         self.geometry(calculate_center_screen_with_monitor(master, 1220, 750, get_monitor(master)))
-        self.minsize(1220, 750)
-        self.maxsize(1220, 750)
-        self.resizable(False, False)
+        self.minsize(900, 600)
+        self.maxsize(self.winfo_screenwidth(), self.winfo_screenheight())
+        self.resizable(True, True)
         self.master = master
-        self.grid_columnconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=1)
         self.client = master.client_list.radio_var.get()
         self.id_selected_item = None
         self.copied_item = None
@@ -104,8 +109,32 @@ class EditWindow(ctk.CTkToplevel):
                                            command=self.show_pdf, fg_color='#3F644B', hover_color='#688A76')
         self.btn_visualize.grid(row=0, column=4, padx=10)
 
+        self.preview_frame = ctk.CTkFrame(self.name_frame, fg_color='transparent')
+        self.preview_frame.grid(row=0, column=5, padx=(4, 10))
+        self.btn_preview_file = ctk.CTkButton(
+            self.preview_frame, text='Arquivo preview', width=110, command=self.load_preview_file,
+        )
+        self.btn_preview_file.pack(side='left', padx=(0, 4))
+        ctk.CTkLabel(self.preview_frame, text='Linha:').pack(side='left', padx=(0, 2))
+        self.preview_line_spin = SpinBox(self.preview_frame, step=1, func=self._on_preview_line_change, entry_width=42)
+        self.preview_line_spin.set(1)
+        self.preview_line_spin.entry.bind('<Return>', self._on_preview_line_change)
+        self.preview_line_spin.pack(side='left', padx=(0, 4))
+        self.btn_clear_preview = ctk.CTkButton(
+            self.preview_frame, text='×', width=28, fg_color=BTN_RED,
+            hover_color=BTN_HOVER_RED, command=self.clear_preview_file, state='disabled',
+        )
+        self.btn_clear_preview.pack(side='left')
+        self.lbl_preview_file = ctk.CTkLabel(
+            self.preview_frame, text='', font=(FONT_LIST[0], 10), text_color='gray', width=120,
+        )
+        self.lbl_preview_file.pack(side='left', padx=(6, 0))
+        self.preview_file = None
+        self.preview_file_path = ''
+        self.preview_line_idx = 0
+
         self.zoom_frame = ctk.CTkFrame(self.name_frame, fg_color='transparent')
-        self.zoom_frame.grid(row=0, column=5, padx=10)
+        self.zoom_frame.grid(row=0, column=6, padx=10)
         ctk.CTkButton(self.zoom_frame, text='−', width=28, command=self.zoom_out).grid(row=0, column=0, padx=2)
         self.zoom_label = ctk.CTkLabel(self.zoom_frame, text='100%', width=46)
         self.zoom_label.grid(row=0, column=1, padx=2)
@@ -230,6 +259,7 @@ class EditWindow(ctk.CTkToplevel):
         self.base_canvas_width = canvas_width
         self.base_canvas_height = canvas_height
         self.zoom = 1.0
+        self._zoom_by_scope = {SCOPE_SLOT: 1.0, SCOPE_SHEET: None}
         self.canvas_db_saved_items = self.consult_drawings_from_db()
         self.history.append(self.canvas_db_saved_items)
         self.lbl_testes = ctk.CTkLabel(self, text='X: , Y:', width=150)
@@ -267,16 +297,24 @@ class EditWindow(ctk.CTkToplevel):
         self._toggle_custom_layout_panel()
         self.focus_force()
 
-    def _mm_spin(self, parent, value, entry_width=52):
-        spin = SpinBox(parent, step=1.0, func=self._on_custom_layout_change)
-        spin.entry.configure(width=entry_width)
+    _CUSTOM_SPIN_WIDTH = 76
+
+    def _mm_spin(self, parent, value, entry_width=None, entry_height=26, btn_width=20, btn_height=10):
+        if entry_width is None:
+            entry_width = self._CUSTOM_SPIN_WIDTH
+        spin = SpinBox(
+            parent, step=1.0, func=self._on_custom_layout_change,
+            entry_width=entry_width, entry_height=entry_height,
+            btn_width=btn_width, btn_height=btn_height,
+        )
         spin.set(value)
         spin.entry.bind('<KeyRelease>', self._on_custom_layout_change)
         return spin
 
-    def _int_spin(self, parent, value, entry_width=40):
-        spin = SpinBox(parent, step=1, func=self._on_custom_layout_change)
-        spin.entry.configure(width=entry_width)
+    def _int_spin(self, parent, value, entry_width=None):
+        if entry_width is None:
+            entry_width = self._CUSTOM_SPIN_WIDTH
+        spin = SpinBox(parent, step=1, func=self._on_custom_layout_change, entry_width=entry_width)
         spin.set(max(1, int(value)))
         spin.entry.bind('<KeyRelease>', self._on_custom_layout_change)
         return spin
@@ -284,68 +322,71 @@ class EditWindow(ctk.CTkToplevel):
     def _build_custom_layout_panel(self):
         layout = self.sheet_layout
         self.frame_custom_layout = ctk.CTkFrame(self, fg_color='transparent')
-        self.frame_custom_layout.grid(row=4, column=0, columnspan=2, padx=30, sticky='EW', pady=(0, 4))
+        self.frame_custom_layout.grid(row=4, column=0, columnspan=2, padx=16, sticky='EW', pady=(0, 2))
 
-        ctk.CTkLabel(self.frame_custom_layout, text='Layout customizado', font=('Arial', 13, 'bold')) \
-            .grid(row=0, column=0, columnspan=10, sticky='W', pady=(0, 4))
-
-        ctk.CTkLabel(self.frame_custom_layout, text='Folha:').grid(row=1, column=0, padx=4, sticky='E')
+        ctk.CTkLabel(self.frame_custom_layout, text='Folha:').grid(row=0, column=0, padx=(2, 4), sticky='E')
         self.custom_page_preset = ctk.CTkComboBox(
-            self.frame_custom_layout, values=PAGE_PRESET_LABELS, width=120,
+            self.frame_custom_layout, values=PAGE_PRESET_LABELS, width=100,
             command=self._on_custom_page_preset,
         )
-        self.custom_page_preset.grid(row=1, column=1, padx=4, sticky='W')
+        self.custom_page_preset.grid(row=0, column=1, padx=2, sticky='W')
         self.custom_page_preset.set(layout.page_preset)
 
-        ctk.CTkLabel(self.frame_custom_layout, text='L×A folha (mm):').grid(row=1, column=2, padx=4, sticky='E')
+        ctk.CTkLabel(self.frame_custom_layout, text='L×A (mm):').grid(row=0, column=2, padx=(8, 4), sticky='E')
         self.custom_page_w = self._mm_spin(self.frame_custom_layout, layout.page_width_mm)
-        self.custom_page_w.grid(row=1, column=3, padx=2)
+        self.custom_page_w.grid(row=0, column=3, padx=2)
         self.custom_page_h = self._mm_spin(self.frame_custom_layout, layout.page_height_mm)
-        self.custom_page_h.grid(row=1, column=4, padx=2)
+        self.custom_page_h.grid(row=0, column=4, padx=2)
 
-        ctk.CTkLabel(self.frame_custom_layout, text='Etiqueta (mm):').grid(row=2, column=0, padx=4, sticky='E')
+        ctk.CTkLabel(self.frame_custom_layout, text='Ordem:').grid(row=0, column=5, padx=(8, 4), sticky='E')
+        self.custom_packing = ctk.CTkComboBox(
+            self.frame_custom_layout,
+            values=list(PACKING_UI_LABELS.keys()),
+            width=118,
+            command=self._on_custom_layout_change,
+        )
+        self.custom_packing.grid(row=0, column=6, padx=2, sticky='W')
+        self.custom_packing.set(PACKING_VALUE_TO_LABEL.get(layout.packing, 'Linha a linha'))
+
+        ctk.CTkLabel(self.frame_custom_layout, text='Etiqueta:').grid(row=1, column=0, padx=(2, 4), sticky='E')
         self.custom_label_w = self._mm_spin(self.frame_custom_layout, layout.label_width_mm)
-        self.custom_label_w.grid(row=2, column=1, padx=2, sticky='W')
+        self.custom_label_w.grid(row=1, column=1, padx=2, sticky='W')
         self.custom_label_h = self._mm_spin(self.frame_custom_layout, layout.label_height_mm)
-        self.custom_label_h.grid(row=2, column=2, padx=2, sticky='W')
+        self.custom_label_h.grid(row=1, column=2, padx=2, sticky='W')
 
-        ctk.CTkLabel(self.frame_custom_layout, text='Grade:').grid(row=2, column=3, padx=4, sticky='E')
+        ctk.CTkLabel(self.frame_custom_layout, text='Margem L/T:').grid(row=1, column=3, padx=(8, 4), sticky='E')
+        self.custom_margin_l = self._mm_spin(self.frame_custom_layout, layout.margin_left_mm)
+        self.custom_margin_l.grid(row=1, column=4, padx=2)
+        self.custom_margin_t = self._mm_spin(self.frame_custom_layout, layout.margin_top_mm)
+        self.custom_margin_t.grid(row=1, column=5, padx=2)
+
+        ctk.CTkLabel(self.frame_custom_layout, text='Grade:').grid(row=1, column=6, padx=(8, 4), sticky='E')
         self.custom_cols = self._int_spin(self.frame_custom_layout, layout.columns)
-        self.custom_cols.grid(row=2, column=4, padx=2)
-        ctk.CTkLabel(self.frame_custom_layout, text='×').grid(row=2, column=5)
+        self.custom_cols.grid(row=1, column=7, padx=2)
+        ctk.CTkLabel(self.frame_custom_layout, text='×').grid(row=1, column=8)
         self.custom_rows = self._int_spin(self.frame_custom_layout, layout.rows)
-        self.custom_rows.grid(row=2, column=6, padx=2)
+        self.custom_rows.grid(row=1, column=9, padx=2)
 
-        ctk.CTkLabel(self.frame_custom_layout, text='Margens L/T/R/B (mm):').grid(row=3, column=0, padx=4, sticky='E')
-        self.custom_margin_l = self._mm_spin(self.frame_custom_layout, layout.margin_left_mm, entry_width=44)
-        self.custom_margin_l.grid(row=3, column=1, padx=2)
-        self.custom_margin_t = self._mm_spin(self.frame_custom_layout, layout.margin_top_mm, entry_width=44)
-        self.custom_margin_t.grid(row=3, column=2, padx=2)
-        self.custom_margin_r = self._mm_spin(self.frame_custom_layout, layout.margin_right_mm, entry_width=44)
-        self.custom_margin_r.grid(row=3, column=3, padx=2)
-        self.custom_margin_b = self._mm_spin(self.frame_custom_layout, layout.margin_bottom_mm, entry_width=44)
-        self.custom_margin_b.grid(row=3, column=4, padx=2)
-
-        ctk.CTkLabel(self.frame_custom_layout, text='Espaço X/Y (mm):').grid(row=3, column=5, padx=4, sticky='E')
-        self.custom_gap_x = self._mm_spin(self.frame_custom_layout, layout.gap_x_mm, entry_width=44)
-        self.custom_gap_x.grid(row=3, column=6, padx=2)
-        self.custom_gap_y = self._mm_spin(self.frame_custom_layout, layout.gap_y_mm, entry_width=44)
-        self.custom_gap_y.grid(row=3, column=7, padx=2)
-
-        self.custom_layout_status = ctk.CTkLabel(self.frame_custom_layout, text='', text_color='gray')
-        self.custom_layout_status.grid(row=4, column=0, columnspan=10, sticky='W', padx=4, pady=(4, 0))
+        ctk.CTkLabel(self.frame_custom_layout, text='Espaço:').grid(row=1, column=10, padx=(8, 4), sticky='E')
+        self.custom_gap_x = self._mm_spin(self.frame_custom_layout, layout.gap_x_mm)
+        self.custom_gap_x.grid(row=1, column=11, padx=2)
+        self.custom_gap_y = self._mm_spin(self.frame_custom_layout, layout.gap_y_mm)
+        self.custom_gap_y.grid(row=1, column=12, padx=2)
 
         self.frame_editor_scope = ctk.CTkFrame(self.frame_custom_layout, fg_color='transparent')
-        self.frame_editor_scope.grid(row=5, column=0, columnspan=10, sticky='W', pady=(6, 0))
-        ctk.CTkLabel(self.frame_editor_scope, text='Editar:').grid(row=0, column=0, padx=4)
+        self.frame_editor_scope.grid(row=1, column=13, padx=(12, 2), sticky='W')
+        ctk.CTkLabel(self.frame_editor_scope, text='Editar:').grid(row=0, column=0, padx=(0, 4))
         self.btn_editor_scope = ctk.CTkSegmentedButton(
             self.frame_editor_scope,
-            values=['Etiqueta', 'Cabeçalho da folha'],
+            values=['Etiqueta', 'Cabeçalho'],
             command=self._on_editor_scope_button,
         )
-        self.btn_editor_scope.grid(row=0, column=1, padx=4)
+        self.btn_editor_scope.grid(row=0, column=1)
         self.btn_editor_scope.set('Etiqueta')
         self.editor_scope = SCOPE_SLOT
+
+        self.custom_layout_status = ctk.CTkLabel(self.frame_custom_layout, text='', text_color='#c0392b')
+        self.custom_layout_status.grid(row=1, column=14, padx=(8, 2), sticky='W')
 
     def _is_custom_orientation(self):
         return self.combobox_type.get() == ORIENTATION_LABELS[CUSTOM_ORIENTATION_INDEX]
@@ -354,15 +395,11 @@ class EditWindow(ctk.CTkToplevel):
         if self._is_custom_orientation():
             self.frame_custom_layout.grid()
             self._refresh_custom_layout_status()
-            if hasattr(self, 'frame_editor_scope'):
-                self.frame_editor_scope.grid()
         else:
             self.frame_custom_layout.grid_remove()
-            if hasattr(self, 'frame_editor_scope'):
-                self.frame_editor_scope.grid_remove()
 
     def _on_editor_scope_button(self, label):
-        new_scope = SCOPE_SHEET if label == 'Cabeçalho da folha' else SCOPE_SLOT
+        new_scope = SCOPE_SHEET if label == 'Cabeçalho' else SCOPE_SLOT
         self._switch_editor_scope(new_scope)
 
     def _switch_editor_scope(self, new_scope):
@@ -370,14 +407,25 @@ class EditWindow(ctk.CTkToplevel):
             return
         self.pass_canvas_to_dict()
         self.clear_selection()
+        if self._is_custom_orientation():
+            self._zoom_by_scope[self.editor_scope] = self.zoom
+
         self.editor_scope = new_scope
-        label = 'Cabeçalho da folha' if new_scope == SCOPE_SHEET else 'Etiqueta'
+        label = 'Cabeçalho' if new_scope == SCOPE_SHEET else 'Etiqueta'
         self.btn_editor_scope.set(label)
         w, h = self._editor_canvas_size()
         self.base_canvas_width = w
         self.base_canvas_height = h
         self.canvas.configure(width=w, height=h)
-        self._redraw_editor_view()
+
+        if self._is_custom_orientation():
+            if new_scope == SCOPE_SHEET and self._zoom_by_scope[SCOPE_SHEET] is None:
+                self.update_idletasks()
+                self._zoom_by_scope[SCOPE_SHEET] = self._compute_fit_zoom()
+            target_zoom = self._zoom_by_scope[new_scope]
+            self._set_zoom_internal(target_zoom, force=True)
+        else:
+            self._redraw_editor_view()
         self.update_save_button()
 
     def _editor_canvas_size(self):
@@ -395,6 +443,22 @@ class EditWindow(ctk.CTkToplevel):
             return self.editor_scope
         return SCOPE_SLOT
 
+    def _clear_input_focus(self):
+        """Tira o foco de entradas/spinboxes ao interagir com o canvas."""
+        try:
+            self.canvas.focus_set()
+        except Exception:
+            pass
+
+    def _render_slot_previews_on_sheet(self, layout: SheetLayout):
+        """Desenha etiquetas (escopo slot) em cada posição da grade — só visualização."""
+        slot_objects = self.drawing_store.objects_for_scope(SCOPE_SLOT)
+        if not slot_objects:
+            return
+        for x1, y1, _x2, _y2 in layout.slot_guide_rects_logical():
+            for obj in slot_objects:
+                self._render_object(obj, offset_x=x1, offset_y=y1, preview=True)
+
     def _redraw_editor_view(self):
         """Redisena papel, guias de slot e objetos do escopo ativo."""
         for cid in list(self.canvas.find_all()):
@@ -407,6 +471,7 @@ class EditWindow(ctk.CTkToplevel):
         self._update_view()
         if self._is_custom_orientation() and self.editor_scope == SCOPE_SHEET:
             layout = self._build_layout_from_form()
+            self._render_slot_previews_on_sheet(layout)
             for x1, y1, x2, y2 in layout.slot_guide_rects_logical():
                 self.canvas.create_rectangle(
                     self._zs(x1), self._zs(y1), self._zs(x2), self._zs(y2),
@@ -414,6 +479,7 @@ class EditWindow(ctk.CTkToplevel):
                 )
         for obj in self.drawing_store.objects_for_scope(self._active_editor_scope()):
             self._render_object(obj)
+        self.canvas.tag_lower('slot_preview')
         self.canvas.tag_lower('slot_guide')
         self.canvas.tag_lower('paper')
 
@@ -437,6 +503,8 @@ class EditWindow(ctk.CTkToplevel):
             return default
 
     def _build_layout_from_form(self) -> SheetLayout:
+        packing_label = self.custom_packing.get()
+        packing = PACKING_UI_LABELS.get(packing_label, PACKING_SEQUENTIAL)
         return build_grid_layout(
             page_preset=self.custom_page_preset.get(),
             page_width_mm=self._float_entry(self.custom_page_w, 210),
@@ -447,22 +515,18 @@ class EditWindow(ctk.CTkToplevel):
             rows=self._int_entry(self.custom_rows, 2),
             margin_left_mm=self._float_entry(self.custom_margin_l, 5),
             margin_top_mm=self._float_entry(self.custom_margin_t, 5),
-            margin_right_mm=self._float_entry(self.custom_margin_r, 5),
-            margin_bottom_mm=self._float_entry(self.custom_margin_b, 5),
             gap_x_mm=self._float_entry(self.custom_gap_x, 2),
             gap_y_mm=self._float_entry(self.custom_gap_y, 2),
+            packing=packing,
         )
 
     def _refresh_custom_layout_status(self):
         layout = self._build_layout_from_form()
         error = layout.validate()
         if error:
-            self.custom_layout_status.configure(text=f'⚠ {error}', text_color='#c0392b')
+            self.custom_layout_status.configure(text=f'⚠ {error}')
         else:
-            self.custom_layout_status.configure(
-                text=f'{layout.slot_count} etiqueta(s) por folha — preenchimento sequencial',
-                text_color='gray',
-            )
+            self.custom_layout_status.configure(text='')
 
     def _on_custom_layout_change(self, *_args):
         self._refresh_custom_layout_status()
@@ -506,9 +570,11 @@ class EditWindow(ctk.CTkToplevel):
             self.editor_scope = SCOPE_SLOT
             if hasattr(self, 'btn_editor_scope'):
                 self.btn_editor_scope.set('Etiqueta')
+            self._set_zoom_internal(self._zoom_by_scope[SCOPE_SLOT], force=True)
 
         self._apply_editor_canvas_size()
-        self._redraw_editor_view()
+        if self._is_custom_orientation():
+            self._redraw_editor_view()
         self.update_save_button()
 
     def change_color(self, event):
@@ -558,7 +624,13 @@ class EditWindow(ctk.CTkToplevel):
                 error = layout.validate()
                 if error:
                     raise ValueError(error)
-            generate_test_pdf(self.pass_canvas_to_dict(), orientation=orientation, layout=layout)
+            file_lines = self.preview_file.lines if self.preview_file else None
+            generate_test_pdf(
+                self.pass_canvas_to_dict(),
+                orientation=orientation,
+                layout=layout,
+                file_lines=file_lines,
+            )
             open_path('temp/text.pdf')
         except PermissionError:
             PopUpWindow(self, 'Erro', 'Erro ao abrir o PDF, por favor fechar o aplicativo de PDF\n'
@@ -639,7 +711,145 @@ class EditWindow(ctk.CTkToplevel):
         return serialize_canvas_to_dict(
             self.canvas, self.canvas_dict_images, self.drawing_store,
             zoom=self.zoom, active_scope=self._active_editor_scope(),
+            preserve_placeholder_text=self.preview_file is not None,
         )
+
+    # ------------------------- Preview com arquivo de carga -------------------------
+    def _preview_file_columns(self):
+        if not self.preview_file or not self.preview_file.lines:
+            return None
+        idx = max(0, min(self.preview_line_idx, len(self.preview_file.lines) - 1))
+        return self.preview_file.lines[idx][1]
+
+    def _use_file_preview(self):
+        return self.preview_file is not None and self._preview_file_columns() is not None
+
+    def _sheet_scope_db_rows(self):
+        rows = []
+        for obj in self.drawing_store.objects_for_scope(SCOPE_SHEET):
+            if isinstance(obj, SegmentObject):
+                rows.extend(obj.to_db_rows())
+            else:
+                rows.extend(self.drawing_store._object_to_db_rows(obj, self.canvas_dict_images))
+        return rows
+
+    def _preview_sheet_pagination(self):
+        """Pag/total do grupo da linha selecionada (cabeçalho com {pag}/{total})."""
+        if not self.preview_file or not self._is_custom_orientation():
+            return 1, 1
+        layout = self._build_layout_from_form()
+        pages = build_sheet_pages(
+            self.preview_file.lines,
+            self._sheet_scope_db_rows(),
+            max(1, len(layout.slot_offsets_pt())),
+        )
+        if not pages:
+            return 1, 1
+        line_counter = self.preview_file.lines[self.preview_line_idx][0]
+        for page in pages:
+            for rec in page['records']:
+                if rec[0] == line_counter:
+                    return page['group_page'], page['group_total']
+        return pages[0]['group_page'], pages[0]['group_total']
+
+    def _fixed_text_display(self, text: str) -> str:
+        if not text or '{' not in text:
+            return text or ''
+        if not self._use_file_preview() or self._active_editor_scope() != SCOPE_SHEET:
+            return text
+        group_page, group_total = self._preview_sheet_pagination()
+        return _apply_sheet_page_placeholders(text, group_page, group_total)
+
+    @staticmethod
+    def _column_name_to_index(col_name):
+        if not col_name:
+            return None
+        name = str(col_name).replace('Coluna_', '')
+        return int(name) - 1 if name.isdigit() else None
+
+    def _file_value_at_column(self, col_name):
+        cols = self._preview_file_columns()
+        if cols is None:
+            return None
+        idx = self._column_name_to_index(col_name)
+        if idx is None or idx < 0 or idx >= len(cols):
+            return ''
+        return (cols[idx] or '').strip()
+
+    def _segment_display_texts(self, seg: SegmentObject):
+        if not self._use_file_preview():
+            return [line.preview_text for line in seg.lines]
+        texts: list[str] = []
+        for col in seg.columns:
+            val = self._file_value_at_column(col)
+            parts = break_line(val or '', seg.char_limit)
+            texts.append(parts[0])
+            if parts[1]:
+                texts.append(parts[1])
+        while len(texts) < len(seg.lines):
+            texts.append('')
+        return texts[:len(seg.lines)]
+
+    def _barcode_display_text(self, obj: BarcodeObject):
+        placeholder = obj.placeholder.replace('_', ' ')
+        if not self._use_file_preview():
+            return placeholder
+        return self._file_value_at_column(obj.file_column)
+
+    def _barcode_text_display(self, obj: BarcodeTextObject):
+        if not self._use_file_preview():
+            return obj.text
+        return self._file_value_at_column(obj.file_column)
+
+    def _counter_display_text(self, obj: CounterObject):
+        if not self._use_file_preview():
+            return obj.text
+        line_no = self.preview_file.lines[self.preview_line_idx][0]
+        return str(line_no + 1).zfill(7)
+
+    def load_preview_file(self):
+        path = askopenfilename(filetypes=[('Arquivos CSV', '*.csv'), ('Todos', '*.*')])
+        if not path:
+            return
+        file_utils = FileUtils(path)
+        if not file_utils.lines:
+            PopUpWindow(self, 'Erro', 'Arquivo vazio ou ilegível.')
+            return
+        self.preview_file = file_utils
+        self.preview_file_path = path
+        self.preview_line_idx = 0
+        self.preview_line_spin.set(1)
+        self.btn_clear_preview.configure(state='normal')
+        self._update_preview_file_label()
+        self._redraw_editor_view()
+
+    def clear_preview_file(self):
+        self.preview_file = None
+        self.preview_file_path = ''
+        self.preview_line_idx = 0
+        self.preview_line_spin.set(1)
+        self.btn_clear_preview.configure(state='disabled')
+        self.lbl_preview_file.configure(text='')
+        self._redraw_editor_view()
+
+    def _update_preview_file_label(self):
+        if not self.preview_file_path:
+            self.lbl_preview_file.configure(text='')
+            return
+        name = os.path.basename(self.preview_file_path)
+        total = len(self.preview_file.lines)
+        self.lbl_preview_file.configure(text=f'{name} ({total} linha(s))')
+
+    def _on_preview_line_change(self, *args):
+        if not self.preview_file:
+            return
+        try:
+            line_no = max(1, int(self.preview_line_spin.get()))
+        except ValueError:
+            return
+        self.preview_line_idx = min(line_no - 1, len(self.preview_file.lines) - 1)
+        self.preview_line_spin.set(self.preview_line_idx + 1)
+        self._redraw_editor_view()
 
     def _group_canvas_ids(self, canvas_id):
         return self.drawing_store.group_canvas_ids(canvas_id)
@@ -666,64 +876,106 @@ class EditWindow(ctk.CTkToplevel):
         except (TypeError, ValueError):
             return font_size
 
-    def _render_segment(self, seg: SegmentObject):
+    def _render_segment(self, seg: SegmentObject, *, offset_x=0, offset_y=0, preview=False):
         font = (seg.font_name, self._zfont(seg.font_size), seg.font_style)
-        for line in seg.lines:
+        fill = '#999999' if preview else 'black'
+        display_texts = self._segment_display_texts(seg) if self._use_file_preview() else None
+        for i, line in enumerate(seg.lines):
+            text = display_texts[i] if display_texts is not None else line.preview_text
+            tags = ('slot_preview',) if preview else self._segment_tags(seg, line)
             cid = self.canvas.create_text(
-                self._zs(line.x), self._zs(line.y), text=line.preview_text,
-                fill='black', anchor='sw', justify='left',
-                tags=self._segment_tags(seg, line),
+                self._zs(float(line.x) + offset_x), self._zs(float(line.y) + offset_y),
+                text=text,
+                fill=fill, anchor='sw', justify='left',
+                tags=tags,
                 font=font, angle=seg.orientation,
             )
-            self.drawing_store.bind_canvas(cid, seg.object_id)
+            if not preview:
+                self.drawing_store.bind_canvas(cid, seg.object_id)
 
-    def _render_object(self, obj):
+    def _render_object(self, obj, *, offset_x=0, offset_y=0, preview=False):
         if isinstance(obj, SegmentObject):
-            self._render_segment(obj)
+            self._render_segment(obj, offset_x=offset_x, offset_y=offset_y, preview=preview)
         elif isinstance(obj, LineObject):
+            tags = ('slot_preview',) if preview else obj.canvas_tags()
+            fill = '#bbbbbb' if preview else 'black'
             cid = self.canvas.create_line(
-                self._zs(obj.x1), self._zs(obj.y1), self._zs(obj.x2), self._zs(obj.y2),
-                width=obj.thickness, dash=obj.dashed or '',
-                tags=obj.canvas_tags(),
+                self._zs(float(obj.x1) + offset_x), self._zs(float(obj.y1) + offset_y),
+                self._zs(float(obj.x2) + offset_x), self._zs(float(obj.y2) + offset_y),
+                width=obj.thickness, dash=obj.dashed or '', fill=fill,
+                tags=tags,
             )
-            self.drawing_store.bind_canvas(cid, obj.object_id)
+            if not preview:
+                self.drawing_store.bind_canvas(cid, obj.object_id)
         elif isinstance(obj, RectangleObject):
+            tags = ('slot_preview',) if preview else obj.canvas_tags()
+            outline = '#bbbbbb' if preview else 'black'
             cid = self.canvas.create_rectangle(
-                self._zs(obj.x1), self._zs(obj.y1), self._zs(obj.x2), self._zs(obj.y2),
-                width=obj.thickness, dash=obj.dashed or '',
-                tags=obj.canvas_tags(),
+                self._zs(float(obj.x1) + offset_x), self._zs(float(obj.y1) + offset_y),
+                self._zs(float(obj.x2) + offset_x), self._zs(float(obj.y2) + offset_y),
+                width=obj.thickness, dash=obj.dashed or '', outline=outline,
+                tags=tags,
             )
-            self.drawing_store.bind_canvas(cid, obj.object_id)
+            if not preview:
+                self.drawing_store.bind_canvas(cid, obj.object_id)
         elif isinstance(obj, (TextObject, CounterObject)):
+            tags = ('slot_preview',) if preview else obj.canvas_tags()
+            fill = '#999999' if preview else 'black'
+            if isinstance(obj, CounterObject):
+                text = self._counter_display_text(obj) if self._use_file_preview() else obj.text
+            else:
+                text = self._fixed_text_display(obj.text) if self._use_file_preview() else obj.text
             cid = self.canvas.create_text(
-                self._zs(obj.x), self._zs(obj.y), text=obj.text,
+                self._zs(float(obj.x) + offset_x), self._zs(float(obj.y) + offset_y),
+                text=text,
                 font=(obj.font_name, self._zfont(obj.font_size), obj.font_style),
-                angle=obj.orientation, anchor='sw',
-                tags=obj.canvas_tags(),
+                angle=obj.orientation, anchor='sw', fill=fill,
+                tags=tags,
             )
-            self.drawing_store.bind_canvas(cid, obj.object_id)
+            if not preview:
+                self.drawing_store.bind_canvas(cid, obj.object_id)
         elif isinstance(obj, BarcodeObject):
-            self._render_barcode(obj, companion_text=False)
+            if self._use_file_preview() and not self._barcode_display_text(obj):
+                return
+            self._render_barcode(obj, companion_text=False, offset_x=offset_x, offset_y=offset_y, preview=preview)
         elif isinstance(obj, BarcodeTextObject):
+            tags = ('slot_preview',) if preview else obj.canvas_tags()
+            fill = '#999999' if preview else 'black'
+            text = self._barcode_text_display(obj) if self._use_file_preview() else obj.text
+            if self._use_file_preview() and not text:
+                return
             cid = self.canvas.create_text(
-                self._zs(obj.x), self._zs(obj.y), text=obj.text,
-                fill='black', font=(obj.font_name, self._zfont(obj.font_size), obj.font_style),
+                self._zs(float(obj.x) + offset_x), self._zs(float(obj.y) + offset_y),
+                text=text,
+                fill=fill, font=(obj.font_name, self._zfont(obj.font_size), obj.font_style),
                 angle=obj.orientation, anchor='sw',
-                tags=obj.canvas_tags(),
+                tags=tags,
             )
-            self.drawing_store.bind_canvas(cid, obj.object_id)
+            if not preview:
+                self.drawing_store.bind_canvas(cid, obj.object_id)
         elif isinstance(obj, ImageObject):
             prop = int(obj.proportion)
             img = get_image(blob=obj.image_blob)
             img = change_proportion(img[2], int(round(prop * self.zoom)), orientation=int(obj.orientation))
             img[3] = prop
-            cid = self.canvas.create_image(self._zs(obj.x), self._zs(obj.y), image=img[0],
-                                           anchor='sw', tags=obj.canvas_tags())
+            tags = ('slot_preview',) if preview else obj.canvas_tags()
+            cid = self.canvas.create_image(
+                self._zs(float(obj.x) + offset_x), self._zs(float(obj.y) + offset_y),
+                image=img[0], anchor='sw', tags=tags,
+            )
             self.canvas_dict_images[cid] = img
-            self.drawing_store.bind_canvas(cid, obj.object_id)
+            if not preview:
+                self.drawing_store.bind_canvas(cid, obj.object_id)
 
-    def _render_barcode(self, obj: BarcodeObject, companion_text=True):
-        text = obj.placeholder.replace('_', ' ')
+    def _render_barcode(self, obj: BarcodeObject, companion_text=True, *, offset_x=0, offset_y=0, preview=False):
+        if self._use_file_preview():
+            text = self._barcode_display_text(obj)
+            if not text:
+                return
+        elif preview:
+            text = obj.placeholder.replace('_', ' ')
+        else:
+            text = self._barcode_display_text(obj)
         if obj.barcode_kind == 'barcode':
             create_barcode(text, obj.barcode_width, obj.barcode_height)
             img = get_image('temp/codigo_de_barras.png')
@@ -739,22 +991,32 @@ class EditWindow(ctk.CTkToplevel):
         prop = int(obj.proportion)
         img = change_proportion(img[2], int(round(prop * self.zoom)), orientation=int(obj.orientation))
         img[3] = prop
+        tags = ('slot_preview',) if preview else obj.canvas_tags()
+        ox = float(obj.x) + offset_x
+        oy = float(obj.y) + offset_y
         cid = self.canvas.create_image(
-            self._zs(obj.x), self._zs(obj.y), image=img[0], tags=obj.canvas_tags(), anchor='sw',
+            self._zs(ox), self._zs(oy), image=img[0], tags=tags, anchor='sw',
         )
         self.canvas_dict_images[cid] = img
-        self.drawing_store.bind_canvas(cid, obj.object_id)
+        if not preview:
+            self.drawing_store.bind_canvas(cid, obj.object_id)
         if companion_text and obj.barcode_kind in ('barcode', 'barcode39'):
-            bt = make_barcode_text_object(
-                int(obj.x), int(obj.y) + 22, text, obj.file_column, parent_id=obj.object_id,
-            )
-            bt.scope = obj.scope
-            self.drawing_store.register(bt)
-            tcid = self.canvas.create_text(
-                self._zs(bt.x), self._zs(bt.y), text=text, fill='black',
-                font=('arial', self._zfont(10), 'normal'), anchor='sw', tags=bt.canvas_tags(),
-            )
-            self.drawing_store.bind_canvas(tcid, bt.object_id)
+            if preview:
+                self.canvas.create_text(
+                    self._zs(ox), self._zs(oy + 22), text=text, fill='#999999',
+                    font=('arial', self._zfont(10), 'normal'), anchor='sw', tags=('slot_preview',),
+                )
+            else:
+                bt = make_barcode_text_object(
+                    int(obj.x), int(obj.y) + 22, text, obj.file_column, parent_id=obj.object_id,
+                )
+                bt.scope = obj.scope
+                self.drawing_store.register(bt)
+                tcid = self.canvas.create_text(
+                    self._zs(bt.x), self._zs(bt.y), text=text, fill='black',
+                    font=('arial', self._zfont(10), 'normal'), anchor='sw', tags=bt.canvas_tags(),
+                )
+                self.drawing_store.bind_canvas(tcid, bt.object_id)
 
     def draw_items_into_canvas(self, items):
         self.clean_canvas()
@@ -796,23 +1058,33 @@ class EditWindow(ctk.CTkToplevel):
         for obj in list(self.drawing_store.objects.values()):
             self._render_object(obj)
 
-    def set_zoom(self, new_zoom):
+    def _compute_fit_zoom(self):
+        """Zoom para caber a folha inteira na área visível do canvas."""
+        self.update_idletasks()
+        vw = max(1, self.canvas.winfo_width())
+        vh = max(1, self.canvas.winfo_height())
+        bw = max(1, self.base_canvas_width)
+        bh = max(1, self.base_canvas_height)
+        fit = min(vw / bw, vh / bh) * 0.95
+        return round(max(0.25, min(4.0, fit)), 2)
+
+    def _persist_scope_zoom(self):
+        if self._is_custom_orientation():
+            self._zoom_by_scope[self.editor_scope] = self.zoom
+
+    def _set_zoom_internal(self, new_zoom, *, force=False):
         new_zoom = round(max(0.25, min(4.0, new_zoom)), 2)
-        if abs(new_zoom - self.zoom) < 1e-3:
+        if not force and abs(new_zoom - self.zoom) < 1e-3:
             return
-        # 1) sincroniza objetos a partir do canvas no zoom atual (grava coords lógicas)
         self.pass_canvas_to_dict()
-        # 2) guarda objetos selecionados
         sel_oids = []
         for rep in self.selected_items:
             obj = self.drawing_store.get_by_canvas(rep)
             if obj and obj.object_id not in sel_oids:
                 sel_oids.append(obj.object_id)
-        # 3) aplica zoom e redesenha
         self.zoom = new_zoom
         self._apply_canvas_size()
         self._redraw_editor_view()
-        # 4) restaura seleção
         self.selected_items = []
         for oid in sel_oids:
             ids = self.drawing_store.canvas_ids_for_object(oid)
@@ -827,6 +1099,10 @@ class EditWindow(ctk.CTkToplevel):
         self.properties_window.last_id = None
         self.properties_window.refresh()
 
+    def set_zoom(self, new_zoom):
+        self._set_zoom_internal(new_zoom)
+        self._persist_scope_zoom()
+
     def zoom_in(self):
         self.set_zoom(self.zoom + 0.25)
 
@@ -834,17 +1110,23 @@ class EditWindow(ctk.CTkToplevel):
         self.set_zoom(self.zoom - 0.25)
 
     def zoom_reset(self):
-        self.set_zoom(1.0)
+        if self._is_custom_orientation() and self.editor_scope == SCOPE_SHEET:
+            self.set_zoom(self._compute_fit_zoom())
+        else:
+            self.set_zoom(1.0)
 
     def _on_ctrl_wheel(self, event):
+        self._clear_input_focus()
         self.set_zoom(round(self.zoom + (0.1 if event.delta > 0 else -0.1), 2))
         return 'break'
 
     def _on_wheel(self, event):
+        self._clear_input_focus()
         self.canvas.yview_scroll(int(-event.delta / 120), 'units')
         return 'break'
 
     def _on_shift_wheel(self, event):
+        self._clear_input_focus()
         self.canvas.xview_scroll(int(-event.delta / 120), 'units')
         return 'break'
 
@@ -909,7 +1191,7 @@ class EditWindow(ctk.CTkToplevel):
             if cid == self.rubber_band:
                 continue
             tags = self.canvas.gettags(cid)
-            if 'slot_guide' in tags:
+            if 'slot_guide' in tags or 'slot_preview' in tags:
                 continue
             if self.drawing_store.get_by_canvas(cid) is not None:
                 return cid
@@ -951,6 +1233,115 @@ class EditWindow(ctk.CTkToplevel):
     def canvas_mouse_motion(self, event):
         self._event_xy(event)
         self.lbl_testes.configure(text=f"X: {event.x}, Y: {event.y}")
+
+    def _group_bbox(self, rep):
+        boxes = []
+        for cid in self._group_canvas_ids(rep):
+            box = self.canvas.bbox(cid)
+            if box:
+                boxes.append(box)
+        if not boxes:
+            return None
+        return (
+            min(b[0] for b in boxes),
+            min(b[1] for b in boxes),
+            max(b[2] for b in boxes),
+            max(b[3] for b in boxes),
+        )
+
+    def _selection_bbox(self):
+        boxes = []
+        for rep in self.selected_items:
+            box = self._group_bbox(rep)
+            if box:
+                boxes.append(box)
+        if not boxes:
+            return None
+        return (
+            min(b[0] for b in boxes),
+            min(b[1] for b in boxes),
+            max(b[2] for b in boxes),
+            max(b[3] for b in boxes),
+        )
+
+    def align_selected(self, mode):
+        """Alinha itens selecionados em relação à caixa delimitadora da seleção."""
+        if len(self.selected_items) < 2:
+            return
+        selection = self._selection_bbox()
+        if not selection:
+            return
+        sx1, sy1, sx2, sy2 = selection
+        for rep in self.selected_items:
+            box = self._group_bbox(rep)
+            if not box:
+                continue
+            x1, y1, x2, y2 = box
+            dx = dy = 0
+            if mode == 'left':
+                dx = sx1 - x1
+            elif mode == 'right':
+                dx = sx2 - x2
+            elif mode == 'center_h':
+                dx = (sx1 + sx2) / 2 - (x1 + x2) / 2
+            elif mode == 'top':
+                dy = sy1 - y1
+            elif mode == 'bottom':
+                dy = sy2 - y2
+            elif mode == 'center_v':
+                dy = (sy1 + sy2) / 2 - (y1 + y2) / 2
+            else:
+                return
+            if dx or dy:
+                for cid in self._group_canvas_ids(rep):
+                    self.canvas.move(cid, dx, dy)
+        self.refresh()
+        self.properties_window.refresh()
+
+    def distribute_selected(self, mode):
+        """Distribui itens com espaçamento igual entre eles (mantém o primeiro e o último fixos)."""
+        if len(self.selected_items) < 3:
+            return
+        entries = []
+        for rep in self.selected_items:
+            box = self._group_bbox(rep)
+            if box:
+                entries.append((rep, box))
+        if len(entries) < 3:
+            return
+
+        if mode == 'horizontal':
+            entries.sort(key=lambda item: item[1][0])
+            span_start = entries[0][1][0]
+            span_end = entries[-1][1][2]
+            total_size = sum(box[2] - box[0] for _, box in entries)
+            gap = (span_end - span_start - total_size) / (len(entries) - 1)
+            cursor = span_start
+            for rep, (x1, y1, x2, y2) in entries:
+                width = x2 - x1
+                dx = cursor - x1
+                if dx:
+                    for cid in self._group_canvas_ids(rep):
+                        self.canvas.move(cid, dx, 0)
+                cursor += width + gap
+        elif mode == 'vertical':
+            entries.sort(key=lambda item: item[1][1])
+            span_start = entries[0][1][1]
+            span_end = entries[-1][1][3]
+            total_size = sum(box[3] - box[1] for _, box in entries)
+            gap = (span_end - span_start - total_size) / (len(entries) - 1)
+            cursor = span_start
+            for rep, (x1, y1, x2, y2) in entries:
+                height = y2 - y1
+                dy = cursor - y1
+                if dy:
+                    for cid in self._group_canvas_ids(rep):
+                        self.canvas.move(cid, 0, dy)
+                cursor += height + gap
+        else:
+            return
+        self.refresh()
+        self.properties_window.refresh()
 
     def control_c(self, event):
         """Copia (duplica) todos os itens selecionados, deslocados, e os seleciona."""
@@ -1071,6 +1462,7 @@ class EditWindow(ctk.CTkToplevel):
         self.properties_window.refresh()
 
     def click_mouse_m1(self, event):
+        self._clear_input_focus()
         self._event_xy(event)
         self.properties_window.wm_state('normal')
         self.properties_window.lift()
@@ -1122,6 +1514,7 @@ class EditWindow(ctk.CTkToplevel):
             self.btn_tools.set(value='Mover')
 
     def move_mouse_m1(self, event):
+        self._clear_input_focus()
         self._event_xy(event)
         self.lbl_testes.configure(text=f"X: {event.x}, Y: {event.y}")
         if self.btn_tools.get() == 'Linha':
@@ -1258,14 +1651,14 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
         super().__init__(*args, **kwargs)
         self.title('Lista de Propriedades')
         self.iconbitmap(ICON)
-        self.width, self.height = 300, 550
+        self.width, self.height = 300, 680
         self.minsize(self.width, self.height)
         self.maxsize(self.width, self.height)
         self.resizable(False, False)
         self.master = master
         self.last_id = master.id_selected_item
 
-        self.geometry(calculate_center_screen_with_monitor(master, 300, 550, get_monitor(master),
+        self.geometry(calculate_center_screen_with_monitor(master, 300, 680, get_monitor(master),
                                                            move_x=-470))
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -1804,14 +2197,55 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             frame, text='Use as setas para mover,\nCtrl+C para copiar,\nDelete para apagar.',
             font=('Lato', 12),
         ).grid(row=1, column=0, padx=20)
+
+        align_frame = ctk.CTkFrame(frame, fg_color='transparent')
+        align_frame.grid(row=2, column=0, padx=10, pady=(4, 8))
+        ctk.CTkLabel(align_frame, text='Alinhar', font=('Lato', 12, 'bold')).grid(
+            row=0, column=0, columnspan=3, pady=(0, 6))
+        h_align = (
+            ('Esquerda', 'left'),
+            ('Centro', 'center_h'),
+            ('Direita', 'right'),
+        )
+        v_align = (
+            ('Topo', 'top'),
+            ('Meio', 'center_v'),
+            ('Base', 'bottom'),
+        )
+        for col, (label, mode) in enumerate(h_align):
+            ctk.CTkButton(
+                align_frame, text=label, width=78, height=28,
+                command=lambda m=mode: self.master.align_selected(m),
+            ).grid(row=1, column=col, padx=3, pady=2)
+        for col, (label, mode) in enumerate(v_align):
+            ctk.CTkButton(
+                align_frame, text=label, width=78, height=28,
+                command=lambda m=mode: self.master.align_selected(m),
+            ).grid(row=2, column=col, padx=3, pady=2)
+
+        dist_frame = ctk.CTkFrame(frame, fg_color='transparent')
+        dist_frame.grid(row=3, column=0, padx=10, pady=(0, 8))
+        ctk.CTkLabel(dist_frame, text='Espaço igual', font=('Lato', 12, 'bold')).grid(
+            row=0, column=0, columnspan=2, pady=(0, 2))
+        ctk.CTkLabel(dist_frame, text='(mín. 3 itens)', font=('Lato', 10), text_color='gray').grid(
+            row=1, column=0, columnspan=2, pady=(0, 4))
+        ctk.CTkButton(
+            dist_frame, text='Horizontal', width=120, height=28,
+            command=lambda: self.master.distribute_selected('horizontal'),
+        ).grid(row=2, column=0, padx=3, pady=2)
+        ctk.CTkButton(
+            dist_frame, text='Vertical', width=120, height=28,
+            command=lambda: self.master.distribute_selected('vertical'),
+        ).grid(row=2, column=1, padx=3, pady=2)
+
         ctk.CTkButton(
             frame, text='Copiar (Ctrl+C)', width=120,
             command=lambda: self.master.control_c(None),
-        ).grid(row=2, column=0, padx=10, pady=10)
+        ).grid(row=4, column=0, padx=10, pady=10)
         ctk.CTkButton(
             frame, text='Deletar', width=120, fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
             command=self.master.delete_object,
-        ).grid(row=3, column=0, padx=10, pady=5)
+        ).grid(row=5, column=0, padx=10, pady=5)
         self.panels[('multi',)] = frame
 
     def _activate_none_panel(self):
@@ -1991,11 +2425,25 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
         self.update_item()
 
     def bring_to_front(self):
-        self.master.canvas.lift(self.master.id_selected_item)
+        reps = self.master.selected_items or (
+            [self.master.id_selected_item] if self.master.id_selected_item else []
+        )
+        for rep in reps:
+            for cid in self.master._group_canvas_ids(rep):
+                self.master.canvas.lift(cid)
+        self.master.drawing_store.sync_stack_order_from_canvas(self.master.canvas)
+        self.master.update_save_button()
 
     def send_to_back(self):
-        self.master.canvas.lower(self.master.id_selected_item)
+        reps = self.master.selected_items or (
+            [self.master.id_selected_item] if self.master.id_selected_item else []
+        )
+        for rep in reps:
+            for cid in self.master._group_canvas_ids(rep):
+                self.master.canvas.lower(cid)
         self.master.canvas.tag_lower('paper')
+        self.master.drawing_store.sync_stack_order_from_canvas(self.master.canvas)
+        self.master.update_save_button()
 
 
 class GetImageWindow(ctk.CTkToplevel):

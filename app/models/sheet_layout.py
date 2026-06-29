@@ -12,7 +12,13 @@ CANVAS_SCALE = 2.0  # canvas px = PDF pt * CANVAS_SCALE (legado do editor)
 
 CUSTOM_ORIENTATION_INDEX = 4
 PACKING_SEQUENTIAL = 'sequential'
-PACKING_COLUMN_DEPTH = 'column_depth'  # reservado para layouts legados / futuro
+PACKING_COLUMN_DEPTH = 'column_depth'
+
+PACKING_UI_LABELS: dict[str, str] = {
+    'Linha a linha': PACKING_SEQUENTIAL,
+    'Coluna a coluna': PACKING_COLUMN_DEPTH,
+}
+PACKING_VALUE_TO_LABEL = {v: k for k, v in PACKING_UI_LABELS.items()}
 
 SCOPE_SLOT = 'slot'
 SCOPE_SHEET = 'sheet'
@@ -29,8 +35,8 @@ class SheetLayout:
     label_height_mm: float = 50.0
     margin_left_mm: float = 5.0
     margin_top_mm: float = 5.0
-    margin_right_mm: float = 5.0
-    margin_bottom_mm: float = 5.0
+    margin_right_mm: float = 0.0
+    margin_bottom_mm: float = 0.0
     columns: int = 2
     rows: int = 2
     gap_x_mm: float = 2.0
@@ -59,19 +65,38 @@ class SheetLayout:
     def page_size_pt(self) -> tuple[float, float]:
         return self.mm_to_pt(self.page_width_mm), self.mm_to_pt(self.page_height_mm)
 
-    def compute_slot_origins_mm(self) -> list[tuple[float, float]]:
-        """Origem inferior-esquerda de cada slot (mm), ordem linha a linha de cima para baixo."""
-        origins: list[tuple[float, float]] = []
-        for row in range(self.rows):
+    def slot_top_left_mm(self, row: int, col: int) -> tuple[float, float]:
+        x = self.margin_left_mm + col * (self.label_width_mm + self.gap_x_mm)
+        y = self.margin_top_mm + row * (self.label_height_mm + self.gap_y_mm)
+        return x, y
+
+    def iter_slots_row_col(self):
+        """Percorre (row, col) na ordem de preenchimento dos registros."""
+        if self.packing == PACKING_COLUMN_DEPTH:
             for col in range(self.columns):
-                x = self.margin_left_mm + col * (self.label_width_mm + self.gap_x_mm)
-                y_from_top = self.margin_top_mm + row * (self.label_height_mm + self.gap_y_mm)
-                y = self.page_height_mm - y_from_top - self.label_height_mm
-                origins.append((x, y))
+                for row in range(self.rows):
+                    yield row, col
+        else:
+            for row in range(self.rows):
+                for col in range(self.columns):
+                    yield row, col
+
+    def compute_slot_origins_mm(self) -> list[tuple[float, float]]:
+        """Origem inferior-esquerda de cada slot (mm), na ordem de preenchimento."""
+        origins: list[tuple[float, float]] = []
+        for row, col in self.iter_slots_row_col():
+            x, y_top = self.slot_top_left_mm(row, col)
+            y = self.page_height_mm - y_top - self.label_height_mm
+            origins.append((x, y))
         return origins
 
     def slot_offsets_pt(self) -> list[tuple[float, float]]:
-        return [(self.mm_to_pt(x), self.mm_to_pt(y)) for x, y in self.compute_slot_origins_mm()]
+        """Offset superior-esquerdo de cada slot (pt), na ordem de preenchimento."""
+        offsets: list[tuple[float, float]] = []
+        for row, col in self.iter_slots_row_col():
+            x, y = self.slot_top_left_mm(row, col)
+            offsets.append((self.mm_to_pt(x), self.mm_to_pt(y)))
+        return offsets
 
     def page_canvas_size(self) -> tuple[int, int]:
         width = max(1, int(round(self.mm_to_pt(self.page_width_mm) * CANVAS_SCALE)))
@@ -79,13 +104,14 @@ class SheetLayout:
         return width, height
 
     def slot_guide_rects_logical(self) -> list[tuple[int, int, int, int]]:
-        """Retângulos guia dos slots em coords lógicas do canvas da folha."""
+        """Retângulos guia dos slots em coords lógicas (ordem de preenchimento)."""
         rects: list[tuple[int, int, int, int]] = []
         lw = int(round(self.mm_to_pt(self.label_width_mm) * CANVAS_SCALE))
         lh = int(round(self.mm_to_pt(self.label_height_mm) * CANVAS_SCALE))
-        for x_mm, y_mm in self.compute_slot_origins_mm():
+        for row, col in self.iter_slots_row_col():
+            x_mm, y_top_mm = self.slot_top_left_mm(row, col)
             x = int(round(self.mm_to_pt(x_mm) * CANVAS_SCALE))
-            y = int(round(self.mm_to_pt(y_mm) * CANVAS_SCALE))
+            y = int(round(self.mm_to_pt(y_top_mm) * CANVAS_SCALE))
             rects.append((x, y, x + lw, y + lh))
         return rects
 
@@ -100,12 +126,12 @@ class SheetLayout:
             return 'A grade deve ter pelo menos uma etiqueta.'
 
         grid_w = (
-            self.margin_left_mm + self.margin_right_mm
+            self.margin_left_mm
             + self.columns * self.label_width_mm
             + max(0, self.columns - 1) * self.gap_x_mm
         )
         grid_h = (
-            self.margin_top_mm + self.margin_bottom_mm
+            self.margin_top_mm
             + self.rows * self.label_height_mm
             + max(0, self.rows - 1) * self.gap_y_mm
         )

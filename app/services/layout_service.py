@@ -7,6 +7,7 @@ from typing import Optional
 from app.models.sheet_layout import (
     CUSTOM_ORIENTATION_INDEX,
     PACKING_SEQUENTIAL,
+    PACKING_UI_LABELS,
     SheetLayout,
 )
 
@@ -40,10 +41,9 @@ def build_grid_layout(
     rows: int,
     margin_left_mm: float,
     margin_top_mm: float,
-    margin_right_mm: float,
-    margin_bottom_mm: float,
     gap_x_mm: float,
     gap_y_mm: float,
+    packing: str = PACKING_SEQUENTIAL,
     show_cut_guides: bool = False,
 ) -> SheetLayout:
     layout = SheetLayout(
@@ -53,13 +53,13 @@ def build_grid_layout(
         label_height_mm=label_height_mm,
         margin_left_mm=margin_left_mm,
         margin_top_mm=margin_top_mm,
-        margin_right_mm=margin_right_mm,
-        margin_bottom_mm=margin_bottom_mm,
+        margin_right_mm=0.0,
+        margin_bottom_mm=0.0,
         columns=int(columns),
         rows=int(rows),
         gap_x_mm=gap_x_mm,
         gap_y_mm=gap_y_mm,
-        packing=PACKING_SEQUENTIAL,
+        packing=packing if packing in PACKING_UI_LABELS.values() else PACKING_SEQUENTIAL,
         show_cut_guides=show_cut_guides,
         page_preset=page_preset,
     )

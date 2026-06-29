@@ -62,7 +62,6 @@ class WorkQueueList(ctk.CTkFrame):
 
     def _configure_scrollbar_style(self):
         style = ttk.Style(self)
-        style.theme_use('clam')
         style.configure(
             _SCROLLBAR_STYLE,
             background=_LIST_BORDER,

@@ -20,8 +20,9 @@ from app.utils.barcode_generator import (
     create_datamatrix_bytes,
 )
 from app.utils.text_utils import break_line
-from app.models.sheet_layout import SCOPE_SHEET, SheetLayout
+from app.models.sheet_layout import CUSTOM_ORIENTATION_INDEX, SCOPE_SHEET, SheetLayout
 from app.services.layout_service import resolve_layout_for_orientation
+from app.services.sheet_grouping import build_sheet_pages
 
 
 def partition_drawings_by_scope(items):
@@ -92,12 +93,13 @@ def _oriented_image_reader(image_source, orientation, proportion):
         return ImageReader(out), largura * scale, altura * scale
 
 
-def _draw_oriented_image(pdf_canvas, x1, y1, image_source, orientation, proportion, mask='auto'):
+def _draw_oriented_image(pdf_canvas, x1, y1, image_source, orientation, proportion, mask='auto', page_height=None):
+    ph = page_height if page_height is not None else A4[1]
     reader, largura, altura = _oriented_image_reader(image_source, orientation, proportion)
     kwargs = {'width': largura, 'height': altura}
     if mask is not None:
         kwargs['mask'] = mask
-    pdf_canvas.drawImage(reader, x1, A4[1] - y1, **kwargs)
+    pdf_canvas.drawImage(reader, x1, ph - y1, **kwargs)
 
 
 def get_element(lst, index, default=None):
@@ -107,21 +109,22 @@ def get_element(lst, index, default=None):
         return default
 
 
-def normalize_rotated_x_y(x1, y1, angle):
+def normalize_rotated_x_y(x1, y1, angle, page_height=None):
     # No reportlab a posicao x e y é afetada pela rotação, calculo realizado para normalizar
+    ph = page_height if page_height is not None else A4[1]
     if angle == 90:
         aux_x, aux_y = x1, y1
-        x1 = - aux_y + A4[1]
+        x1 = - aux_y + ph
         y1 = - aux_x
     elif angle == 180:
         x1 = -x1
-        y1 = -A4[1] + y1
+        y1 = -ph + y1
     elif angle == 270:
         aux_x, aux_y = x1, y1
-        x1 = aux_y - A4[1]
+        x1 = aux_y - ph
         y1 = aux_x
     else:
-        y1 = A4[1] - y1
+        y1 = ph - y1
 
     return x1, y1
 
@@ -133,7 +136,48 @@ def filter_segments(segment_id, item_list, test):
         return list(filter(lambda item: item['segment_id'] == segment_id and 'IGNORE' not in item['tag'], item_list))
 
 
-def generate_test_pdf(items=None, path="temp/text.pdf", orientation='Default', layout=None):
+def generate_test_pdf(items=None, path="temp/text.pdf", orientation='Default', layout=None, file_lines=None):
+    """Gera PDF de teste. Com file_lines, simula a impressão real (quebras, páginas, agrupamento)."""
+    if file_lines is not None:
+        _generate_simulated_pdf(items, path, orientation, layout, file_lines)
+        return
+    _generate_placeholder_test_pdf(items, path, orientation, layout)
+
+
+def _generate_simulated_pdf(items, path, orientation, layout, file_lines):
+    if not file_lines:
+        raise ValueError('Arquivo de preview sem linhas para simular.')
+
+    if orientation == CUSTOM_ORIENTATION_INDEX:
+        layout = layout or SheetLayout.default()
+        pagesize = layout.page_size_pt()
+    else:
+        pagesize = A4
+
+    pdf = canvas.Canvas(path, pagesize=pagesize)
+    filename = 'Preview'
+    product_items = [items]
+
+    if orientation == 0:
+        configure_3vertical_ar(pdf, file_lines, product_items, 0, 1, None, filename)
+    elif orientation == 1:
+        configure_horizontal_ar(pdf, file_lines, product_items, 0, 1, None, filename)
+    elif orientation == 2:
+        configure_full_A4_ar(pdf, file_lines, product_items, 0, 1, None, filename)
+    elif orientation == 3:
+        configure_2vertical_ar(pdf, file_lines, product_items, 0, 1, None, filename)
+    elif orientation == CUSTOM_ORIENTATION_INDEX:
+        configure_custom_layout(
+            pdf, file_lines, product_items, 0, 1, None, filename,
+            layout or SheetLayout.default(),
+        )
+    else:
+        raise ValueError(f'Orientação inválida para simulação: {orientation}')
+
+    pdf.save()
+
+
+def _generate_placeholder_test_pdf(items=None, path="temp/text.pdf", orientation='Default', layout=None):
     if orientation == 4:
         layout = layout or SheetLayout.default()
         pagesize = layout.page_size_pt()
@@ -191,13 +235,14 @@ def generate_test_pdf(items=None, path="temp/text.pdf", orientation='Default', l
 
         elif orientation == 4:
             layout = layout or SheetLayout.default()
+            _, page_h = layout.page_size_pt()
             slot_items, sheet_items = partition_drawings_by_scope(items)
             _draw_custom_slot_guides(pdf, layout)
             pdf.setDash([])
             if sheet_items:
-                draw_ar(sheet_items, pdf, is_test=True)
+                draw_ar(sheet_items, pdf, is_test=True, page_height=page_h)
             for offset_x, offset_y in layout.slot_offsets_pt():
-                draw_ar(slot_items, pdf, offset_x=offset_x, offset_y=offset_y, is_test=True)
+                draw_ar(slot_items, pdf, offset_x=offset_x, offset_y=offset_y, is_test=True, page_height=page_h)
 
         pdf.showPage()
     pdf.save()
@@ -371,36 +416,52 @@ def _draw_custom_slot_guides(pdf_canvas, layout: SheetLayout):
     pdf_canvas.setDash([])
 
 
+def _apply_sheet_page_placeholders(text, group_page, group_total):
+    if group_page is None or group_total is None or text is None:
+        return text
+    result = str(text)
+    result = result.replace('{pag}', str(group_page))
+    result = result.replace('{total}', str(group_total))
+    result = result.replace('{p}', str(group_page))
+    result = result.replace('{t}', str(group_total))
+    return result
+
+
 def configure_custom_layout(pdf, filelines, items, current_index, total, printer, filename,
                             layout: SheetLayout, on_progress=None):
     slots = layout.slot_offsets_pt()
     slot_count = max(1, len(slots))
-    qtd_pages = math.ceil(len(filelines) / slot_count)
     slot_items, sheet_items = partition_drawings_by_scope(items[current_index])
+    _, page_h = layout.page_size_pt()
+    pages = build_sheet_pages(filelines, sheet_items, slot_count)
+    qtd_pages = len(pages)
 
-    for page in range(qtd_pages):
-        first_record_index = page * slot_count
-        first_record = filelines[first_record_index] if first_record_index < len(filelines) else None
+    for page_idx, page_info in enumerate(pages):
+        page_records = page_info['records']
+        first_record = page_records[0] if page_records else None
         if sheet_items and first_record:
             draw_ar(
                 sheet_items, pdf, first_record[1],
                 counter=first_record[0], filename=filename,
+                page_height=page_h,
+                group_page=page_info['group_page'],
+                group_total=page_info['group_total'],
             )
 
         for slot_idx, (offset_x, offset_y) in enumerate(slots):
-            record_index = page * slot_count + slot_idx
-            if record_index >= len(filelines):
+            if slot_idx >= len(page_records):
                 continue
-            record = filelines[record_index]
+            record = page_records[slot_idx]
             draw_ar(
                 slot_items, pdf, record[1],
                 offset_x=offset_x, offset_y=offset_y,
                 counter=record[0], filename=filename,
+                page_height=page_h,
             )
 
         _draw_custom_slot_guides(pdf, layout)
         pdf.showPage()
-        progress = (page + 1) / qtd_pages
+        progress = (page_idx + 1) / qtd_pages if qtd_pages else 1
         text = f'{current_index + 1}/{total}'
         _report_progress(on_progress, printer, progress, text)
 
@@ -420,7 +481,9 @@ def configure_full_A4_ar(pdf, filelines, items, current_index, total, printer, f
         _report_progress(on_progress, printer, progress, text)
 
 
-def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offset_y=0, is_test=False, filename='Test'):
+def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offset_y=0, is_test=False,
+            filename='Test', page_height=None, group_page=None, group_total=None):
+    ph = page_height if page_height is not None else A4[1]
     painted_segments_id = []
 
     for item in items:
@@ -442,12 +505,17 @@ def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offs
 
             angle = int(item['orientation'])
 
-            x1, y1 = normalize_rotated_x_y(x1, y1, angle)
+            x1, y1 = normalize_rotated_x_y(x1, y1, angle, page_height=ph)
 
             pdf_canvas.rotate(angle)
             pdf_canvas.setFont(*font)
             if is_test or item['item_type'] == 'text':
-                pdf_canvas.drawString(x1, y1 + 2, item['text'])
+                display_text = item['text']
+                if is_test and '{' in (display_text or ''):
+                    display_text = _apply_sheet_page_placeholders(display_text, 1, 2)
+                elif not is_test and group_page is not None:
+                    display_text = _apply_sheet_page_placeholders(display_text, group_page, group_total)
+                pdf_canvas.drawString(x1, y1 + 2, display_text)
             else:
                 if item['item_type'] == 'counter':
                     pdf_canvas.drawString(x1, y1 + 2, str(counter + 1).zfill(7))
@@ -468,7 +536,7 @@ def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offs
             height_rect = y_rect - min(y1, y2)
 
             pdf_canvas.setLineWidth(float(item['thickness']) / 2)
-            pdf_canvas.rect(x_rect, A4[1] - y_rect, width_rect, height_rect)
+            pdf_canvas.rect(x_rect, ph - y_rect, width_rect, height_rect)
             pdf_canvas.setDash([])
 
         elif item['item_type'] == 'line':
@@ -478,7 +546,7 @@ def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offs
                 pdf_canvas.setDash([10, 4])
 
             pdf_canvas.setLineWidth(float(item['thickness']) / 2)
-            pdf_canvas.line(x1, A4[1] - y1, x2, A4[1] - y2)
+            pdf_canvas.line(x1, ph - y1, x2, ph - y2)
             pdf_canvas.setDash([])
 
         elif item['item_type'] == 'segment':
@@ -486,7 +554,7 @@ def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offs
             font = [item['font_name'] + font_style, (float(item['font_size']) / 2) * 1.35]
 
             angle = int(item['orientation'])
-            x1, y1 = normalize_rotated_x_y(x1, y1, angle)
+            x1, y1 = normalize_rotated_x_y(x1, y1, angle, page_height=ph)
 
             if item['segment_id'] not in painted_segments_id:
                 painted_segments_id.append(item['segment_id'])
@@ -519,7 +587,7 @@ def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offs
                 else:
                     continue
 
-            _draw_oriented_image(pdf_canvas, x1, y1, barcode_bytes, orientation, proportion, mask='auto')
+            _draw_oriented_image(pdf_canvas, x1, y1, barcode_bytes, orientation, proportion, mask='auto', page_height=ph)
 
         elif item['item_type'] == 'barcode39':
             w, h = item['barcode_width'], item['barcode_height']
@@ -532,7 +600,7 @@ def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offs
                 else:
                     continue
 
-            _draw_oriented_image(pdf_canvas, x1, y1, barcode_bytes, orientation, proportion, mask=None)
+            _draw_oriented_image(pdf_canvas, x1, y1, barcode_bytes, orientation, proportion, mask=None, page_height=ph)
 
         elif item['item_type'] == 'barcodeQR':
             if item['text'].strip() == '':
@@ -546,7 +614,7 @@ def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offs
                 else:
                     continue
 
-            _draw_oriented_image(pdf_canvas, x1, y1, barcode_bytes, orientation, proportion)
+            _draw_oriented_image(pdf_canvas, x1, y1, barcode_bytes, orientation, proportion, page_height=ph)
 
         elif item['item_type'] == 'barcodeMatrix':
             if is_test:
@@ -557,7 +625,7 @@ def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offs
                 else:
                     continue
 
-            _draw_oriented_image(pdf_canvas, x1, y1, barcode_bytes, orientation, proportion)
+            _draw_oriented_image(pdf_canvas, x1, y1, barcode_bytes, orientation, proportion, page_height=ph)
 
         elif item['item_type'] == 'image':
             image_bytes = io.BytesIO(item['image'])
@@ -567,6 +635,6 @@ def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offs
                     largura, altura = img.size
                 largura *= (proportion / 100)
                 altura *= (proportion / 100)
-                pdf_canvas.drawImage(image_reader, x1, A4[1] - y1, width=largura, height=altura)
+                pdf_canvas.drawImage(image_reader, x1, ph - y1, width=largura, height=altura)
             else:
-                _draw_oriented_image(pdf_canvas, x1, y1, image_bytes, orientation, proportion)
+                _draw_oriented_image(pdf_canvas, x1, y1, image_bytes, orientation, proportion, page_height=ph)

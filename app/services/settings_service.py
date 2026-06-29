@@ -7,6 +7,7 @@ import stat
 from dataclasses import dataclass
 
 from app import runtime
+from app.i18n import get_i18n, reload_locales, set_language, t
 from app.models.database_manager import DataBase
 
 PRINT_BACKENDS = (
@@ -51,7 +52,7 @@ def save_audit_central_location(path: str) -> SettingsSaveResult:
     if path:
         parent = os.path.dirname(os.path.abspath(path))
         if parent and not os.path.exists(parent):
-            return SettingsSaveResult(ok=False, error=f'Pasta não encontrada: {parent}')
+            return SettingsSaveResult(ok=False, error=t('settings.audit_folder_missing', path=parent))
 
     if runtime.context.config.get('audit_central_location', '') == path:
         return SettingsSaveResult(ok=True)
@@ -62,10 +63,10 @@ def save_audit_central_location(path: str) -> SettingsSaveResult:
             json.dump(runtime.context.config, configfile, indent=4)
         return SettingsSaveResult(
             ok=True,
-            message='Local do banco de logs salvo!\nReinicie o ArtemiS para aplicar à agregação.',
+            message=t('settings.audit_saved'),
         )
     except Exception as e:
-        return SettingsSaveResult(ok=False, error=f'Erro ao salvar o caminho\n{e}')
+        return SettingsSaveResult(ok=False, error=t('settings.audit_save_error', error=e))
 
 
 def get_print_backend():
@@ -81,19 +82,18 @@ def get_print_backend_label():
 
 def save_print_backend(backend: str) -> SettingsSaveResult:
     if backend not in PRINT_BACKENDS:
-        return SettingsSaveResult(ok=False, error='Motor de impressão inválido.')
+        return SettingsSaveResult(ok=False, error=t('settings.invalid_backend'))
 
     from app.utils.printing.registry import get_backend
     backend_obj = get_backend(backend)
     if backend_obj is None or not backend_obj.is_available():
         hint = ''
         if backend in ('ghostscript', 'win32_devmode', 'win32_advanced', 'xps'):
-            hint = ('\nEste motor depende do Ghostscript empacotado.\n'
-                    'Rode scripts/fetch_ghostscript.ps1 ou inclua no build PyInstaller.')
+            hint = t('settings.backend_hint')
         label = PRINT_BACKEND_LABELS.get(backend, backend)
         return SettingsSaveResult(
             ok=False,
-            error=f'Motor de impressão "{label}" não está disponível nesta máquina.{hint}',
+            error=t('settings.backend_unavailable', label=label, hint=hint),
         )
 
     if runtime.context.config.get('print_backend') == backend:
@@ -104,14 +104,14 @@ def save_print_backend(backend: str) -> SettingsSaveResult:
         with open('config.json', 'w') as configfile:
             json.dump(runtime.context.config, configfile, indent=4)
         label = PRINT_BACKEND_LABELS[backend]
-        return SettingsSaveResult(ok=True, message=f'Motor de impressão: {label}')
+        return SettingsSaveResult(ok=True, message=t('settings.backend_saved', label=label))
     except Exception as e:
-        return SettingsSaveResult(ok=False, error=f'Erro ao salvar configuração\n{e}')
+        return SettingsSaveResult(ok=False, error=t('settings.save_error', error=e))
 
 
 def save_search_folder(folder: str) -> SettingsSaveResult:
     if not os.path.exists(folder):
-        return SettingsSaveResult(ok=False, error=f'Caminho: {folder} não encontrada no sistema')
+        return SettingsSaveResult(ok=False, error=t('settings.path_not_found', path=folder))
 
     if runtime.context.config.get('search_folder') == folder:
         return SettingsSaveResult(ok=True)
@@ -120,9 +120,9 @@ def save_search_folder(folder: str) -> SettingsSaveResult:
     try:
         with open('config.json', 'w') as configfile:
             json.dump(runtime.context.config, configfile, indent=4)
-        return SettingsSaveResult(ok=True, message='Caminho Salvo!')
+        return SettingsSaveResult(ok=True, message=t('settings.path_saved'))
     except Exception as e:
-        return SettingsSaveResult(ok=False, error=f'Erro ao salvar o caminho\n{e}')
+        return SettingsSaveResult(ok=False, error=t('settings.path_save_error', error=e))
 
 
 def _clear_readonly_attribute(path: str) -> None:
@@ -155,23 +155,16 @@ def _check_database_writable(path: str) -> str:
     except sqlite3.OperationalError as e:
         msg = str(e).lower()
         if 'readonly' in msg or 'read-only' in msg or 'unable to open' in msg:
-            return (
-                'Não é possível gravar no banco neste local (somente leitura).\n\n'
-                'Verifique se:\n'
-                '• o arquivo .db não está marcado como "Somente leitura";\n'
-                '• a pasta/compartilhamento de rede permite escrita para o seu usuário;\n'
-                '• o caminho não aponta para uma pasta protegida (ex.: Arquivos de Programas).\n\n'
-                f'Detalhe técnico: {e}'
-            )
-        return f'Erro ao validar gravação no banco:\n{e}'
+            return t('settings.db_readonly_detail', error=e)
+        return t('settings.db_validate_error', error=e)
     except Exception as e:
-        return f'Erro ao acessar o banco no destino:\n{e}'
+        return t('settings.db_access_error', error=e)
 
 
 def save_database_location(folder: str) -> SettingsSaveResult:
     folder = os.path.abspath(folder) if folder else folder
     if not os.path.exists(os.path.dirname(folder)) and os.path.dirname(folder):
-        return SettingsSaveResult(ok=False, error=f'Caminho: {folder} não encontrada no sistema')
+        return SettingsSaveResult(ok=False, error=t('settings.path_not_found', path=folder))
 
     if runtime.context.config.get('database_location') == folder:
         return SettingsSaveResult(ok=True)
@@ -188,7 +181,55 @@ def save_database_location(folder: str) -> SettingsSaveResult:
         new_db = DataBase(runtime.context.config['database_location'])
         new_db.create_tables()
         runtime.set_db(new_db)
-        return SettingsSaveResult(ok=True, message='Banco de Dados Salvo!')
+        return SettingsSaveResult(ok=True, message=t('settings.db_saved'))
     except Exception as e:
         runtime.context.config['database_location'] = previous_location
-        return SettingsSaveResult(ok=False, error=f'Erro ao salvar o caminho\n{e}')
+        return SettingsSaveResult(ok=False, error=t('settings.db_save_error', error=e))
+
+
+def get_language() -> str:
+    return runtime.context.config.get('language', 'pt') or 'pt'
+
+
+def get_locales_folder() -> str:
+    return runtime.context.config.get('locales_folder', '') or ''
+
+
+def save_language(code: str) -> SettingsSaveResult:
+    code = (code or '').strip()
+    reload_locales(get_locales_folder())
+    available = {c for c, _ in get_i18n().available_languages()}
+    if code not in available:
+        return SettingsSaveResult(ok=False, error=t('settings.save_error', error='Invalid language'))
+
+    if runtime.context.config.get('language') == code:
+        set_language(code)
+        return SettingsSaveResult(ok=True)
+
+    runtime.context.config['language'] = code
+    try:
+        with open('config.json', 'w') as configfile:
+            json.dump(runtime.context.config, configfile, indent=4)
+        set_language(code)
+        return SettingsSaveResult(ok=True, message=t('config.language_saved'))
+    except Exception as e:
+        return SettingsSaveResult(ok=False, error=t('settings.save_error', error=e))
+
+
+def save_locales_folder(folder: str) -> SettingsSaveResult:
+    folder = (folder or '').strip()
+    if folder and not os.path.isdir(folder):
+        return SettingsSaveResult(ok=False, error=t('settings.path_not_found', path=folder))
+
+    if runtime.context.config.get('locales_folder', '') == folder:
+        reload_locales(folder)
+        return SettingsSaveResult(ok=True)
+
+    runtime.context.config['locales_folder'] = folder
+    try:
+        with open('config.json', 'w') as configfile:
+            json.dump(runtime.context.config, configfile, indent=4)
+        reload_locales(folder)
+        return SettingsSaveResult(ok=True, message=t('config.locales_folder_saved'))
+    except Exception as e:
+        return SettingsSaveResult(ok=False, error=t('settings.save_error', error=e))

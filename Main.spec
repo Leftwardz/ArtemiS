@@ -31,6 +31,10 @@ for _res in ('img', 'fontes', 'theme'):
     if os.path.isdir(_res_path):
         resource_datas.append((_res_path, _res))
 
+_i18n_locales = os.path.join(base_dir, 'app', 'i18n', 'locales')
+if os.path.isdir(_i18n_locales):
+    resource_datas.append((_i18n_locales, os.path.join('app', 'i18n', 'locales')))
+
 _azure_tcl = os.path.join(base_dir, 'azure.tcl')
 if os.path.isfile(_azure_tcl):
     resource_datas.append((_azure_tcl, '.'))

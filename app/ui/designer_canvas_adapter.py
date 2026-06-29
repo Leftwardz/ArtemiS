@@ -9,10 +9,12 @@ def serialize_canvas_to_dict(
     drawing_store=None,
     zoom: float = 1.0,
     active_scope: str = 'slot',
+    preserve_placeholder_text: bool = False,
 ) -> list:
     if drawing_store is not None:
         return drawing_store.serialize_all_to_db(
             canvas, canvas_dict_images, zoom=zoom, active_scope=active_scope,
+            preserve_placeholder_text=preserve_placeholder_text,
         )
     return _serialize_legacy(canvas, canvas_dict_images)
 

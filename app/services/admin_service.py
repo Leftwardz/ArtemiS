@@ -128,8 +128,9 @@ def get_printer_combo_options():
 
 
 def resolve_printer_name(combo_label):
-    if combo_label == 'Criar PDF':
-        return combo_label
+    from app.i18n import PDF_MODE_SENTINEL, is_pdf_mode_label
+    if is_pdf_mode_label(combo_label):
+        return PDF_MODE_SENTINEL
     _labels, name_by_label = get_printer_combo_options()
     return name_by_label.get(combo_label, combo_label)
 

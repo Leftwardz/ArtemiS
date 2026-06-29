@@ -4,6 +4,15 @@ import traceback
 import customtkinter as ctk
 
 from app import audit
+from app.i18n import (
+    PDF_MODE_SENTINEL,
+    available_languages,
+    get_i18n,
+    is_pdf_mode_label,
+    paper_color_label,
+    pdf_mode_label,
+    t,
+)
 from app.services.print_job_coordinator import start_pdf_generation
 from app.services.print_service import finish_print_job, get_printer_paper_error_message, validate_printer_paper
 from app.services.production_service import (
@@ -32,7 +41,7 @@ from app.ui.ttk_theme import apply_azure_dark_theme
 from app.utils.document_delivery import open_path
 from app.utils.file_parser import FileUtils
 from app.services import admin_service
-from app.services.settings_service import get_search_folder
+from app.services.settings_service import get_search_folder, save_language
 from app.services.work_queue_service import search_work_for_queue
 from app.utils.window_geometry import calculate_center_screen
 
@@ -77,13 +86,13 @@ class App(ctk.CTk):
         self.frame_printers = ctk.CTkFrame(self, fg_color='transparent')
         self.frame_printers.grid(row=1, column=0, columnspan=4, pady=10)
 
-        self.lbl_select_printer = ctk.CTkLabel(self.frame_printers, text="Selecione a impressora:")
+        self.lbl_select_printer = ctk.CTkLabel(self.frame_printers, text=t('main.select_printer'))
         self.lbl_select_printer.grid(row=0, column=0, padx=10)
 
         self.printers_list = ctk.CTkComboBox(self.frame_printers, values=self._printer_combo_values(), width=210)
         self.printers_list.grid(row=0, column=1, padx=15)
 
-        self.lbl_select_group = ctk.CTkLabel(self.frame_printers, text="Selecione Grupo:")
+        self.lbl_select_group = ctk.CTkLabel(self.frame_printers, text=t('main.select_group'))
         self.lbl_select_group.grid(row=1, column=0, padx=10)
 
         self.print_group_list = ctk.CTkComboBox(self.frame_printers, values=admin_service.list_print_groups(), width=210)
@@ -94,7 +103,7 @@ class App(ctk.CTk):
         self.remake_frame.grid(row=2, column=0, columnspan=4, pady=10)
 
         self.checkbox_remake = ctk.CTkCheckBox(
-            self.remake_frame, text='Habilitar Remake', command=self.remake_checkbox_event,
+            self.remake_frame, text=t('main.enable_remake'), command=self.remake_checkbox_event,
         )
         self.checkbox_remake.pack(side='left', padx=8)
 
@@ -104,7 +113,8 @@ class App(ctk.CTk):
         frame_works = ctk.CTkFrame(self, fg_color="transparent")
         frame_works.grid(row=3, column=0, columnspan=4, pady=10)
 
-        ctk.CTkLabel(frame_works, text="Escaneie as Workorders: ").grid(row=0, column=0, sticky='w')
+        self.lbl_scan_work = ctk.CTkLabel(frame_works, text=t('main.scan_workorders'))
+        self.lbl_scan_work.grid(row=0, column=0, sticky='w')
 
         self.entry_work = ctk.CTkEntry(
             frame_works,
@@ -121,15 +131,17 @@ class App(ctk.CTk):
         worklist_actions = ctk.CTkFrame(frame_works, fg_color='transparent')
         worklist_actions.grid(row=3, column=0, sticky='w', pady=(4, 0))
 
-        ctk.CTkButton(worklist_actions, text="Remover", width=70, height=24, corner_radius=0,
-                      command=self.remove_selected_works).pack(side='left', padx=(0, 6))
-        ctk.CTkButton(worklist_actions, text="Limpar", width=70, height=24, corner_radius=0,
-                      command=self.clean_worklist).pack(side='left')
+        self.btn_remove_work = ctk.CTkButton(worklist_actions, text=t('main.remove'), width=70, height=24, corner_radius=0,
+                      command=self.remove_selected_works)
+        self.btn_remove_work.pack(side='left', padx=(0, 6))
+        self.btn_clear_works = ctk.CTkButton(worklist_actions, text=t('main.clear'), width=70, height=24, corner_radius=0,
+                      command=self.clean_worklist)
+        self.btn_clear_works.pack(side='left')
 
         # ######################## Paper Color ##############################
         self.frame_papercolor = ctk.CTkFrame(self, height=60, fg_color='transparent', corner_radius=0)
 
-        self.lbl_paper_color = ctk.CTkLabel(self.frame_papercolor, text="Cor do Papel:", font=('Arial', 13, 'bold'))
+        self.lbl_paper_color = ctk.CTkLabel(self.frame_papercolor, text=t('main.paper_color'), font=('Arial', 13, 'bold'))
         self.lbl_paper_color.grid(row=5, padx=10, column=0)
 
         self.paper_color = ctk.CTkFrame(self.frame_papercolor, height=60, width=60, fg_color='#3CB371', corner_radius=0)
@@ -140,13 +152,25 @@ class App(ctk.CTk):
         # ######################## Label Impressão ################################
         self.printing_label = None
         # ######################## Botão Start ################################
-        self.btn_start = ctk.CTkButton(self, text="Start", font=(FONT, 14, "bold"), state='disabled',
+        self.btn_start = ctk.CTkButton(self, text=t('main.start'), font=(FONT, 14, "bold"), state='disabled',
                                        command=self.btn_start)
         self.btn_start.grid(row=7, column=0, columnspan=4, padx=10, pady=10, sticky="s")
 
-        ctk.CTkLabel(self, text='Developed By Nathan - V1.0.9', text_color='grey').grid(
-            row=7, column=0, columnspan=4, padx=5, sticky='SE',
+        self.footer_frame = ctk.CTkFrame(self, fg_color='transparent')
+        self.footer_frame.grid(row=7, column=0, columnspan=4, padx=8, pady=6, sticky='se')
+
+        self.lbl_language = ctk.CTkLabel(self.footer_frame, text=t('main.language'), text_color='grey')
+        self.lbl_language.pack(side='left', padx=(0, 6))
+        self._lang_code_by_label = {label: code for code, label in available_languages()}
+        self.language_combo = ctk.CTkComboBox(
+            self.footer_frame,
+            width=120,
+            height=24,
+            values=[label for _, label in available_languages()],
+            command=self._on_language_changed,
         )
+        self.language_combo.pack(side='left')
+        self.language_combo.set(get_i18n().language_label())
 
         # Barra de progresso à esquerda — não ocupa coluna do grid (evita deslocar o centro visual)
         self.loading_frame = LoadingBarFrame(
@@ -162,7 +186,7 @@ class App(ctk.CTk):
     def remake_checkbox_event(self, event=None):
         if self.checkbox_remake.get():
             self.checkbox_remake_refazer = ctk.CTkCheckBox(
-                self.remake_frame, text='Não Utilizar Tela Secundária', command=self.clean_worklist,
+                self.remake_frame, text=t('main.skip_remake_screen'), command=self.clean_worklist,
             )
             self.checkbox_remake_refazer.pack(side='left', padx=8)
         else:
@@ -174,7 +198,7 @@ class App(ctk.CTk):
     def create_printing_label(self):
         self.printing_label = ctk.CTkLabel(
             self,
-            text="Realizando Impressão\nAguarde...",
+            text=t('main.printing_wait'),
             font=('Arial', 30, 'bold'),
             fg_color='transparent',
             bg_color='transparent',
@@ -188,7 +212,7 @@ class App(ctk.CTk):
     def show_color(self, color):
         self.frame_papercolor.grid(row=5, column=0, columnspan=4, pady=10)
         self.defined_color = color
-        self.lbl_paper_color.configure(text=f'Cor do Papel:\n{color}')
+        self.lbl_paper_color.configure(text=t('main.paper_color_value', color=paper_color_label(color)))
         self.paper_color.configure(fg_color=PAPER_COLOR_LIST[color])
 
     def remake_widget_update(self):
@@ -203,10 +227,8 @@ class App(ctk.CTk):
             user = admin_service.get_current_windows_user()
             PopUpWindow(
                 self,
-                'Acesso negado',
-                f'Seu usuário Windows ({user}) não tem permissão para abrir as configurações.\n\n'
-                'Administradores do PC ou da rede sempre têm acesso.\n'
-                'Demais usuários precisam ser liberados por um administrador.',
+                t('main.access_denied_title'),
+                t('main.access_denied_body', user=user),
             )
             return
 
@@ -216,10 +238,66 @@ class App(ctk.CTk):
     @staticmethod
     def _printer_combo_values():
         labels, _name_map = admin_service.get_printer_combo_options()
-        return ['Criar PDF'] + labels
+        return [pdf_mode_label()] + labels
 
     def _selected_printer_name(self):
-        return admin_service.resolve_printer_name(self.printers_list.get())
+        selected = self.printers_list.get()
+        if is_pdf_mode_label(selected):
+            return PDF_MODE_SENTINEL
+        return admin_service.resolve_printer_name(selected)
+
+    def _on_language_changed(self, label: str):
+        code = self._lang_code_by_label.get(label)
+        if not code:
+            return
+        result = save_language(code)
+        if not result.ok and result.error:
+            PopUpWindow(self, t('main.error'), result.error)
+            self.language_combo.set(get_i18n().language_label())
+            return
+        self._lang_code_by_label = {lbl: c for c, lbl in available_languages()}
+        self.apply_language()
+
+    def apply_language(self):
+        """Atualiza textos da tela principal após troca de idioma."""
+        self._lang_code_by_label = {label: code for code, label in available_languages()}
+        self.lbl_language.configure(text=t('main.language'))
+        self.language_combo.configure(values=[label for _, label in available_languages()])
+        self.language_combo.set(get_i18n().language_label())
+
+        current_printer = self._selected_printer_name()
+        self.lbl_select_printer.configure(text=t('main.select_printer'))
+        self.lbl_select_group.configure(text=t('main.select_group'))
+        self.lbl_scan_work.configure(text=t('main.scan_workorders'))
+        self.checkbox_remake.configure(text=t('main.enable_remake'))
+        if self.checkbox_remake_refazer is not None:
+            self.checkbox_remake_refazer.configure(text=t('main.skip_remake_screen'))
+        self.btn_remove_work.configure(text=t('main.remove'))
+        self.btn_clear_works.configure(text=t('main.clear'))
+        self.btn_start.configure(text=t('main.start'))
+
+        self.printers_list.configure(values=self._printer_combo_values())
+        if current_printer == PDF_MODE_SENTINEL:
+            self.printers_list.set(pdf_mode_label())
+        elif current_printer:
+            labels, name_map = admin_service.get_printer_combo_options()
+            for label, name in name_map.items():
+                if name == current_printer:
+                    self.printers_list.set(label)
+                    break
+
+        if self.defined_color:
+            self.lbl_paper_color.configure(
+                text=t('main.paper_color_value', color=paper_color_label(self.defined_color)),
+            )
+        else:
+            self.lbl_paper_color.configure(text=t('main.paper_color'))
+
+        if self.printing_label is not None:
+            try:
+                self.printing_label.configure(text=t('main.printing_wait'))
+            except Exception:
+                pass
 
     def get_work_paths(self):
         return self.work_queue.get_paths()
@@ -229,10 +307,10 @@ class App(ctk.CTk):
 
     def btn_start(self):
         printer_name = self._selected_printer_name()
-        if printer_name != 'Criar PDF':
+        if printer_name != PDF_MODE_SENTINEL:
             paper_size = self.get_paper_size_from_worklist()
             if not validate_printer_paper(printer_name, paper_size):
-                PopUpWindow(self, 'Erro', get_printer_paper_error_message(paper_size))
+                PopUpWindow(self, t('main.error'), get_printer_paper_error_message(paper_size))
                 return
 
         lines = self.open_files_from_worklist()
@@ -262,7 +340,7 @@ class App(ctk.CTk):
         try:
             progress_slot = self.loading_frame.add_progressbar(printer)
         except Exception as e:
-            PopUpWindow(self, "Erro", e)
+            PopUpWindow(self, t('main.error'), e)
             return
 
         on_progress, on_error, on_complete = self._build_pdf_callbacks(progress_slot, printer)
@@ -347,7 +425,7 @@ class App(ctk.CTk):
         if result.status == 'empty':
             return
         if result.status == 'duplicate':
-            PopUpWindow(self, 'Erro', 'Work já está na lista')
+            PopUpWindow(self, t('main.error'), t('main.work_duplicate'))
             self.entry_work.delete('0', 'end')
             return
         if result.status == 'path_missing':
@@ -355,17 +433,18 @@ class App(ctk.CTk):
             return
         if result.status == 'not_found':
             self.entry_work.delete('0', 'end')
-            PopUpWindow(self, 'Work não encontrada', f'Work "{work}" não foi encontrada.\n'
-                                                     f'Por favor selecionar o arquivo manualmente\n'
-                                                     f'Ou Contactar PreProd\n'
-                                                     f'Caminho: {get_search_folder()}')
+            PopUpWindow(
+                self,
+                t('main.work_not_found_title'),
+                t('main.work_not_found_body', work=work, folder=get_search_folder()),
+            )
             return
         if result.status == 'empty_file':
-            PopUpWindow(self, 'Erro', 'Arquivo encontrado está vazio - Verificar')
+            PopUpWindow(self, t('main.error'), t('main.empty_file'))
             self.entry_work.delete('0', 'end')
             return
         if result.status == 'product_missing':
-            PopUpWindow(self, 'Erro', result.error.message)
+            PopUpWindow(self, t('main.error'), result.error.message)
             return
         if result.status == 'inconsistent':
             self.entry_work.delete('0', 'end')
@@ -388,10 +467,10 @@ class App(ctk.CTk):
     def open_or_print_pdf(self, pdf_data, file_to_move=[], is_remake=None, printer=None, progress_slot=None):
         slot = progress_slot if progress_slot is not None else printer
         try:
-            self.loading_frame.update_progressbar(slot, 1, 'Imprimindo...')
+            self.loading_frame.update_progressbar(slot, 1, t('main.printing'))
 
             exe_index = None
-            if printer != 'Criar PDF':
+            if printer != PDF_MODE_SENTINEL:
                 exe_index = self.loading_frame.get_exe_index(slot)
 
             finish_print_job(
@@ -453,14 +532,14 @@ class LoadingBarFrame(ctk.CTkFrame):
         self._pdf_slot_counter = 0
 
     def add_progressbar(self, printer_name):
-        if printer_name == 'Criar PDF':
+        if printer_name == PDF_MODE_SENTINEL:
             self._pdf_slot_counter += 1
-            slot_id = f'Criar PDF #{self._pdf_slot_counter}'
-            display_name = 'Criar PDF'
+            slot_id = f'{PDF_MODE_SENTINEL} #{self._pdf_slot_counter}'
+            display_name = pdf_mode_label()
             exe_index = None
         else:
             if printer_name in self.printers_status:
-                raise Exception('Impressora já está em uso')
+                raise Exception(t('main.printer_in_use'))
             slot_id = printer_name
             display_name = printer_name
             exe_index = self.__get_exe_to_use()
@@ -470,8 +549,10 @@ class LoadingBarFrame(ctk.CTkFrame):
 
         ctk.CTkLabel(frame, text=45 * '-', bg_color='transparent').grid(row=0)
 
-        lbl_printer = ctk.CTkLabel(frame, text=f'Impressora\n{display_name}', font=('Arial', 10),
-                                   bg_color='transparent')
+        lbl_printer = ctk.CTkLabel(
+            frame, text=t('main.printer_label', name=display_name), font=('Arial', 10),
+            bg_color='transparent',
+        )
         lbl_printer.grid(row=1)
 
         loadingbar = ctk.CTkProgressBar(frame, orientation="horizontal", height=30, width=150, corner_radius=0)
@@ -502,7 +583,7 @@ class LoadingBarFrame(ctk.CTkFrame):
             if i not in exe:
                 return i
 
-        raise Exception('Máximo de 5 processos de impressão por vez.\nAguardar')
+        raise Exception(t('main.max_print_jobs'))
 
     def update_progressbar(self, slot_id, loadingbar_progress, lbl_text):
         progress_bar = self.printers_status[slot_id]['ProgressBar']
@@ -520,13 +601,13 @@ class LoadingBarFrame(ctk.CTkFrame):
     def show_error(self, slot_id, error_tracebak):
         frame = self.printers_status[slot_id]['Frame']
 
-        ctk.CTkLabel(frame, font=('Arial', 10), text='ERRO AO CRIAR').grid(row=0)
+        ctk.CTkLabel(frame, font=('Arial', 10), text=t('main.create_error')).grid(row=0)
 
         path = 'Errors_Logs.txt'
         FileUtils.write_log_file(path, error_tracebak)
         audit.log_error(detail=error_tracebak, printer=str(slot_id))
 
-        ctk.CTkButton(frame, text='Visualizar', fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
+        ctk.CTkButton(frame, text=t('main.view'), fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
                       command=lambda: self.visualize_error(slot_id, path)).grid(row=1)
 
     def visualize_error(self, slot_id, path):

@@ -1,9 +1,12 @@
 import tkinter
 from tkinter import ttk
 
+from app.ui.ttk_theme import apply_azure_dark_theme
+
 
 class Table(ttk.Treeview):
     def __init__(self, master, cols_names, *args, **kwargs):
+        apply_azure_dark_theme(master.winfo_toplevel())
         super().__init__(master, *args, **kwargs)
 
         self.configure(columns=cols_names)
