@@ -23,6 +23,7 @@ from app.utils.text_utils import break_line
 from app.models.sheet_layout import CUSTOM_ORIENTATION_INDEX, SCOPE_SHEET, SheetLayout
 from app.services.layout_service import resolve_layout_for_orientation
 from app.services.sheet_grouping import build_sheet_pages
+from app.services.sheet_page_placeholders import apply_sheet_page_placeholders as _apply_sheet_page_placeholders
 
 
 def partition_drawings_by_scope(items):
@@ -414,17 +415,6 @@ def _draw_custom_slot_guides(pdf_canvas, layout: SheetLayout):
         h = SheetLayout.mm_to_pt(layout.label_height_mm)
         pdf_canvas.rect(x, y, w, h)
     pdf_canvas.setDash([])
-
-
-def _apply_sheet_page_placeholders(text, group_page, group_total):
-    if group_page is None or group_total is None or text is None:
-        return text
-    result = str(text)
-    result = result.replace('{pag}', str(group_page))
-    result = result.replace('{total}', str(group_total))
-    result = result.replace('{p}', str(group_page))
-    result = result.replace('{t}', str(group_total))
-    return result
 
 
 def configure_custom_layout(pdf, filelines, items, current_index, total, printer, filename,

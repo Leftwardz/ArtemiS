@@ -127,3 +127,36 @@ def test_serialize_all_to_db_keeps_store_font_not_canvas():
     text_rows = [r for r in rows if r.get('item_type') == 'text']
     assert len(text_rows) == 1
     assert text_rows[0]['font_size'] == '14'
+
+
+def test_preview_sync_preserves_fixed_text_placeholders():
+    store = DrawingStore()
+    obj = TextObject(
+        object_id=new_object_id('txt-'),
+        text='Pág. {p}/{t}',
+        font_name='arial',
+        font_size='12',
+        font_style='normal',
+        orientation='0',
+        x='10',
+        y='20',
+    )
+    store.register(obj)
+    canvas = FakeCanvas({
+        1: {
+            'type': 'text',
+            'coords': (10, 20),
+            'font': 'arial 12 normal',
+            'angle': '0',
+            'text': 'Pág. 1/3',
+        },
+    })
+    store.bind_canvas(1, obj.object_id)
+    store.sync_geometry_from_canvas(canvas, {}, zoom=1.0, preserve_placeholder_text=True)
+    assert obj.text == 'Pág. {p}/{t}'
+
+    rows = store.serialize_all_to_db(
+        canvas, {}, zoom=1.0, active_scope='sheet', preserve_placeholder_text=True,
+    )
+    text_rows = [r for r in rows if r.get('item_type') == 'text']
+    assert text_rows[0]['text'] == 'Pág. {p}/{t}'

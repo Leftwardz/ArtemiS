@@ -43,6 +43,7 @@ from app.ui.constants import (
     FONT_LIST,
     ICON,
     PAPER_COLOR_LIST,
+    FIXED_TEXT_PAGE_TIP,
     PAPER_SIZE_TIP,
 )
 from app.utils.barcode_generator import (
@@ -1902,7 +1903,11 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             fonte = [fontname, fontsize, font_style]
         else:
             fonte = self.master.canvas.itemconfig(selected_object, 'font')[4].split()
-        texto = self.master.canvas.itemconfig(selected_object, 'text')[4]
+        obj = self.selected_object or self.master.drawing_store.get_by_canvas(selected_object)
+        if isinstance(obj, TextObject):
+            texto = obj.text
+        else:
+            texto = self.master.canvas.itemconfig(selected_object, 'text')[4]
         orientacao = self.master.canvas.itemconfig(selected_object, 'angle')[4].replace('.0', '')
         z = self.master.zoom
         font_family = fonte[0]
@@ -1968,7 +1973,14 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
         self.entry_y1.set(int(round(y / z)))
 
         if not self.is_barcode and not self.is_counter and not self.is_segment:
-            ctk.CTkLabel(self.frame, text='Texto').grid(row=pos_row + 2, column=0, columnspan=2, padx=10)
+            text_hdr = ctk.CTkFrame(self.frame, fg_color='transparent')
+            text_hdr.grid(row=pos_row + 2, column=0, columnspan=2, padx=10, sticky='w')
+            ctk.CTkLabel(text_hdr, text='Texto').pack(side='left')
+            lbl_text_help = ctk.CTkLabel(
+                text_hdr, text='?', width=18, cursor='hand2', text_color='gray',
+            )
+            lbl_text_help.pack(side='left', padx=(4, 0))
+            Tooltip(lbl_text_help, FIXED_TEXT_PAGE_TIP)
 
             self.entry_text = ctk.CTkEntry(self.frame, width=self.width - 80, justify='center')
             self.entry_text.grid(row=pos_row + 3, column=0, columnspan=2, padx=10, pady=5)
@@ -2048,7 +2060,11 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             fonte = [fontname, rest[0], rest[1] if len(rest) > 1 else 'normal']
         else:
             fonte = fonte.split()
-        texto = self.master.canvas.itemconfig(selected_object, 'text')[4]
+        obj = self.selected_object or self.master.drawing_store.get_by_canvas(selected_object)
+        if isinstance(obj, TextObject):
+            texto = obj.text
+        else:
+            texto = self.master.canvas.itemconfig(selected_object, 'text')[4]
         orientacao = self.master.canvas.itemconfig(selected_object, 'angle')[4].replace('.0', '')
         z = self.master.zoom
         if self.is_segment and self.segment_itens:
@@ -2554,7 +2570,14 @@ class GetTextWindow(ctk.CTkToplevel):
         self.bold = ctk.CTkCheckBox(self, text='Bold')
         self.bold.grid(row=3, column=1, padx=10)
 
-        ctk.CTkLabel(self, text='Texto').grid(row=4, column=0, columnspan=2, padx=10)
+        text_hdr = ctk.CTkFrame(self, fg_color='transparent')
+        text_hdr.grid(row=4, column=0, columnspan=2, padx=10, sticky='w')
+        ctk.CTkLabel(text_hdr, text='Texto').pack(side='left')
+        lbl_text_help = ctk.CTkLabel(
+            text_hdr, text='?', width=18, cursor='hand2', text_color='gray',
+        )
+        lbl_text_help.pack(side='left', padx=(4, 0))
+        Tooltip(lbl_text_help, FIXED_TEXT_PAGE_TIP)
         self.text = ctk.CTkEntry(self, width=300)
         self.text.grid(row=5, column=0, columnspan=2, padx=10)
 

@@ -306,7 +306,10 @@ class DrawingStore:
             x, y = canvas.coords(canvas_id)
             obj.x, obj.y = str(int(round(x / zoom))), str(int(round(y / zoom)))
             obj.orientation = canvas.itemcget(canvas_id, 'angle').replace('.0', '')
-            if not (preserve_placeholder_text and isinstance(obj, BarcodeTextObject)):
+            if not (
+                preserve_placeholder_text
+                and isinstance(obj, (BarcodeTextObject, TextObject, CounterObject))
+            ):
                 obj.text = canvas.itemcget(canvas_id, 'text')
 
         elif isinstance(obj, BarcodeObject):

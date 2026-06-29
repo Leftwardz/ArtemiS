@@ -50,3 +50,10 @@ Segue lista de papeis:
 20 - (Envelope #12)
 21 - (Envelope #14)
 """
+
+FIXED_TEXT_PAGE_TIP = (
+    'No cabeçalho (escopo Folha), use placeholders de paginação:\n'
+    '{p} ou {pag} — página do grupo\n'
+    '{t} ou {total} — total de páginas do grupo\n'
+    'Ex.: Pág. {p}/{t}'
+)
