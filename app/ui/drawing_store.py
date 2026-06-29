@@ -115,6 +115,43 @@ class DrawingStore:
         items = [obj for obj in self.objects.values() if getattr(obj, 'scope', 'slot') == scope]
         return sorted(items, key=lambda o: o.stack_order)
 
+    def sync_geometry_from_canvas(
+        self, canvas, canvas_dict_images: dict, zoom: float = 1.0,
+        preserve_placeholder_text: bool = False,
+    ) -> None:
+        """Sincroniza posições e geometria do canvas para os objetos (coords lógicas).
+
+        Não altera font_size/font_name/font_style — o zoom escala a fonte na tela, mas o
+        tamanho lógico do objeto (e do PDF) permanece no store.
+        """
+        self.sync_stack_order_from_canvas(canvas)
+        synced_segments: set[str] = set()
+        synced_ids: set[str] = set()
+
+        for canvas_id in canvas.find_all():
+            tags = canvas.gettags(canvas_id)
+            if 'paper' in tags or 'slot_guide' in tags or 'slot_preview' in tags:
+                continue
+            obj = self.get_by_canvas(canvas_id)
+            if obj is None:
+                continue
+            if isinstance(obj, SegmentObject):
+                if obj.object_id in synced_segments:
+                    continue
+                synced_segments.add(obj.object_id)
+                synced_ids.add(obj.object_id)
+                self.sync_segment_lines_from_canvas(
+                    obj, canvas, zoom, preserve_preview_text=preserve_placeholder_text,
+                )
+                continue
+            if obj.object_id in synced_ids:
+                continue
+            synced_ids.add(obj.object_id)
+            self._sync_object_geometry_from_canvas(
+                canvas, canvas_id, canvas_dict_images, obj, zoom,
+                preserve_placeholder_text=preserve_placeholder_text,
+            )
+
     def sync_stack_order_from_canvas(self, canvas) -> None:
         """Atualiza stack_order dos objetos visíveis, por escopo (slot/sheet)."""
         seen: set[str] = set()
@@ -155,12 +192,11 @@ class DrawingStore:
                 self.sync_segment_lines_from_canvas(
                     obj, canvas, zoom, preserve_preview_text=preserve_placeholder_text,
                 )
-                self._sync_segment_font_from_canvas(obj, canvas, zoom)
                 continue
             if obj.object_id in synced_ids:
                 continue
             synced_ids.add(obj.object_id)
-            self._serialize_canvas_item(
+            self._sync_object_geometry_from_canvas(
                 canvas, canvas_id, canvas_dict_images, obj, zoom,
                 preserve_placeholder_text=preserve_placeholder_text,
             )
@@ -230,54 +266,23 @@ class DrawingStore:
                     continue
                 seen_segments.add(obj.object_id)
                 self.sync_segment_lines_from_canvas(obj, canvas, zoom)
-                self._sync_segment_font_from_canvas(obj, canvas, zoom)
                 result.extend(obj.to_db_rows())
                 continue
 
-            row = self._serialize_canvas_item(canvas, canvas_id, canvas_dict_images, obj, zoom)
+            row = self._object_geometry_to_db_row(
+                canvas, canvas_id, canvas_dict_images, obj, zoom,
+            )
             if row:
                 result.append(row)
         return result
 
-    @staticmethod
-    def _logical_font_size(font_size_screen: str, zoom: float) -> str:
-        try:
-            return str(max(1, int(round(int(float(font_size_screen)) / zoom))))
-        except (TypeError, ValueError):
-            return font_size_screen
-
-    def _sync_segment_font_from_canvas(self, segment: SegmentObject, canvas, zoom: float = 1.0) -> None:
-        ids = self.segment_canvas_ids(segment.object_id)
-        if not ids:
-            return
-        cid = ids[0]
-        font_full = canvas.itemcget(cid, 'font')
-        if '{' in font_full:
-            fontname = font_full.split('}')[0].replace('{', '')
-            rest = font_full.split('}')[1].split()
-            segment.font_name = fontname
-            segment.font_size = self._logical_font_size(rest[0], zoom)
-            segment.font_style = rest[1] if len(rest) > 1 else 'normal'
-        else:
-            parts = font_full.split()
-            if len(parts) >= 3:
-                segment.font_name = parts[0]
-                segment.font_size = self._logical_font_size(parts[1], zoom)
-                segment.font_style = parts[2]
-        segment.orientation = canvas.itemcget(cid, 'angle').replace('.0', '')
-
-    def _serialize_canvas_item(
+    def _sync_object_geometry_from_canvas(
         self, canvas, canvas_id, canvas_dict_images, obj, zoom: float = 1.0,
         preserve_placeholder_text: bool = False,
-    ) -> Optional[dict]:
-        ctype = canvas.type(canvas_id)
-        tag = canvas.gettags(canvas_id)
-        tag_str = tag[0] if tag else ''
-        if 'IGNORE' in tag and tag_str:
-            tag_str += ' IGNORE'
-
+    ) -> None:
+        """Atualiza o objeto a partir do canvas (coords lógicas), sem tocar em fontes."""
         if obj is None:
-            return None
+            return
 
         if isinstance(obj, LineObject):
             x1, y1, x2, y2 = canvas.coords(canvas_id)
@@ -286,10 +291,7 @@ class DrawingStore:
             obj.thickness = canvas.itemcget(canvas_id, 'width').replace('.0', '')
             dash = canvas.itemcget(canvas_id, 'dash')
             obj.dashed = dash.replace('.0', '') if dash else ''
-            return obj.to_db_dict(
-                x1=obj.x1, y1=obj.y1, x2=obj.x2, y2=obj.y2,
-                thickness=obj.thickness, dashed=obj.dashed,
-            )
+            return
 
         if isinstance(obj, RectangleObject):
             x1, y1, x2, y2 = canvas.coords(canvas_id)
@@ -298,64 +300,40 @@ class DrawingStore:
             obj.thickness = canvas.itemcget(canvas_id, 'width').replace('.0', '')
             dash = canvas.itemcget(canvas_id, 'dash')
             obj.dashed = dash.replace('.0', '') if dash else ''
-            return obj.to_db_dict(
-                x1=obj.x1, y1=obj.y1, x2=obj.x2, y2=obj.y2,
-                thickness=obj.thickness, dashed=obj.dashed,
-            )
+            return
 
         if isinstance(obj, (TextObject, CounterObject, BarcodeTextObject)):
             x, y = canvas.coords(canvas_id)
             obj.x, obj.y = str(int(round(x / zoom))), str(int(round(y / zoom)))
-            font_full = canvas.itemcget(canvas_id, 'font')
-            if '{' in font_full:
-                fontname = font_full.split('}')[0].replace('{', '')
-                rest = font_full.split('}')[1].split()
-                obj.font_name = fontname
-                obj.font_size = self._logical_font_size(rest[0], zoom)
-                obj.font_style = rest[1] if len(rest) > 1 else 'normal'
-            else:
-                parts = font_full.split()
-                if len(parts) >= 3:
-                    obj.font_name = parts[0]
-                    obj.font_size = self._logical_font_size(parts[1], zoom)
-                    obj.font_style = parts[2]
             obj.orientation = canvas.itemcget(canvas_id, 'angle').replace('.0', '')
             if not (preserve_placeholder_text and isinstance(obj, BarcodeTextObject)):
                 obj.text = canvas.itemcget(canvas_id, 'text')
-            fc = obj.file_column if isinstance(obj, BarcodeTextObject) else None
-            return obj.to_db_dict(
-                x1=obj.x, y1=obj.y, text=obj.text,
-                font_name=obj.font_name, font_size=obj.font_size,
-                font_style=obj.font_style, orientation=obj.orientation,
-                file_columns=fc,
-            )
 
-        if isinstance(obj, BarcodeObject):
+        elif isinstance(obj, BarcodeObject):
             x, y = canvas.coords(canvas_id)
             obj.x, obj.y = str(int(round(x / zoom))), str(int(round(y / zoom)))
             if canvas_id in canvas_dict_images:
                 obj.proportion = str(canvas_dict_images[canvas_id][3])
                 obj.orientation = str(canvas_dict_images[canvas_id][4])
-            return obj.to_db_dict(
-                x1=obj.x, y1=obj.y, text=obj.placeholder.replace('_', ' '),
-                barcode_width=obj.barcode_width, barcode_height=obj.barcode_height,
-                file_columns=obj.file_column, proportion=obj.proportion,
-                orientation=obj.orientation,
-            )
 
-        if isinstance(obj, ImageObject):
+        elif isinstance(obj, ImageObject):
             x, y = canvas.coords(canvas_id)
             obj.x, obj.y = str(int(round(x / zoom))), str(int(round(y / zoom)))
             if canvas_id in canvas_dict_images:
                 obj.proportion = str(canvas_dict_images[canvas_id][3])
                 obj.orientation = str(canvas_dict_images[canvas_id][4])
                 obj.image_blob = convert_image_to_blob(canvas_dict_images[canvas_id][2])
-            return obj.to_db_dict(
-                x1=obj.x, y1=obj.y, proportion=obj.proportion,
-                orientation=obj.orientation, image=obj.image_blob,
-            )
 
-        return None
+    def _object_geometry_to_db_row(
+        self, canvas, canvas_id, canvas_dict_images, obj, zoom: float = 1.0,
+        preserve_placeholder_text: bool = False,
+    ) -> Optional[dict]:
+        self._sync_object_geometry_from_canvas(
+            canvas, canvas_id, canvas_dict_images, obj, zoom,
+            preserve_placeholder_text=preserve_placeholder_text,
+        )
+        rows = self._object_to_db_rows(obj, canvas_dict_images)
+        return rows[0] if rows else None
 
 
 def make_text_object(x, y, text, font_name, font_size, font_style, orientation, is_counter=False) -> DrawingObject:

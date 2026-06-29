@@ -1076,7 +1076,10 @@ class EditWindow(ctk.CTkToplevel):
         new_zoom = round(max(0.25, min(4.0, new_zoom)), 2)
         if not force and abs(new_zoom - self.zoom) < 1e-3:
             return
-        self.pass_canvas_to_dict()
+        self.drawing_store.sync_geometry_from_canvas(
+            self.canvas, self.canvas_dict_images, self.zoom,
+            preserve_placeholder_text=self.preview_file is not None,
+        )
         sel_oids = []
         for rep in self.selected_items:
             obj = self.drawing_store.get_by_canvas(rep)
@@ -1095,7 +1098,9 @@ class EditWindow(ctk.CTkToplevel):
         self.id_selected_item = self.selected_items[-1] if self.selected_items else None
         if self.zoom_label is not None:
             self.zoom_label.configure(text=f'{int(round(self.zoom * 100))}%')
-        self.refresh()
+        self.update_save_button()
+        for rep in self.selected_items:
+            self.paint_object(rep, 'red')
         self.properties_window.last_id = None
         self.properties_window.refresh()
 
@@ -1899,8 +1904,9 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             fonte = self.master.canvas.itemconfig(selected_object, 'font')[4].split()
         texto = self.master.canvas.itemconfig(selected_object, 'text')[4]
         orientacao = self.master.canvas.itemconfig(selected_object, 'angle')[4].replace('.0', '')
+        z = self.master.zoom
         font_family = fonte[0]
-        font_size = fonte[1]
+        font_size = str(max(1, int(round(int(float(fonte[1])) / z))))
         font_style = fonte[2]
 
         if self.is_segment:
@@ -1954,12 +1960,12 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
         ctk.CTkLabel(self.frame, text='Posição X:').grid(row=pos_row, column=0, padx=10, pady=10, sticky="W")
         self.entry_x1 = SpinBox(self.frame, func=self.update_item)
         self.entry_x1.grid(row=pos_row, column=1, pady=10, padx=10)
-        self.entry_x1.set(int(x))
+        self.entry_x1.set(int(round(x / z)))
 
         ctk.CTkLabel(self.frame, text='Posição Y:').grid(row=pos_row + 1, column=0, padx=10, pady=10, sticky="W")
         self.entry_y1 = SpinBox(self.frame, func=self.update_item)
         self.entry_y1.grid(row=pos_row + 1, column=1, pady=10, padx=10)
-        self.entry_y1.set(int(y))
+        self.entry_y1.set(int(round(y / z)))
 
         if not self.is_barcode and not self.is_counter and not self.is_segment:
             ctk.CTkLabel(self.frame, text='Texto').grid(row=pos_row + 2, column=0, columnspan=2, padx=10)
@@ -2330,7 +2336,7 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
                 self.master.rebuild_segment_lines(seg)
                 self.segment_itens = self.master.drawing_store.segment_canvas_ids(seg.object_id)
             else:
-                z = self.master.zoom
+                obj = self.master.drawing_store.get_by_canvas(item_id)
                 if not self.is_counter:
                     self.master.canvas.itemconfig(item_id, text=self.entry_text.get())
                 self.master.canvas.itemconfig(item_id,
@@ -2340,6 +2346,15 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
                                               angle=self.orientation.get())
                 self.master.canvas.coords(item_id, self.master._zs(self.entry_x1.get()),
                                           self.master._zs(self.entry_y1.get()))
+                if obj is not None and isinstance(obj, (TextObject, CounterObject, BarcodeTextObject)):
+                    obj.font_name = self.font_family_combobox.get()
+                    obj.font_size = str(int(self.font_size_combobox.get()))
+                    obj.font_style = self.font_style_combobox.get().lower()
+                    obj.orientation = self.orientation.get()
+                    obj.x = str(int(self.entry_x1.get()))
+                    obj.y = str(int(self.entry_y1.get()))
+                    if isinstance(obj, TextObject) and not self.is_counter:
+                        obj.text = self.entry_text.get()
 
         elif self.master.canvas.type(item_id) == 'image':
             z = self.master.zoom
