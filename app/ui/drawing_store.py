@@ -130,7 +130,7 @@ class DrawingStore:
 
         for canvas_id in canvas.find_all():
             tags = canvas.gettags(canvas_id)
-            if 'paper' in tags or 'slot_guide' in tags or 'slot_preview' in tags:
+            if 'paper' in tags or 'slot_guide' in tags or 'slot_preview' in tags or 'measure_preview' in tags:
                 continue
             obj = self.get_by_canvas(canvas_id)
             if obj is None:
@@ -158,7 +158,7 @@ class DrawingStore:
         scope_counters: dict[str, int] = {}
         for canvas_id in canvas.find_all():
             tags = canvas.gettags(canvas_id)
-            if 'paper' in tags or 'slot_guide' in tags or 'slot_preview' in tags:
+            if 'paper' in tags or 'slot_guide' in tags or 'slot_preview' in tags or 'measure_preview' in tags:
                 continue
             obj = self.get_by_canvas(canvas_id)
             if obj is None or obj.object_id in seen:
@@ -179,7 +179,7 @@ class DrawingStore:
 
         for canvas_id in canvas.find_all():
             tags = canvas.gettags(canvas_id)
-            if 'paper' in tags or 'slot_guide' in tags or 'slot_preview' in tags:
+            if 'paper' in tags or 'slot_guide' in tags or 'slot_preview' in tags or 'measure_preview' in tags:
                 continue
             obj = self.get_by_canvas(canvas_id)
             if obj is None:

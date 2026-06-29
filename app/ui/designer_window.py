@@ -36,6 +36,7 @@ from app.ui.drawing_store import (
     make_segment_object,
     make_text_object,
 )
+from app.ui.measure_utils import bbox_size_lines, format_delta_line, format_mm, pair_spacing_lines
 from app.ui.components import ConfirmWindow, ListBox, PopUpWindow, SpinBox, Tooltip
 from app.ui.constants import (
     BTN_HOVER_RED,
@@ -149,7 +150,8 @@ class EditWindow(ctk.CTkToplevel):
 
         self.btn_tools = ctk.CTkSegmentedButton(self,
                                                 values=['Selecionar', 'Mover', 'Linha', 'Quadrado',
-                                                        'Texto Fixo', 'Segmento', 'Código Barras', 'Imagem'],
+                                                        'Texto Fixo', 'Segmento', 'Código Barras', 'Imagem',
+                                                        'Medir'],
                                                 command=self.reset_all
                                                 )
         self.btn_tools.grid(row=2, column=0, columnspan=2, padx=0, pady=(0, 4), sticky='ew')
@@ -256,6 +258,8 @@ class EditWindow(ctk.CTkToplevel):
         self.selected_items = []
         self.rubber_band = None
         self._rubber_add = False
+        self._measure_line = None
+        self._measure_label = None
         self.base_canvas_width = canvas_width
         self.base_canvas_height = canvas_height
         self.zoom = 1.0
@@ -1026,6 +1030,56 @@ class EditWindow(ctk.CTkToplevel):
         self._apply_editor_canvas_size()
         self._redraw_editor_view()
 
+    def _clear_measure_preview(self):
+        for cid in (self._measure_line, self._measure_label):
+            if cid is not None:
+                try:
+                    self.canvas.delete(cid)
+                except Exception:
+                    pass
+        self._measure_line = None
+        self._measure_label = None
+
+    def _update_measure_preview(self, x1, y1, x2, y2, *, finalize=False):
+        if self._measure_line is None:
+            self._measure_line = self.canvas.create_line(
+                x1, y1, x2, y2, fill='#1f6aa5', dash=(6, 4), width=1, tags=('measure_preview',),
+            )
+        else:
+            self.canvas.coords(self._measure_line, x1, y1, x2, y2)
+        if self._measure_label is not None:
+            self.canvas.delete(self._measure_label)
+            self._measure_label = None
+        if not finalize:
+            return
+        dx = self._zl(x2) - self._zl(x1)
+        dy = self._zl(y2) - self._zl(y1)
+        mx = (x1 + x2) / 2
+        my = (y1 + y2) / 2
+        self._measure_label = self.canvas.create_text(
+            mx, my - 8, text=format_delta_line(dx, dy), fill='#1f6aa5',
+            tags=('measure_preview',), anchor='center',
+        )
+
+    def selection_measure_lines(self) -> list[str]:
+        """Texto de espaçamento para o painel de multisseleção."""
+        reps = self.selected_items
+        if len(reps) < 2:
+            return []
+        if len(reps) == 2:
+            box_a = self._group_bbox(reps[0])
+            box_b = self._group_bbox(reps[1])
+            if not box_a or not box_b:
+                return []
+            ax1, ay1, ax2, ay2 = [self._zl(v) for v in box_a]
+            bx1, by1, bx2, by2 = [self._zl(v) for v in box_b]
+            return pair_spacing_lines(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2)
+        bbox = self._selection_bbox()
+        if not bbox:
+            return []
+        x1, y1, x2, y2 = [self._zl(v) for v in bbox]
+        return bbox_size_lines(x2 - x1, y2 - y1)
+
     # ------------------------------- Zoom -------------------------------------------
     def _paper_dims(self):
         return int(round(self.base_canvas_width * self.zoom)), int(round(self.base_canvas_height * self.zoom))
@@ -1196,7 +1250,7 @@ class EditWindow(ctk.CTkToplevel):
             if cid == self.rubber_band:
                 continue
             tags = self.canvas.gettags(cid)
-            if 'slot_guide' in tags or 'slot_preview' in tags:
+            if 'slot_guide' in tags or 'slot_preview' in tags or 'measure_preview' in tags:
                 continue
             if self.drawing_store.get_by_canvas(cid) is not None:
                 return cid
@@ -1237,7 +1291,13 @@ class EditWindow(ctk.CTkToplevel):
 
     def canvas_mouse_motion(self, event):
         self._event_xy(event)
-        self.lbl_testes.configure(text=f"X: {event.x}, Y: {event.y}")
+        lx, ly = int(round(self._zl(event.x))), int(round(self._zl(event.y)))
+        if self.btn_tools.get() == 'Medir':
+            self.lbl_testes.configure(
+                text=f'X: {lx}  Y: {ly}  ({format_mm(lx)}, {format_mm(ly)})',
+            )
+        else:
+            self.lbl_testes.configure(text=f'X: {lx}, Y: {ly}')
 
     def _group_bbox(self, rep):
         boxes = []
@@ -1518,10 +1578,21 @@ class EditWindow(ctk.CTkToplevel):
             GetSegmentWindow(self, int(round(self._zl(self.start_x))), int(round(self._zl(self.start_y))))
             self.btn_tools.set(value='Mover')
 
+        elif self.btn_tools.get() == 'Medir':
+            self._clear_measure_preview()
+            self.start_x = event.x
+            self.start_y = event.y
+
     def move_mouse_m1(self, event):
         self._clear_input_focus()
         self._event_xy(event)
-        self.lbl_testes.configure(text=f"X: {event.x}, Y: {event.y}")
+        lx, ly = int(round(self._zl(event.x))), int(round(self._zl(event.y)))
+        if self.btn_tools.get() == 'Medir':
+            self.lbl_testes.configure(
+                text=f'X: {lx}  Y: {ly}  ({format_mm(lx)}, {format_mm(ly)})',
+            )
+        else:
+            self.lbl_testes.configure(text=f'X: {lx}, Y: {ly}')
         if self.btn_tools.get() == 'Linha':
             if self.draw_object:
                 self.canvas.delete(self.draw_object)
@@ -1541,6 +1612,15 @@ class EditWindow(ctk.CTkToplevel):
                 self.canvas.delete(self.draw_object)
             self.draw_object = self.canvas.create_rectangle(self.start_x, self.start_y, event.x, event.y, width=1)
 
+        elif self.btn_tools.get() == 'Medir':
+            x2, y2 = event.x, event.y
+            if event.state & 0x1:
+                if abs(self.start_x - x2) > abs(self.start_y - y2):
+                    y2 = self.start_y
+                else:
+                    x2 = self.start_x
+            self._update_measure_preview(self.start_x, self.start_y, x2, y2, finalize=False)
+
         elif self.rubber_band is not None:
             self.canvas.coords(self.rubber_band, self.start_x, self.start_y, event.x, event.y)
 
@@ -1551,6 +1631,19 @@ class EditWindow(ctk.CTkToplevel):
             self.start_y = event.y
 
     def mouse_release_m1(self, event):
+        if self.btn_tools.get() == 'Medir':
+            self._event_xy(event)
+            x2, y2 = event.x, event.y
+            if event.state & 0x1:
+                if abs(self.start_x - x2) > abs(self.start_y - y2):
+                    y2 = self.start_y
+                else:
+                    x2 = self.start_x
+            if abs(x2 - self.start_x) >= 2 or abs(y2 - self.start_y) >= 2:
+                self._update_measure_preview(self.start_x, self.start_y, x2, y2, finalize=True)
+            else:
+                self._clear_measure_preview()
+            return
         self.update_save_button()
         if self.btn_tools.get() in ['Linha', 'Quadrado']:
             if self.draw_object is not None:
@@ -1594,6 +1687,7 @@ class EditWindow(ctk.CTkToplevel):
         self.id_selected_item = reps[-1] if reps else None
 
     def reset_all(self, *args):
+        self._clear_measure_preview()
         self.clear_selection()
         self.refresh()
         self.properties_window.refresh()
@@ -1601,7 +1695,7 @@ class EditWindow(ctk.CTkToplevel):
     def paint_object(self, object_id, color):
         if object_id:
             tags = self.canvas.gettags(object_id)
-            if 'paper' in tags or 'slot_guide' in tags:
+            if 'paper' in tags or 'slot_guide' in tags or 'measure_preview' in tags:
                 return
         if object_id:
             for i in self._group_canvas_ids(object_id):
@@ -1673,6 +1767,7 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
         self.panels = {}
         self.panel_refs = {}
         self._multi_count_label = None
+        self._multi_spacing_label = None
 
         self.is_segment = False
         self.selected_object = None
@@ -2191,12 +2286,22 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             return
         self._show_panel(sig)
 
+    def _fill_multi_spacing(self):
+        if self._multi_spacing_label is None:
+            return
+        lines = self.master.selection_measure_lines()
+        if not lines:
+            self._multi_spacing_label.configure(text='')
+            return
+        self._multi_spacing_label.configure(text='\n'.join(lines))
+
     def _activate_multi_panel(self):
         self.last_id = ('multi', tuple(self.master.selected_items))
         text = f'{len(self.master.selected_items)} itens selecionados'
         if self.panel_signature == ('multi',) and self._frame_alive(self.frame):
             if self._multi_count_label is not None:
                 self._multi_count_label.configure(text=text)
+            self._fill_multi_spacing()
             return
         self._hide_current_frame()
         self.panel_signature = ('multi',)
@@ -2206,6 +2311,7 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             self.frame = cached
             if self._multi_count_label is not None:
                 self._multi_count_label.configure(text=text)
+            self._fill_multi_spacing()
             self.frame.grid(row=0, column=0, padx=10, pady=10)
             return
         frame = ctk.CTkFrame(self, width=280, height=self.height - 20, fg_color='transparent')
@@ -2219,8 +2325,14 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             font=('Lato', 12),
         ).grid(row=1, column=0, padx=20)
 
+        self._multi_spacing_label = ctk.CTkLabel(
+            frame, text='', font=('Lato', 11), justify='left', anchor='w',
+        )
+        self._multi_spacing_label.grid(row=2, column=0, padx=20, pady=(0, 8), sticky='w')
+        self._fill_multi_spacing()
+
         align_frame = ctk.CTkFrame(frame, fg_color='transparent')
-        align_frame.grid(row=2, column=0, padx=10, pady=(4, 8))
+        align_frame.grid(row=3, column=0, padx=10, pady=(4, 8))
         ctk.CTkLabel(align_frame, text='Alinhar', font=('Lato', 12, 'bold')).grid(
             row=0, column=0, columnspan=3, pady=(0, 6))
         h_align = (
@@ -2245,7 +2357,7 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             ).grid(row=2, column=col, padx=3, pady=2)
 
         dist_frame = ctk.CTkFrame(frame, fg_color='transparent')
-        dist_frame.grid(row=3, column=0, padx=10, pady=(0, 8))
+        dist_frame.grid(row=4, column=0, padx=10, pady=(0, 8))
         ctk.CTkLabel(dist_frame, text='Espaço igual', font=('Lato', 12, 'bold')).grid(
             row=0, column=0, columnspan=2, pady=(0, 2))
         ctk.CTkLabel(dist_frame, text='(mín. 3 itens)', font=('Lato', 10), text_color='gray').grid(
@@ -2262,11 +2374,11 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
         ctk.CTkButton(
             frame, text='Copiar (Ctrl+C)', width=120,
             command=lambda: self.master.control_c(None),
-        ).grid(row=4, column=0, padx=10, pady=10)
+        ).grid(row=5, column=0, padx=10, pady=10)
         ctk.CTkButton(
             frame, text='Deletar', width=120, fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
             command=self.master.delete_object,
-        ).grid(row=5, column=0, padx=10, pady=5)
+        ).grid(row=6, column=0, padx=10, pady=5)
         self.panels[('multi',)] = frame
 
     def _activate_none_panel(self):
