@@ -71,7 +71,6 @@ class EditWindow(ctk.CTkToplevel):
 
         self.geometry(calculate_center_screen_with_monitor(master, 1220, 750, get_monitor(master)))
         self.minsize(900, 600)
-        self.maxsize(self.winfo_screenwidth(), self.winfo_screenheight())
         self.resizable(True, True)
         self.master = master
         self.grid_columnconfigure(0, weight=1)
