@@ -1,13 +1,13 @@
 # Ghostscript empacotado (Windows 64-bit)
 
-O ArtemiS usa o Ghostscript como motor de impressão opcional (`print_backend: ghostscript` no `config.json`).
+O ArtemiS usa o Ghostscript como motor de impressão (`print_backend: ghostscript` no `config.json`) e para rasterizar PDF nos backends Win32/XPS.
 
-## Estrutura esperada
+## Estrutura (versionada no Git)
 
 ```
 vendor/ghostscript/
 ├── VERSION              # versão fixa (ex.: 10.04.0)
-├── LICENSE.txt          # licença AGPL (copiada pelo script de download)
+├── LICENSE.txt          # licença AGPL
 ├── README.md
 ├── bin/
 │   ├── gswin64c.exe     # console — usado pelo ArtemiS
@@ -15,37 +15,17 @@ vendor/ghostscript/
 └── lib/                 # recursos obrigatórios (fontes, init, etc.)
 ```
 
-Sem `bin/` e `lib/`, a impressão via Ghostscript não funciona.
+Após `git clone`, os binários já vêm no repositório — **não é necessário** rodar script de download nem instalar Ghostscript no sistema.
 
-## Obter os binários (após clonar o repositório)
+## Atualizar a versão (mantenedores)
 
-Na raiz do projeto, no PowerShell:
+Se precisar subir a versão do Ghostscript:
 
 ```powershell
+# Edite vendor/ghostscript/VERSION, depois:
 .\scripts\fetch_ghostscript.ps1
+git add vendor/ghostscript/
 ```
-
-O script baixa o instalador oficial (`gs10040w64.exe` para a versão em `VERSION`), instala em pasta temporária e copia `bin/` + `lib/` para cá.
-
-## Duas formas de versionar no Git
-
-### A — Repositório leve (padrão deste projeto)
-
-- `bin/` e `lib/` estão no `.gitignore`
-- Cada desenvolvedor ou CI roda `fetch_ghostscript.ps1` uma vez
-- `VERSION` + script garantem a mesma versão em todo lugar
-
-### B — Clone já pronto (sem script)
-
-1. Rode `fetch_ghostscript.ps1` uma vez
-2. Remova ou esvazie `vendor/ghostscript/.gitignore`
-3. Faça commit de `bin/`, `lib/` e `LICENSE.txt` (~30–45 MB)
-
-Útil quando a equipe não pode baixar na rede corporativa.
-
-### C — Git LFS (opcional)
-
-Para não inflar o histórico do Git com binários, use LFS nos arquivos de `vendor/ghostscript/bin/` e `lib/`.
 
 ## Licença
 
@@ -53,4 +33,4 @@ Ghostscript é distribuído sob **AGPL**. O arquivo `LICENSE.txt` deve acompanha
 
 ## PyInstaller
 
-`Main.spec` inclui `vendor/ghostscript/bin` e `lib` no pacote. Em runtime, `app/utils/ghostscript_paths.py` resolve o caminho do executável (desenvolvimento e `.exe`).
+`Main.spec` inclui `vendor/ghostscript/bin` e `lib` no pacote one-file. Em runtime, `app/utils/ghostscript_paths.py` resolve o caminho do executável via `sys._MEIPASS` (`.exe`) ou `vendor/` (desenvolvimento).

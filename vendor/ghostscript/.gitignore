@@ -1,4 +1,0 @@
-# Binários do Ghostscript — gerados por scripts/fetch_ghostscript.ps1
-# Para versionar tudo no git (clone sem script), apague este .gitignore ou comente as linhas abaixo.
-bin/
-lib/

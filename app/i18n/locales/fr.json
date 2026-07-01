@@ -274,7 +274,7 @@
     "path_save_error": "Erreur lors de l'enregistrement du chemin\n{error}",
     "invalid_backend": "Moteur d'impression invalide.",
     "backend_unavailable": "Le moteur d'impression \"{label}\" n'est pas disponible sur cette machine.{hint}",
-    "backend_hint": "\nCe moteur dépend de Ghostscript empaqueté.\nExécutez scripts/fetch_ghostscript.ps1 ou incluez-le dans le build PyInstaller.",
+    "backend_hint": "\nCe moteur dépend de Ghostscript empaqueté dans vendor/ghostscript/ (inclus au clone git).",
     "backend_saved": "Moteur d'impression : {label}",
     "audit_saved": "Emplacement de la base de journaux enregistré !\nRedémarrez ArtemiS pour appliquer l'agrégation.",
     "audit_folder_missing": "Dossier introuvable : {path}",

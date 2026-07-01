@@ -7,6 +7,11 @@ CSV work orders. See `docs/PROJECT_OVERVIEW.md` (Portuguese) for full functional
 Entry point: `Main.py` → `app.bootstrap.main()`. Application code lives under `app/`
 (models, services, ui, utils). See `docs/AI_CONTEXT.md` for architecture and refactor status.
 
+### Windows setup (after clone)
+- `pip install -r requirements.txt` — Ghostscript já vem em `vendor/ghostscript/` (sem script extra).
+- Build: `pyinstaller Main.spec` → pasta `dist/` completa (`Main.exe`, `fontes/`, `theme/`, `img/`, `vendor/ghostscript/`, etc.).
+- Verificar: `.\scripts\verify_dist.ps1` — depois é só copiar `dist/` para os PCs.
+
 ## Cursor Cloud specific instructions
 
 This repo targets Windows, but it runs on the Linux cloud VM for development via a thin

@@ -274,7 +274,7 @@
     "path_save_error": "Erro ao salvar o caminho\n{error}",
     "invalid_backend": "Motor de impressão inválido.",
     "backend_unavailable": "Motor de impressão \"{label}\" não está disponível nesta máquina.{hint}",
-    "backend_hint": "\nEste motor depende do Ghostscript empacotado.\nRode scripts/fetch_ghostscript.ps1 ou inclua no build PyInstaller.",
+    "backend_hint": "\nEste motor depende do Ghostscript empacotado em vendor/ghostscript/ (já vem no git clone).",
     "backend_saved": "Motor de impressão: {label}",
     "audit_saved": "Local do banco de logs salvo!\nReinicie o ArtemiS para aplicar à agregação.",
     "audit_folder_missing": "Pasta não encontrada: {path}",

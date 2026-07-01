@@ -274,7 +274,7 @@
     "path_save_error": "Error saving path\n{error}",
     "invalid_backend": "Invalid print engine.",
     "backend_unavailable": "Print engine \"{label}\" is not available on this machine.{hint}",
-    "backend_hint": "\nThis engine requires bundled Ghostscript.\nRun scripts/fetch_ghostscript.ps1 or include it in the PyInstaller build.",
+    "backend_hint": "\nThis engine requires bundled Ghostscript in vendor/ghostscript/ (included in git clone).",
     "backend_saved": "Print engine: {label}",
     "audit_saved": "Log database location saved!\nRestart ArtemiS to apply aggregation.",
     "audit_folder_missing": "Folder not found: {path}",
