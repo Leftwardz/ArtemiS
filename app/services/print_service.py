@@ -6,6 +6,7 @@ from threading import Thread
 from app import audit, runtime
 from app.services.settings_service import get_print_backend
 from app.utils.document_delivery import open_path
+from app.utils.printing.base import DUPLEX_LONG_EDGE, DUPLEX_SIMPLEX
 from app.utils.printer_handler import is_papersize_a4, print_pdf_file
 from app.utils.temp_pdf import remove_temp_pdf, write_temp_pdf
 
@@ -34,7 +35,8 @@ def get_printer_paper_error_message(paper_size, wording='configurado'):
     )
 
 
-def finish_print_job(pdf_data, files_to_move, is_remake, printer_name, exe_index=None, paper_size='9'):
+def finish_print_job(pdf_data, files_to_move, is_remake, printer_name, exe_index=None, paper_size='9',
+                   requires_duplex=False):
     """
     Imprime ou abre o PDF unificado e arquiva os CSVs de origem.
     pdf_data: bytes do PDF gerado em memória; grava temp efêmero só para impressão/visualizador.
@@ -55,6 +57,12 @@ def finish_print_job(pdf_data, files_to_move, is_remake, printer_name, exe_index
                 product=product_hint,
             )
         else:
+            if requires_duplex and backend == 'pdftoprinter':
+                raise Exception(
+                    'PDFtoPrinter não suporta impressão duplex por job. '
+                    'Use Ghostscript ou Win32 DEVMODE nas configurações.'
+                )
+            duplex_mode = DUPLEX_LONG_EDGE if requires_duplex else DUPLEX_SIMPLEX
             print_pdf_file(
                 os.path.abspath(temp_path),
                 printer_name,
@@ -62,6 +70,7 @@ def finish_print_job(pdf_data, files_to_move, is_remake, printer_name, exe_index
                 paper_size=paper_size,
                 backend=backend,
                 config=runtime.context.config,
+                duplex=duplex_mode,
             )
             audit.log_print(
                 printer=printer_name, success=True, backend=backend,

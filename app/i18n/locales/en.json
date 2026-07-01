@@ -284,5 +284,9 @@
     "db_validate_error": "Error validating database write:\n{error}",
     "db_access_error": "Error accessing database at destination:\n{error}",
     "db_save_error": "Error saving database\n{error}"
+  },
+  "duplex": {
+    "mixed_batch": "The queue mixes products with and without duplex (back) items.\nRemove work orders or use only products of the same type.",
+    "pdftoprinter_unsupported": "PDFtoPrinter does not support per-job duplex.\nUse Ghostscript or Win32 DEVMODE in settings, or remove duplex items from the layout."
   }
 }

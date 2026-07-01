@@ -25,6 +25,9 @@ FONT_LIST = [
     'Saira Extracondensed',
 ]
 
+# Cor no editor para itens marcados como duplex (verso)
+DUPLEX_CANVAS_COLOR = '#AAAAAA'
+
 PAPER_SIZE_TIP = """
 Segue lista de papeis:
 00 - (Aceita Qualquer Papel)

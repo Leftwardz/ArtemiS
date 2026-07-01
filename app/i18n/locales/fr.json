@@ -284,5 +284,9 @@
     "db_validate_error": "Erreur lors de la validation de l'écriture dans la base :\n{error}",
     "db_access_error": "Erreur d'accès à la base à la destination :\n{error}",
     "db_save_error": "Erreur lors de l'enregistrement de la base de données\n{error}"
+  },
+  "duplex": {
+    "mixed_batch": "La file mélange des produits avec et sans éléments duplex (verso).\nRetirez des WO ou utilisez uniquement le même type de produit.",
+    "pdftoprinter_unsupported": "PDFtoPrinter ne prend pas en charge le duplex par job.\nUtilisez Ghostscript ou Win32 DEVMODE dans les paramètres, ou retirez les éléments duplex du layout."
   }
 }

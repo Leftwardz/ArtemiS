@@ -11,7 +11,7 @@ Limitações conhecidas (registradas em log, não falham o job):
 
 import subprocess
 
-from app.utils.printing.base import PrintBackend, PrintJob, PrintResult
+from app.utils.printing.base import DUPLEX_SIMPLEX, PrintBackend, PrintJob, PrintResult
 
 # Lista preservada de printer_handler.PDFTOPRINTER_EXECUTABLES.
 PDFTOPRINTER_EXECUTABLES = (
@@ -35,9 +35,14 @@ class PdfToPrinterBackend(PrintBackend):
         from app.utils.printing.logger import get_print_logger
         log = get_print_logger()
 
+        if job.duplex != DUPLEX_SIMPLEX:
+            return PrintResult.failure(
+                self.name,
+                'PDFtoPrinter não suporta impressão duplex por job.',
+            )
+
         ignored = [p for p, used in (
             ('copies', job.copies != 1),
-            ('duplex', job.duplex != 'simplex'),
             ('orientation', job.orientation != 'portrait'),
             ('tray', job.tray is not None),
         ) if used]

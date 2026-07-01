@@ -22,6 +22,7 @@ from app.services.production_service import (
     get_work_product_info,
     load_worklist_file_lines,
     is_empty_file as work_is_empty_file,
+    validate_duplex_batch,
 )
 from app.ui.components import PopUpWindow, WORK_QUEUE_WIDTH, WorkQueueList
 from app.ui.config_window import ConfigWindow
@@ -41,7 +42,7 @@ from app.ui.ttk_theme import apply_azure_dark_theme
 from app.utils.document_delivery import open_path
 from app.utils.file_parser import FileUtils
 from app.services import admin_service
-from app.services.settings_service import get_search_folder, save_language
+from app.services.settings_service import get_print_backend, get_search_folder, save_language
 from app.services.work_queue_service import search_work_for_queue
 from app.utils.window_geometry import calculate_center_screen
 
@@ -326,9 +327,9 @@ class App(ctk.CTk):
         def on_error(_printer_name, error_traceback):
             self.after(0, lambda: self.loading_frame.show_error(progress_slot, error_traceback))
 
-        def on_complete(pdf_bytes, files_to_move, is_remake_flag, _printer_name):
+        def on_complete(pdf_bytes, files_to_move, is_remake_flag, _printer_name, requires_duplex=False):
             self.after(0, lambda: self.open_or_print_pdf(
-                pdf_bytes, files_to_move, is_remake_flag, printer, progress_slot))
+                pdf_bytes, files_to_move, is_remake_flag, printer, progress_slot, requires_duplex))
 
         return on_progress, on_error, on_complete
 
@@ -337,6 +338,10 @@ class App(ctk.CTk):
         self.update_idletasks()
 
     def create_pdf(self, lines, items, orientations, is_remake=False, printer=None, layout_config_list=None):
+        duplex_error = validate_duplex_batch(items, get_print_backend())
+        if duplex_error:
+            PopUpWindow(self, t('main.error'), t(duplex_error))
+            return
         try:
             progress_slot = self.loading_frame.add_progressbar(printer)
         except Exception as e:
@@ -464,7 +469,8 @@ class App(ctk.CTk):
             RemakeWindow(self, result.full_path, result.work, self.defined_color, self.printers_list.get())
             self.withdraw()
 
-    def open_or_print_pdf(self, pdf_data, file_to_move=[], is_remake=None, printer=None, progress_slot=None):
+    def open_or_print_pdf(self, pdf_data, file_to_move=[], is_remake=None, printer=None, progress_slot=None,
+                          requires_duplex=False):
         slot = progress_slot if progress_slot is not None else printer
         try:
             self.loading_frame.update_progressbar(slot, 1, t('main.printing'))
@@ -476,6 +482,7 @@ class App(ctk.CTk):
             finish_print_job(
                 pdf_data, file_to_move, is_remake, printer, exe_index,
                 paper_size=self.defined_paper_size or '9',
+                requires_duplex=requires_duplex,
             )
             self.loading_frame.remove_progressbar(slot)
         except Exception:

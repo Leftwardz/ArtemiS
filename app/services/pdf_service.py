@@ -37,6 +37,34 @@ def partition_drawings_by_scope(items):
             slot_items.append(item)
     return slot_items, sheet_items
 
+
+def _is_duplex_item(item):
+    return str(item.get('duplex') or '0') in ('1', 'true', 'True')
+
+
+def partition_drawings_by_duplex(items):
+    """Separa itens da frente (duplex=false) do verso (duplex=true)."""
+    front, back = [], []
+    for item in items or []:
+        (back if _is_duplex_item(item) else front).append(item)
+    return front, back
+
+
+def product_requires_duplex(items):
+    return any(_is_duplex_item(i) for i in (items or []))
+
+
+def _close_physical_sheet(pdf, back_items, redraw_fn, guides_fn=None):
+    """Fecha folha física: showPage da frente; verso opcional com mesmos offsets."""
+    if guides_fn:
+        guides_fn()
+    pdf.showPage()
+    if back_items:
+        redraw_fn(back_items)
+        if guides_fn:
+            guides_fn()
+        pdf.showPage()
+
 # Font registration
 pdfmetrics.registerFont(TTFont('Arial', 'fontes/Arial.ttf'))
 pdfmetrics.registerFont(TTFont('Arial-Bold', 'fontes/arialbd.ttf'))
@@ -185,67 +213,90 @@ def _generate_placeholder_test_pdf(items=None, path="temp/text.pdf", orientation
     else:
         pagesize = A4
     pdf = canvas.Canvas(path, pagesize=pagesize)
+    front_items, back_items = partition_drawings_by_duplex(items)
     qtd_pages = 1
     for page in range(qtd_pages):
         pdf.setDash([10, 4])
         pdf.setLineWidth(0.5)
 
         if orientation == 0:
-            pdf.line(0, 2 * (A4[1] // 3), A4[0], 2 * (A4[1] // 3))
-            pdf.line(0, A4[1] // 3, A4[0], A4[1] // 3)
-            pdf.setDash([])
+            def draw_guides_0():
+                pdf.line(0, 2 * (A4[1] // 3), A4[0], 2 * (A4[1] // 3))
+                pdf.line(0, A4[1] // 3, A4[0], A4[1] // 3)
+                pdf.setDash([])
 
             ar_height = A4[1] // 3
-            position_dict = {
-                0: 0,
-                1: ar_height,
-                2: ar_height * 2
-            }
-            for i in range(3):
-                draw_ar(items, pdf, offset_y=position_dict[i], is_test=True)
+            position_dict = {0: 0, 1: ar_height, 2: ar_height * 2}
+
+            def draw_slots_0(slot_items):
+                for i in range(3):
+                    draw_ar(slot_items, pdf, offset_y=position_dict[i], is_test=True)
+
+            draw_slots_0(front_items)
+            _close_physical_sheet(pdf, back_items, draw_slots_0, draw_guides_0)
 
         elif orientation == 1:
-            pdf.line((A4[0] // 2), 0, (A4[0] // 2), A4[1])
-            pdf.setDash([])
+            def draw_guides_1():
+                pdf.line((A4[0] // 2), 0, (A4[0] // 2), A4[1])
+                pdf.setDash([])
 
             ar_width = A4[0] // 2
-            position_dict = {
-                0: 0,
-                1: ar_width
-            }
+            position_dict = {0: 0, 1: ar_width}
 
-            for i in range(2):
-                draw_ar(items, pdf, offset_x=position_dict[i], is_test=True)
+            def draw_slots_1(slot_items):
+                for i in range(2):
+                    draw_ar(slot_items, pdf, offset_x=position_dict[i], is_test=True)
+
+            draw_slots_1(front_items)
+            _close_physical_sheet(pdf, back_items, draw_slots_1, draw_guides_1)
 
         elif orientation == 2:
             pdf.setDash([])
-            draw_ar(items, pdf, is_test=True)
+
+            def draw_full(slot_items):
+                draw_ar(slot_items, pdf, is_test=True)
+
+            draw_full(front_items)
+            _close_physical_sheet(pdf, back_items, draw_full)
 
         elif orientation == 3:
-            pdf.line(0, (A4[1] // 2), A4[0], (A4[1] // 2))
-            pdf.setDash([])
+            def draw_guides_3():
+                pdf.line(0, (A4[1] // 2), A4[0], (A4[1] // 2))
+                pdf.setDash([])
 
             ar_height = A4[1] // 2
-            position_dict = {
-                0: 0,
-                1: ar_height
-            }
+            position_dict = {0: 0, 1: ar_height}
 
-            for i in range(2):
-                draw_ar(items, pdf, offset_y=position_dict[i], is_test=True)
+            def draw_slots_3(slot_items):
+                for i in range(2):
+                    draw_ar(slot_items, pdf, offset_y=position_dict[i], is_test=True)
+
+            draw_slots_3(front_items)
+            _close_physical_sheet(pdf, back_items, draw_slots_3, draw_guides_3)
 
         elif orientation == 4:
             layout = layout or SheetLayout.default()
             _, page_h = layout.page_size_pt()
             slot_items, sheet_items = partition_drawings_by_scope(items)
-            _draw_custom_slot_guides(pdf, layout)
+            slot_front, slot_back = partition_drawings_by_duplex(slot_items)
+            sheet_front, sheet_back = partition_drawings_by_duplex(sheet_items)
             pdf.setDash([])
-            if sheet_items:
-                draw_ar(sheet_items, pdf, is_test=True, page_height=page_h)
-            for offset_x, offset_y in layout.slot_offsets_pt():
-                draw_ar(slot_items, pdf, offset_x=offset_x, offset_y=offset_y, is_test=True, page_height=page_h)
 
-        pdf.showPage()
+            def draw_custom(slot_draw, sheet_draw):
+                if sheet_draw:
+                    draw_ar(sheet_draw, pdf, is_test=True, page_height=page_h)
+                for offset_x, offset_y in layout.slot_offsets_pt():
+                    draw_ar(slot_draw, pdf, offset_x=offset_x, offset_y=offset_y, is_test=True, page_height=page_h)
+
+            draw_custom(slot_front, sheet_front)
+            _close_physical_sheet(
+                pdf,
+                slot_back + sheet_back,
+                lambda _items: draw_custom(slot_back, sheet_back),
+                lambda: _draw_custom_slot_guides(pdf, layout),
+            )
+        else:
+            pdf.showPage()
     pdf.save()
 
 
@@ -306,9 +357,12 @@ def write_text_to_pdf(items, files_lines, orientation_list, path=None, is_remake
 
     _report_progress(on_progress, printer, 1, 'Juntando PDFs')
     joined_pdf_bytes = join_pdf_buffers(completed_pdfs)
+    requires_duplex = any(
+        product_requires_duplex(items[i]) for i in range(len(files_lines))
+    )
 
     if on_complete:
-        on_complete(joined_pdf_bytes, files_to_move, is_remake, printer)
+        on_complete(joined_pdf_bytes, files_to_move, is_remake, printer, requires_duplex)
 
 
 def configure_3vertical_ar(pdf, filelines, items, current_index, total, printer, filename, on_progress=None):
@@ -324,22 +378,26 @@ def configure_3vertical_ar(pdf, filelines, items, current_index, total, printer,
         1: ar_height,
         2: ar_height * 2
     }
-    for page in range(qtd_pages):
-        if get_element(first_ar, page):
-            draw_ar(items[current_index], pdf, first_ar[page][1], offset_y=y_offset_dict[0], counter=first_ar[page][0], filename=filename)
-        if get_element(second_ar, page):
-            draw_ar(items[current_index], pdf, second_ar[page][1], offset_y=y_offset_dict[1], counter=second_ar[page][0], filename=filename)
-        if get_element(third_ar, page):
-            draw_ar(items[current_index], pdf, third_ar[page][1], offset_y=y_offset_dict[2], counter=third_ar[page][0], filename=filename)
+    front_items, back_items = partition_drawings_by_duplex(items[current_index])
 
-        # Draw AuxLines
+    def draw_guides():
         pdf.setDash([10, 4])
         pdf.setLineWidth(0.5)
         pdf.line(0, 2 * (A4[1] // 3), A4[0], 2 * (A4[1] // 3))
         pdf.line(0, A4[1] // 3, A4[0], A4[1] // 3)
         pdf.setDash([])
 
-        pdf.showPage()
+    for page in range(qtd_pages):
+        def draw_slots(slot_items):
+            if get_element(first_ar, page):
+                draw_ar(slot_items, pdf, first_ar[page][1], offset_y=y_offset_dict[0], counter=first_ar[page][0], filename=filename)
+            if get_element(second_ar, page):
+                draw_ar(slot_items, pdf, second_ar[page][1], offset_y=y_offset_dict[1], counter=second_ar[page][0], filename=filename)
+            if get_element(third_ar, page):
+                draw_ar(slot_items, pdf, third_ar[page][1], offset_y=y_offset_dict[2], counter=third_ar[page][0], filename=filename)
+
+        draw_slots(front_items)
+        _close_physical_sheet(pdf, back_items, draw_slots, draw_guides)
         progress = (page + 1) / qtd_pages
         text = f'{current_index + 1}/{total}'
         _report_progress(on_progress, printer, progress, text)
@@ -356,19 +414,23 @@ def configure_2vertical_ar(pdf, filelines, items, current_index, total, printer,
         0: 0,
         1: ar_height,
     }
-    for page in range(qtd_pages):
-        if get_element(first_ar, page):
-            draw_ar(items[current_index], pdf, first_ar[page][1], offset_y=y_offset_dict[0], counter=first_ar[page][0], filename=filename)
-        if get_element(second_ar, page):
-            draw_ar(items[current_index], pdf, second_ar[page][1], offset_y=y_offset_dict[1], counter=second_ar[page][0], filename=filename)
+    front_items, back_items = partition_drawings_by_duplex(items[current_index])
 
-        # Draw AuxLines
+    def draw_guides():
         pdf.setDash([10, 4])
         pdf.setLineWidth(0.5)
         pdf.line(0, (A4[1] // 2), A4[0], (A4[1] // 2))
         pdf.setDash([])
 
-        pdf.showPage()
+    for page in range(qtd_pages):
+        def draw_slots(slot_items):
+            if get_element(first_ar, page):
+                draw_ar(slot_items, pdf, first_ar[page][1], offset_y=y_offset_dict[0], counter=first_ar[page][0], filename=filename)
+            if get_element(second_ar, page):
+                draw_ar(slot_items, pdf, second_ar[page][1], offset_y=y_offset_dict[1], counter=second_ar[page][0], filename=filename)
+
+        draw_slots(front_items)
+        _close_physical_sheet(pdf, back_items, draw_slots, draw_guides)
         progress = (page + 1) / qtd_pages
         text = f'{current_index + 1}/{total}'
         _report_progress(on_progress, printer, progress, text)
@@ -385,19 +447,23 @@ def configure_horizontal_ar(pdf, filelines, items, current_index, total, printer
         0: 0,
         1: ar_width,
     }
-    for page in range(qtd_pages):
-        if get_element(first_ar, page):
-            draw_ar(items[current_index], pdf, first_ar[page][1], offset_x=x_offset_dict[0], counter=first_ar[page][0], filename=filename)
-        if get_element(second_ar, page):
-            draw_ar(items[current_index], pdf, second_ar[page][1], offset_x=x_offset_dict[1], counter=second_ar[page][0], filename=filename)
+    front_items, back_items = partition_drawings_by_duplex(items[current_index])
 
-        # Draw AuxLines
+    def draw_guides():
         pdf.setDash([10, 4])
         pdf.setLineWidth(0.5)
         pdf.line((A4[0] // 2), 0, (A4[0] // 2), A4[1])
         pdf.setDash([])
 
-        pdf.showPage()
+    for page in range(qtd_pages):
+        def draw_slots(slot_items):
+            if get_element(first_ar, page):
+                draw_ar(slot_items, pdf, first_ar[page][1], offset_x=x_offset_dict[0], counter=first_ar[page][0], filename=filename)
+            if get_element(second_ar, page):
+                draw_ar(slot_items, pdf, second_ar[page][1], offset_x=x_offset_dict[1], counter=second_ar[page][0], filename=filename)
+
+        draw_slots(front_items)
+        _close_physical_sheet(pdf, back_items, draw_slots, draw_guides)
         progress = (page + 1) / qtd_pages
         text = f'{current_index + 1}/{total}'
         _report_progress(on_progress, printer, progress, text)
@@ -422,35 +488,43 @@ def configure_custom_layout(pdf, filelines, items, current_index, total, printer
     slots = layout.slot_offsets_pt()
     slot_count = max(1, len(slots))
     slot_items, sheet_items = partition_drawings_by_scope(items[current_index])
+    slot_front, slot_back = partition_drawings_by_duplex(slot_items)
+    sheet_front, sheet_back = partition_drawings_by_duplex(sheet_items)
     _, page_h = layout.page_size_pt()
     pages = build_sheet_pages(filelines, sheet_items, slot_count)
     qtd_pages = len(pages)
 
     for page_idx, page_info in enumerate(pages):
         page_records = page_info['records']
-        first_record = page_records[0] if page_records else None
-        if sheet_items and first_record:
-            draw_ar(
-                sheet_items, pdf, first_record[1],
-                counter=first_record[0], filename=filename,
-                page_height=page_h,
-                group_page=page_info['group_page'],
-                group_total=page_info['group_total'],
-            )
 
-        for slot_idx, (offset_x, offset_y) in enumerate(slots):
-            if slot_idx >= len(page_records):
-                continue
-            record = page_records[slot_idx]
-            draw_ar(
-                slot_items, pdf, record[1],
-                offset_x=offset_x, offset_y=offset_y,
-                counter=record[0], filename=filename,
-                page_height=page_h,
-            )
+        def draw_page(slot_draw, sheet_draw):
+            first_record = page_records[0] if page_records else None
+            if sheet_draw and first_record:
+                draw_ar(
+                    sheet_draw, pdf, first_record[1],
+                    counter=first_record[0], filename=filename,
+                    page_height=page_h,
+                    group_page=page_info['group_page'],
+                    group_total=page_info['group_total'],
+                )
+            for slot_idx, (offset_x, offset_y) in enumerate(slots):
+                if slot_idx >= len(page_records):
+                    continue
+                record = page_records[slot_idx]
+                draw_ar(
+                    slot_draw, pdf, record[1],
+                    offset_x=offset_x, offset_y=offset_y,
+                    counter=record[0], filename=filename,
+                    page_height=page_h,
+                )
 
-        _draw_custom_slot_guides(pdf, layout)
-        pdf.showPage()
+        draw_page(slot_front, sheet_front)
+        _close_physical_sheet(
+            pdf,
+            slot_back + sheet_back,
+            lambda _items: draw_page(slot_back, sheet_back),
+            lambda: _draw_custom_slot_guides(pdf, layout),
+        )
         progress = (page_idx + 1) / qtd_pages if qtd_pages else 1
         text = f'{current_index + 1}/{total}'
         _report_progress(on_progress, printer, progress, text)
@@ -460,12 +534,15 @@ def configure_full_A4_ar(pdf, filelines, items, current_index, total, printer, f
     qtd_pages = len(filelines)
 
     first_ar = filelines[0:qtd_pages]
+    front_items, back_items = partition_drawings_by_duplex(items[current_index])
 
     for page in range(qtd_pages):
-        if get_element(first_ar, page):
-            draw_ar(items[current_index], pdf, first_ar[page][1], counter=first_ar[page][0], filename=filename)
+        def draw_side(slot_items):
+            if get_element(first_ar, page):
+                draw_ar(slot_items, pdf, first_ar[page][1], counter=first_ar[page][0], filename=filename)
 
-        pdf.showPage()
+        draw_side(front_items)
+        _close_physical_sheet(pdf, back_items, draw_side)
         progress = (page + 1) / qtd_pages
         text = f'{current_index + 1}/{total}'
         _report_progress(on_progress, printer, progress, text)

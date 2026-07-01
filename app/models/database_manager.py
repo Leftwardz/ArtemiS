@@ -57,6 +57,7 @@ class DataBase:
         self.migrate_layout_config()
         self.migrate_drawing_scope()
         self.migrate_drawing_stack_order()
+        self.migrate_drawing_duplex()
         self.session.close()
 
     @staticmethod
@@ -110,6 +111,15 @@ class DataBase:
             self.session.execute(text('SELECT stack_order FROM drawings LIMIT 1'))
         except Exception:
             self.session.execute(text('ALTER TABLE drawings ADD COLUMN stack_order INTEGER DEFAULT 0'))
+            self.session.commit()
+
+    def migrate_drawing_duplex(self):
+        """Adiciona coluna duplex em bases existentes."""
+        from sqlalchemy import text
+        try:
+            self.session.execute(text('SELECT duplex FROM drawings LIMIT 1'))
+        except Exception:
+            self.session.execute(text("ALTER TABLE drawings ADD COLUMN duplex TEXT DEFAULT '0'"))
             self.session.commit()
 
     def search_clients(self, name=''):

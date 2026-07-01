@@ -187,3 +187,15 @@ def build_remake_file_lines(file_utils: FileUtils, filepath: str, position_list:
     lines_to_remake = sorted(file_utils.search_by_rangelist(position_list))
     lines_to_remake.append(filepath)
     return lines_to_remake
+
+
+def validate_duplex_batch(items_list, backend: str) -> Optional[str]:
+    """Retorna chave i18n se o lote ou backend for incompatível com duplex."""
+    from app.services.pdf_service import product_requires_duplex
+
+    flags = [product_requires_duplex(items) for items in items_list]
+    if any(flags) and not all(flags):
+        return 'duplex.mixed_batch'
+    if any(flags) and backend == 'pdftoprinter':
+        return 'duplex.pdftoprinter_unsupported'
+    return None

@@ -41,6 +41,7 @@ from app.ui.components import ConfirmWindow, ListBox, PopUpWindow, SpinBox, Tool
 from app.ui.constants import (
     BTN_HOVER_RED,
     BTN_RED,
+    DUPLEX_CANVAS_COLOR,
     FONT_LIST,
     ICON,
     PAPER_COLOR_LIST,
@@ -880,9 +881,40 @@ class EditWindow(ctk.CTkToplevel):
         except (TypeError, ValueError):
             return font_size
 
+    def _editor_ink_color(self, obj) -> str:
+        if getattr(obj, 'duplex', False):
+            return DUPLEX_CANVAS_COLOR
+        return 'black'
+
+    def _canvas_image_for_object(self, canvas_id: int, obj, *, selected: bool = False):
+        imgs = self.canvas_dict_images.get(canvas_id)
+        if not imgs:
+            return None
+        if selected or getattr(obj, 'duplex', False):
+            return imgs[1]
+        return imgs[0]
+
+    def _apply_duplex_style_to_object(self, obj) -> None:
+        if obj is None:
+            return
+        color = self._editor_ink_color(obj)
+        canvas_ids = self.drawing_store.canvas_ids_for_object(obj.object_id)
+        rep = self._representative_canvas_id(canvas_ids[0]) if canvas_ids else None
+        selected = rep in self.selected_items if rep else False
+        for cid in canvas_ids:
+            ctype = self.canvas.type(cid)
+            if ctype == 'image':
+                img = self._canvas_image_for_object(cid, obj, selected=selected)
+                if img is not None:
+                    self.canvas.itemconfig(cid, image=img)
+            elif ctype == 'rectangle':
+                self.canvas.itemconfig(cid, outline=color)
+            else:
+                self.canvas.itemconfig(cid, fill=color)
+
     def _render_segment(self, seg: SegmentObject, *, offset_x=0, offset_y=0, preview=False):
         font = (seg.font_name, self._zfont(seg.font_size), seg.font_style)
-        fill = '#999999' if preview else 'black'
+        fill = '#999999' if preview else self._editor_ink_color(seg)
         display_texts = self._segment_display_texts(seg) if self._use_file_preview() else None
         for i, line in enumerate(seg.lines):
             text = display_texts[i] if display_texts is not None else line.preview_text
@@ -900,9 +932,10 @@ class EditWindow(ctk.CTkToplevel):
     def _render_object(self, obj, *, offset_x=0, offset_y=0, preview=False):
         if isinstance(obj, SegmentObject):
             self._render_segment(obj, offset_x=offset_x, offset_y=offset_y, preview=preview)
+            return
         elif isinstance(obj, LineObject):
             tags = ('slot_preview',) if preview else obj.canvas_tags()
-            fill = '#bbbbbb' if preview else 'black'
+            fill = '#bbbbbb' if preview else self._editor_ink_color(obj)
             cid = self.canvas.create_line(
                 self._zs(float(obj.x1) + offset_x), self._zs(float(obj.y1) + offset_y),
                 self._zs(float(obj.x2) + offset_x), self._zs(float(obj.y2) + offset_y),
@@ -913,7 +946,7 @@ class EditWindow(ctk.CTkToplevel):
                 self.drawing_store.bind_canvas(cid, obj.object_id)
         elif isinstance(obj, RectangleObject):
             tags = ('slot_preview',) if preview else obj.canvas_tags()
-            outline = '#bbbbbb' if preview else 'black'
+            outline = '#bbbbbb' if preview else self._editor_ink_color(obj)
             cid = self.canvas.create_rectangle(
                 self._zs(float(obj.x1) + offset_x), self._zs(float(obj.y1) + offset_y),
                 self._zs(float(obj.x2) + offset_x), self._zs(float(obj.y2) + offset_y),
@@ -924,7 +957,7 @@ class EditWindow(ctk.CTkToplevel):
                 self.drawing_store.bind_canvas(cid, obj.object_id)
         elif isinstance(obj, (TextObject, CounterObject)):
             tags = ('slot_preview',) if preview else obj.canvas_tags()
-            fill = '#999999' if preview else 'black'
+            fill = '#999999' if preview else self._editor_ink_color(obj)
             if isinstance(obj, CounterObject):
                 text = self._counter_display_text(obj) if self._use_file_preview() else obj.text
             else:
@@ -944,7 +977,7 @@ class EditWindow(ctk.CTkToplevel):
             self._render_barcode(obj, companion_text=False, offset_x=offset_x, offset_y=offset_y, preview=preview)
         elif isinstance(obj, BarcodeTextObject):
             tags = ('slot_preview',) if preview else obj.canvas_tags()
-            fill = '#999999' if preview else 'black'
+            fill = '#999999' if preview else self._editor_ink_color(obj)
             text = self._barcode_text_display(obj) if self._use_file_preview() else obj.text
             if self._use_file_preview() and not text:
                 return
@@ -963,9 +996,10 @@ class EditWindow(ctk.CTkToplevel):
             img = change_proportion(img[2], int(round(prop * self.zoom)), orientation=int(obj.orientation))
             img[3] = prop
             tags = ('slot_preview',) if preview else obj.canvas_tags()
+            tk_img = img[1] if (not preview and obj.duplex) else img[0]
             cid = self.canvas.create_image(
                 self._zs(float(obj.x) + offset_x), self._zs(float(obj.y) + offset_y),
-                image=img[0], anchor='sw', tags=tags,
+                image=tk_img, anchor='sw', tags=tags,
             )
             self.canvas_dict_images[cid] = img
             if not preview:
@@ -998,8 +1032,9 @@ class EditWindow(ctk.CTkToplevel):
         tags = ('slot_preview',) if preview else obj.canvas_tags()
         ox = float(obj.x) + offset_x
         oy = float(obj.y) + offset_y
+        tk_img = img[1] if (not preview and obj.duplex) else img[0]
         cid = self.canvas.create_image(
-            self._zs(ox), self._zs(oy), image=img[0], tags=tags, anchor='sw',
+            self._zs(ox), self._zs(oy), image=tk_img, tags=tags, anchor='sw',
         )
         self.canvas_dict_images[cid] = img
         if not preview:
@@ -1698,15 +1733,19 @@ class EditWindow(ctk.CTkToplevel):
             if 'paper' in tags or 'slot_guide' in tags or 'measure_preview' in tags:
                 return
         if object_id:
+            obj = self.drawing_store.get_by_canvas(object_id)
+            normal_color = self._editor_ink_color(obj) if obj else 'black'
             for i in self._group_canvas_ids(object_id):
                 if self.canvas.type(i) == 'rectangle':
-                    self.canvas.itemconfig(i, outline=color)
-                elif self.canvas.type(i) == 'image' and color == 'red':
-                    self.canvas.itemconfig(i, image=self.canvas_dict_images[i][1])
-                elif self.canvas.type(i) == 'image' and color == 'black':
-                    self.canvas.itemconfig(i, image=self.canvas_dict_images[i][0])
+                    self.canvas.itemconfig(i, outline=color if color == 'red' else normal_color)
+                elif self.canvas.type(i) == 'image':
+                    img = self._canvas_image_for_object(
+                        i, obj, selected=(color == 'red'),
+                    )
+                    if img is not None:
+                        self.canvas.itemconfig(i, image=img)
                 else:
-                    self.canvas.itemconfig(i, fill=color)
+                    self.canvas.itemconfig(i, fill=color if color == 'red' else normal_color)
 
     def refresh(self, *args):
         self.update_save_button()
@@ -1806,6 +1845,8 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
         self.btn_lift_down = None
         self.info_label = None
         self.panel_signature = None
+        self.duplex_var = None
+        self.duplex_checkbox = None
 
         self.refresh()
         self.protocol('WM_DELETE_WINDOW', lambda: None)
@@ -1890,23 +1931,24 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             row += 1
             next_row = row
 
+        btn_row = self._install_duplex_checkbox(next_row)
         self.btn_ok = ctk.CTkButton(self.frame, text='OK', width=100, command=self.update_item)
-        self.btn_ok.grid(row=next_row, column=1, padx=10, pady=10)
+        self.btn_ok.grid(row=btn_row, column=1, padx=10, pady=10)
 
         self.btn_cancel = ctk.CTkButton(self.frame, text='Deletar', fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
                                         width=100, command=self.master.delete_object)
-        self.btn_cancel.grid(row=next_row, column=0, padx=10, pady=10)
+        self.btn_cancel.grid(row=btn_row, column=0, padx=10, pady=10)
 
         self.btn_lift_up = ctk.CTkButton(self.frame, text='Trazer para frente', width=100, command=self.bring_to_front)
-        self.btn_lift_up.grid(row=next_row + 1, column=1, padx=10, pady=10)
+        self.btn_lift_up.grid(row=btn_row + 1, column=1, padx=10, pady=10)
 
         self.btn_lift_down = ctk.CTkButton(self.frame, text='Enviar para trás', width=100, command=self.send_to_back)
-        self.btn_lift_down.grid(row=next_row + 1, column=0, padx=10, pady=10)
+        self.btn_lift_down.grid(row=btn_row + 1, column=0, padx=10, pady=10)
 
         self.btn_save_img = ctk.CTkButton(self.frame, text='Salvar Imagem', width=100, command=self.save_img)
-        self.btn_save_img.grid(row=next_row + 2, column=0, columnspan=2, padx=10, pady=10)
+        self.btn_save_img.grid(row=btn_row + 2, column=0, columnspan=2, padx=10, pady=10)
 
-        self._show_object_info(row=next_row + 3)
+        self._show_object_info(row=btn_row + 3)
         self._fill_image_values(selected_object)
 
     def _object_info_text(self):
@@ -1926,6 +1968,34 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             font=(FONT_LIST[0] if FONT_LIST else 'Arial', 10),
         )
         self.info_label.pack()
+
+    def _install_duplex_checkbox(self, row):
+        self.duplex_var = ctk.BooleanVar(value=False)
+        obj = self.selected_object
+        if obj is not None:
+            self.duplex_var.set(getattr(obj, 'duplex', False))
+        self.duplex_checkbox = ctk.CTkCheckBox(
+            self.frame, text='Duplex (verso)',
+            variable=self.duplex_var, command=self.update_item,
+        )
+        self.duplex_checkbox.grid(row=row, column=0, columnspan=2, padx=10, pady=5, sticky='W')
+        return row + 1
+
+    def _apply_duplex_to_selected(self):
+        obj = self.selected_object
+        if obj is not None and self.duplex_var is not None:
+            obj.duplex = bool(self.duplex_var.get())
+            self.master._apply_duplex_style_to_object(obj)
+            canvas_ids = self.master.drawing_store.canvas_ids_for_object(obj.object_id)
+            if canvas_ids:
+                rep = self.master._representative_canvas_id(canvas_ids[0])
+                if rep in self.master.selected_items:
+                    self.master.paint_object(rep, 'red')
+
+    def _sync_duplex_checkbox(self):
+        obj = self.selected_object
+        if self.duplex_var is not None and obj is not None:
+            self.duplex_var.set(getattr(obj, 'duplex', False))
 
     def line_properties(self, selected_object):
         x1, y1, x2, y2 = [int(i) for i in self.master.canvas.coords(selected_object)]
@@ -1978,14 +2048,15 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
         self.entry_y2.grid(row=5, column=1, padx=10, pady=10)
         self.entry_y2.set(int(y2))
 
+        btn_row = self._install_duplex_checkbox(6)
         self.btn_ok = ctk.CTkButton(self.frame, text='OK', width=100, command=self.update_item)
-        self.btn_ok.grid(row=6, column=1, padx=10, pady=10)
+        self.btn_ok.grid(row=btn_row, column=1, padx=10, pady=10)
 
         self.btn_cancel = ctk.CTkButton(self.frame, text='Deletar', fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
                                         width=100, command=self.master.delete_object)
-        self.btn_cancel.grid(row=6, column=0, padx=10, pady=10)
+        self.btn_cancel.grid(row=btn_row, column=0, padx=10, pady=10)
 
-        self._show_object_info(row=7)
+        self._show_object_info(row=btn_row + 1)
         self._fill_line_values(selected_object)
 
     def text_properties(self, selected_object):
@@ -2082,6 +2153,7 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             self.entry_text.bind("<KeyRelease>", self.update_item)
 
         btn_row = pos_row + 4 if not self.is_segment else 9
+        btn_row = self._install_duplex_checkbox(btn_row)
         self.btn_ok = ctk.CTkButton(self.frame, text='OK', width=100, command=self.update_item)
         self.btn_ok.grid(row=btn_row, column=1, padx=10, pady=10)
 
@@ -2177,6 +2249,7 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
         if self.entry_text is not None and not self.is_barcode and not self.is_counter and not self.is_segment:
             self.entry_text.delete(0, 'end')
             self.entry_text.insert(0, texto)
+        self._sync_duplex_checkbox()
 
     def _fill_line_values(self, selected_object):
         z = self.master.zoom
@@ -2191,6 +2264,7 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
         self.entry_y1.set(y1)
         self.entry_x2.set(x2)
         self.entry_y2.set(y2)
+        self._sync_duplex_checkbox()
 
     def _fill_image_values(self, selected_object):
         z = self.master.zoom
@@ -2212,6 +2286,7 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             if self.barcode_text_entry is not None:
                 self.barcode_text_entry.delete(0, 'end')
                 self.barcode_text_entry.insert(0, self.barcode_obj.placeholder)
+        self._sync_duplex_checkbox()
 
     _PANEL_REF_NAMES = (
         'entry_x1', 'entry_y1', 'entry_x2', 'entry_y2',
@@ -2221,6 +2296,7 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
         'entry_proportion', 'barcode_width', 'barcode_height', 'barcode_column',
         'barcode_text_entry', 'btn_rebuild_barcode',
         'info_label', 'btn_ok', 'btn_cancel', 'btn_lift_up', 'btn_lift_down', 'btn_save_img',
+        'duplex_checkbox', 'duplex_var',
     )
 
     @staticmethod
@@ -2545,6 +2621,7 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
                                       self.master._zs(self.entry_y1.get()),
                                       self.master._zs(self.entry_x2.get()),
                                       self.master._zs(self.entry_y2.get()))
+        self._apply_duplex_to_selected()
         self.master.update_save_button()
 
     def save_img(self):

@@ -92,3 +92,4 @@ class Drawing(Base):
     char_limit = Column(String)
     scope = Column(String)
     stack_order = Column(Integer)
+    duplex = Column(String)
