@@ -124,6 +124,14 @@ for _name in _external_files:
         raise SystemExit(f'Arquivo obrigatorio para dist/ nao encontrado: {_name}')
     shutil.copy2(_src, os.path.join(_bundle_dir, _name))
 
+# Ghostscript ao lado de Main.exe (dist portavel). PyInstaller 6+ coloca datas em
+# _internal/, mas o app resolve vendor/ na pasta do executavel.
+_gs_vendor_src = os.path.join(base_dir, 'vendor', 'ghostscript')
+_gs_vendor_dst = os.path.join(_bundle_dir, 'vendor', 'ghostscript')
+if os.path.isdir(_gs_vendor_dst):
+    shutil.rmtree(_gs_vendor_dst)
+shutil.copytree(_gs_vendor_src, _gs_vendor_dst)
+
 for _subdir in ('temp', 'logs'):
     os.makedirs(os.path.join(_bundle_dir, _subdir), exist_ok=True)
 
