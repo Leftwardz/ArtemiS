@@ -23,7 +23,9 @@ from app.services.production_service import (
     load_worklist_file_lines,
     is_empty_file as work_is_empty_file,
     validate_duplex_batch,
+    validate_landscape_batch,
 )
+from app.utils.printing.base import ORIENTATION_PORTRAIT
 from app.ui.components import PopUpWindow, WORK_QUEUE_WIDTH, WorkQueueList
 from app.ui.config_window import ConfigWindow
 from app.ui.constants import (
@@ -327,9 +329,11 @@ class App(ctk.CTk):
         def on_error(_printer_name, error_traceback):
             self.after(0, lambda: self.loading_frame.show_error(progress_slot, error_traceback))
 
-        def on_complete(pdf_bytes, files_to_move, is_remake_flag, _printer_name, requires_duplex=False):
+        def on_complete(pdf_bytes, files_to_move, is_remake_flag, _printer_name,
+                        requires_duplex=False, print_orientation=ORIENTATION_PORTRAIT):
             self.after(0, lambda: self.open_or_print_pdf(
-                pdf_bytes, files_to_move, is_remake_flag, printer, progress_slot, requires_duplex))
+                pdf_bytes, files_to_move, is_remake_flag, printer, progress_slot,
+                requires_duplex, print_orientation))
 
         return on_progress, on_error, on_complete
 
@@ -341,6 +345,10 @@ class App(ctk.CTk):
         duplex_error = validate_duplex_batch(items, get_print_backend())
         if duplex_error:
             PopUpWindow(self, t('main.error'), t(duplex_error))
+            return
+        landscape_error = validate_landscape_batch(orientations, layout_config_list)
+        if landscape_error:
+            PopUpWindow(self, t('main.error'), t(landscape_error))
             return
         try:
             progress_slot = self.loading_frame.add_progressbar(printer)
@@ -470,7 +478,7 @@ class App(ctk.CTk):
             self.withdraw()
 
     def open_or_print_pdf(self, pdf_data, file_to_move=[], is_remake=None, printer=None, progress_slot=None,
-                          requires_duplex=False):
+                          requires_duplex=False, print_orientation=ORIENTATION_PORTRAIT):
         slot = progress_slot if progress_slot is not None else printer
         try:
             self.loading_frame.update_progressbar(slot, 1, t('main.printing'))
@@ -483,6 +491,7 @@ class App(ctk.CTk):
                 pdf_data, file_to_move, is_remake, printer, exe_index,
                 paper_size=self.defined_paper_size or '9',
                 requires_duplex=requires_duplex,
+                orientation=print_orientation or ORIENTATION_PORTRAIT,
             )
             self.loading_frame.remove_progressbar(slot)
         except Exception:

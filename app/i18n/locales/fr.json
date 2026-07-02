@@ -288,5 +288,8 @@
   "duplex": {
     "mixed_batch": "La file mélange des produits avec et sans éléments duplex (verso).\nRetirez des WO ou utilisez uniquement le même type de produit.",
     "pdftoprinter_unsupported": "PDFtoPrinter ne prend pas en charge le duplex par job.\nUtilisez Ghostscript ou Win32 DEVMODE dans les paramètres, ou retirez les éléments duplex du layout."
+  },
+  "landscape": {
+    "mixed_batch": "La file mélange des produits en portrait et en paysage.\nRetirez des WO ou utilisez uniquement des produits avec la même orientation de feuille."
   }
 }

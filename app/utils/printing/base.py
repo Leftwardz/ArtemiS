@@ -38,7 +38,8 @@ class PrintJob:
       (ex.: ``'9'`` = A4). Confirmado por ``printer_handler.is_papersize_a4``.
     - ``orientation`` é a orientação física da impressora (portrait/landscape),
       NÃO a orientação do layout da etiqueta (``product.orientation``). O PDF já
-      é gerado com a geometria correta, então o default é ``portrait``.
+      é gerado com a geometria correta; em modo customizado com folha mais larga
+      que alta (ex.: A4 invertido), o job usa ``landscape``.
     - ``slot_index`` só é usado pelo backend PDFtoPrinter (escolhe qual dos N
       executáveis paralelos rodar). Demais backends ignoram.
     """

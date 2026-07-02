@@ -199,3 +199,12 @@ def validate_duplex_batch(items_list, backend: str) -> Optional[str]:
     if any(flags) and backend == 'pdftoprinter':
         return 'duplex.pdftoprinter_unsupported'
     return None
+
+
+def validate_landscape_batch(orientation_list, layout_config_list=None) -> Optional[str]:
+    """Retorna chave i18n se o lote misturar retrato e paisagem."""
+    from app.services.layout_service import batch_print_orientation
+
+    if batch_print_orientation(orientation_list, layout_config_list) is None:
+        return 'landscape.mixed_batch'
+    return None

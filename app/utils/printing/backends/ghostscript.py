@@ -24,6 +24,7 @@ from app.utils.paper_size_map import paper_size_to_ghostscript
 from app.utils.printing.base import (
     DUPLEX_LONG_EDGE,
     DUPLEX_SHORT_EDGE,
+    ORIENTATION_LANDSCAPE,
     PrintBackend,
     PrintJob,
     PrintResult,
@@ -68,6 +69,9 @@ class GhostscriptBackend(PrintBackend):
         if job.duplex in (DUPLEX_LONG_EDGE, DUPLEX_SHORT_EDGE):
             command.append('-dDuplex')
             command.append('-dTumble' if job.duplex == DUPLEX_SHORT_EDGE else '-dTumble=false')
+
+        if job.orientation == ORIENTATION_LANDSCAPE:
+            command.extend(['-c', '<</Orientation 2>> setpagedevice', '-f'])
 
         command.append(job.pdf_path)
 

@@ -21,7 +21,7 @@ from app.utils.barcode_generator import (
 )
 from app.utils.text_utils import break_line
 from app.models.sheet_layout import CUSTOM_ORIENTATION_INDEX, SCOPE_SHEET, SheetLayout
-from app.services.layout_service import resolve_layout_for_orientation
+from app.services.layout_service import batch_print_orientation, resolve_layout_for_orientation
 from app.services.sheet_grouping import build_sheet_pages
 from app.services.sheet_page_placeholders import apply_sheet_page_placeholders as _apply_sheet_page_placeholders
 
@@ -360,9 +360,13 @@ def write_text_to_pdf(items, files_lines, orientation_list, path=None, is_remake
     requires_duplex = any(
         product_requires_duplex(items[i]) for i in range(len(files_lines))
     )
+    print_orientation = batch_print_orientation(orientation_list, layout_config_list)
 
     if on_complete:
-        on_complete(joined_pdf_bytes, files_to_move, is_remake, printer, requires_duplex)
+        on_complete(
+            joined_pdf_bytes, files_to_move, is_remake, printer,
+            requires_duplex, print_orientation,
+        )
 
 
 def configure_3vertical_ar(pdf, filelines, items, current_index, total, printer, filename, on_progress=None):

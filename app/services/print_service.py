@@ -6,7 +6,7 @@ from threading import Thread
 from app import audit, runtime
 from app.services.settings_service import get_print_backend
 from app.utils.document_delivery import open_path
-from app.utils.printing.base import DUPLEX_LONG_EDGE, DUPLEX_SIMPLEX
+from app.utils.printing.base import DUPLEX_LONG_EDGE, DUPLEX_SIMPLEX, ORIENTATION_PORTRAIT
 from app.utils.printer_handler import is_papersize_a4, print_pdf_file
 from app.utils.temp_pdf import remove_temp_pdf, write_temp_pdf
 
@@ -36,7 +36,7 @@ def get_printer_paper_error_message(paper_size, wording='configurado'):
 
 
 def finish_print_job(pdf_data, files_to_move, is_remake, printer_name, exe_index=None, paper_size='9',
-                   requires_duplex=False):
+                   requires_duplex=False, orientation=ORIENTATION_PORTRAIT):
     """
     Imprime ou abre o PDF unificado e arquiva os CSVs de origem.
     pdf_data: bytes do PDF gerado em memória; grava temp efêmero só para impressão/visualizador.
@@ -71,6 +71,7 @@ def finish_print_job(pdf_data, files_to_move, is_remake, printer_name, exe_index
                 backend=backend,
                 config=runtime.context.config,
                 duplex=duplex_mode,
+                orientation=orientation or ORIENTATION_PORTRAIT,
             )
             audit.log_print(
                 printer=printer_name, success=True, backend=backend,

@@ -10,6 +10,7 @@ from app.models.sheet_layout import (
     PACKING_UI_LABELS,
     SheetLayout,
 )
+from app.utils.printing.base import ORIENTATION_LANDSCAPE, ORIENTATION_PORTRAIT
 
 PAGE_PRESETS: dict[str, tuple[float, float]] = {
     'A4': (210.0, 297.0),
@@ -83,3 +84,39 @@ def resolve_layout_for_orientation(orientation, layout_config_json: Optional[str
     if not is_custom_orientation(orientation):
         return None
     return SheetLayout.from_json(layout_config_json)
+
+
+def is_landscape_layout(layout: SheetLayout) -> bool:
+    """Folha em paisagem quando a largura (mm) excede a altura (mm)."""
+    return float(layout.page_width_mm) > float(layout.page_height_mm)
+
+
+def resolve_print_orientation(orientation, layout_config_json: Optional[str] = None) -> str:
+    """Orientação física da impressora para o job (portrait/landscape).
+
+    Apenas o modo customizado (índice 4) pode exigir paisagem, quando a folha
+    foi definida com largura maior que altura (ex.: A4 invertido 297×210 mm).
+    """
+    if not is_custom_orientation(orientation):
+        return ORIENTATION_PORTRAIT
+    layout = resolve_layout_for_orientation(orientation, layout_config_json)
+    if layout and is_landscape_layout(layout):
+        return ORIENTATION_LANDSCAPE
+    return ORIENTATION_PORTRAIT
+
+
+def batch_print_orientation(
+    orientation_list,
+    layout_config_list: Optional[list] = None,
+) -> Optional[str]:
+    """Orientação única do lote, ou None se retrato e paisagem estiverem misturados."""
+    configs = layout_config_list or []
+    resolved = []
+    for i, product_orientation in enumerate(orientation_list):
+        layout_json = configs[i] if i < len(configs) else None
+        resolved.append(resolve_print_orientation(product_orientation, layout_json))
+    if all(o == ORIENTATION_LANDSCAPE for o in resolved):
+        return ORIENTATION_LANDSCAPE
+    if all(o == ORIENTATION_PORTRAIT for o in resolved):
+        return ORIENTATION_PORTRAIT
+    return None
