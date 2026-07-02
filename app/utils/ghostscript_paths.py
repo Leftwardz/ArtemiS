@@ -6,6 +6,7 @@ import sys
 _GS_VENDOR = ('vendor', 'ghostscript')
 _GS_EXE_NAME = 'gswin64c.exe'
 _GS_DLL_NAME = 'gsdll64.dll'
+_GS_LIB_MARKER = 'Fontmap.ATB'
 
 
 def _candidate_roots():
@@ -34,12 +35,12 @@ def _ghostscript_at(root):
     exe = os.path.join(gs_root, 'bin', _GS_EXE_NAME)
     dll = os.path.join(gs_root, 'bin', _GS_DLL_NAME)
     lib = os.path.join(gs_root, 'lib')
-    init_ps = os.path.join(lib, 'gs_init.ps')
+    lib_marker = os.path.join(lib, _GS_LIB_MARKER)
     if (
         os.path.isfile(exe)
         and os.path.isfile(dll)
         and os.path.isdir(lib)
-        and os.path.isfile(init_ps)
+        and os.path.isfile(lib_marker)
     ):
         return gs_root
     return None

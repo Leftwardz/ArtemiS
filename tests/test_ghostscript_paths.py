@@ -15,7 +15,7 @@ def _plant_gs(root):
     os.makedirs(lib_dir, exist_ok=True)
     open(os.path.join(bin_dir, 'gswin64c.exe'), 'wb').close()
     open(os.path.join(bin_dir, 'gsdll64.dll'), 'wb').close()
-    open(os.path.join(lib_dir, 'gs_init.ps'), 'w', encoding='utf-8').write('%!')
+    open(os.path.join(lib_dir, 'Fontmap.ATB'), 'w', encoding='utf-8').write('%!')
 
 
 def test_dev_mode_finds_vendor_ghostscript():

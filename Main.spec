@@ -27,11 +27,20 @@ _gs_vendor_src = os.path.join(base_dir, 'vendor', 'ghostscript')
 _gs_exe = os.path.join(_gs_vendor_src, 'bin', 'gswin64c.exe')
 _gs_dll = os.path.join(_gs_vendor_src, 'bin', 'gsdll64.dll')
 _gs_lib = os.path.join(_gs_vendor_src, 'lib')
-_gs_init = os.path.join(_gs_lib, 'gs_init.ps')
-if not os.path.isfile(_gs_exe) or not os.path.isfile(_gs_dll) or not os.path.isfile(_gs_init):
+_gs_lib_marker = os.path.join(_gs_lib, 'Fontmap.ATB')
+_gs_missing = [
+    name for name, path in (
+        ('bin/gswin64c.exe', _gs_exe),
+        ('bin/gsdll64.dll', _gs_dll),
+        ('lib/Fontmap.ATB', _gs_lib_marker),
+    )
+    if not os.path.isfile(path)
+]
+if _gs_missing:
     raise SystemExit(
-        'Ghostscript incompleto em vendor/ghostscript/.\n'
-        'Faca git clone completo (bin/ e lib/ versionados) ou rode scripts/fetch_ghostscript.ps1.'
+        'Ghostscript incompleto em vendor/ghostscript/. Faltando: '
+        + ', '.join(_gs_missing)
+        + '.\nFaca git clone completo (bin/ e lib/ versionados) ou rode scripts/fetch_ghostscript.ps1.'
     )
 
 _gs_upx_exclude = ['gswin64c.exe', 'gswin64.exe', 'gsdll64.dll']
@@ -132,7 +141,7 @@ _gs_vendor_dst = os.path.join(_bundle_dir, 'vendor', 'ghostscript')
 if os.path.isdir(_gs_vendor_dst):
     shutil.rmtree(_gs_vendor_dst)
 shutil.copytree(_gs_vendor_src, _gs_vendor_dst)
-for _parts in (('bin', 'gswin64c.exe'), ('bin', 'gsdll64.dll'), ('lib', 'gs_init.ps')):
+for _parts in (('bin', 'gswin64c.exe'), ('bin', 'gsdll64.dll'), ('lib', 'Fontmap.ATB')):
     _check = os.path.join(_gs_vendor_dst, *_parts)
     if not os.path.isfile(_check):
         rel = '/'.join(('vendor', 'ghostscript', *_parts))
@@ -180,7 +189,7 @@ _required_in_dist = [
     'azure.tcl',
     'vendor/ghostscript/bin/gswin64c.exe',
     'vendor/ghostscript/bin/gsdll64.dll',
-    'vendor/ghostscript/lib/gs_init.ps',
+    'vendor/ghostscript/lib/Fontmap.ATB',
     'libdmtx-64.dll',
     'PDFtoPrinter.exe',
     'app/i18n/locales/pt.json',
