@@ -7,14 +7,37 @@ _GS_VENDOR = ('vendor', 'ghostscript')
 _GS_EXE_NAME = 'gswin64c.exe'
 
 
-def _project_root():
+def _candidate_roots():
+    """Raízes onde vendor/ghostscript pode existir (ordem de preferência)."""
     if getattr(sys, 'frozen', False):
-        return sys._MEIPASS
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        # dist/ portável: recursos ficam ao lado de Main.exe (como config.json, azure.tcl).
+        exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+        roots = [exe_dir]
+        meipass = getattr(sys, '_MEIPASS', None)
+        if meipass:
+            meipass = os.path.abspath(meipass)
+            if meipass not in roots:
+                roots.append(meipass)
+        return roots
+
+    return [os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))]
+
+
+def _ghostscript_at(root):
+    gs_root = os.path.join(root, *_GS_VENDOR)
+    exe = os.path.join(gs_root, 'bin', _GS_EXE_NAME)
+    lib = os.path.join(gs_root, 'lib')
+    if os.path.isfile(exe) and os.path.isdir(lib):
+        return gs_root
+    return None
 
 
 def bundled_ghostscript_root():
-    return os.path.join(_project_root(), *_GS_VENDOR)
+    for root in _candidate_roots():
+        found = _ghostscript_at(root)
+        if found:
+            return found
+    return os.path.join(_candidate_roots()[0], *_GS_VENDOR)
 
 
 def bundled_ghostscript_exe():
@@ -26,7 +49,10 @@ def bundled_ghostscript_lib():
 
 
 def ghostscript_is_available():
-    return os.path.isfile(bundled_ghostscript_exe()) and os.path.isdir(bundled_ghostscript_lib())
+    for root in _candidate_roots():
+        if _ghostscript_at(root):
+            return True
+    return False
 
 
 def resolve_ghostscript_exe(config=None):
