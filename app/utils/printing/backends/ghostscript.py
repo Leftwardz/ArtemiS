@@ -20,7 +20,10 @@ from app.utils.ghostscript_paths import (
     ghostscript_is_available,
     resolve_ghostscript_exe,
 )
-from app.utils.paper_size_map import paper_size_to_ghostscript
+from app.utils.paper_size_map import (
+    paper_size_to_ghostscript,
+    paper_size_to_ghostscript_landscape,
+)
 from app.utils.printing.base import (
     DUPLEX_LONG_EDGE,
     DUPLEX_SHORT_EDGE,
@@ -29,6 +32,43 @@ from app.utils.printing.base import (
     PrintJob,
     PrintResult,
 )
+
+
+def build_ghostscript_command(gs_exe: str, job: PrintJob) -> list[str]:
+    """Monta a linha de comando do Ghostscript para um PrintJob."""
+    output = f'%printer%{job.printer}'
+    command = [
+        gs_exe,
+        '-dNOPAUSE', '-dBATCH', '-dQUIET',
+        '-sDEVICE=mswinpr2',
+        f'-sOutputFile={output}',
+    ]
+
+    landscape = job.orientation == ORIENTATION_LANDSCAPE
+    if landscape:
+        gs_paper = paper_size_to_ghostscript_landscape(job.paper_size)
+        if gs_paper:
+            command.append(f'-sPAPERSIZE={gs_paper}')
+        else:
+            gs_portrait = paper_size_to_ghostscript(job.paper_size)
+            if gs_portrait:
+                command.append(f'-sPAPERSIZE={gs_portrait}')
+            # PostScript inline exige -f antes do PDF; sem isso o GS falha com
+            # "Unrecoverable error, exit code 1".
+            command.extend(['-c', '<</Orientation 1>> setpagedevice', '-f'])
+    else:
+        gs_paper = paper_size_to_ghostscript(job.paper_size)
+        if gs_paper:
+            command.append(f'-sPAPERSIZE={gs_paper}')
+
+    if job.copies and int(job.copies) > 1:
+        command.append(f'-dNumCopies={int(job.copies)}')
+    if job.duplex in (DUPLEX_LONG_EDGE, DUPLEX_SHORT_EDGE):
+        command.append('-dDuplex')
+        command.append('-dTumble' if job.duplex == DUPLEX_SHORT_EDGE else '-dTumble=false')
+
+    command.append(job.pdf_path)
+    return command
 
 
 class GhostscriptBackend(PrintBackend):
@@ -49,31 +89,7 @@ class GhostscriptBackend(PrintBackend):
         config = job.config
         gs_exe = resolve_ghostscript_exe(config)
         env = ghostscript_env(config)
-        output = f'%printer%{job.printer}'
-
-        # Comando base idêntico ao histórico.
-        command = [
-            gs_exe,
-            '-dNOPAUSE', '-dBATCH', '-dQUIET',
-            '-sDEVICE=mswinpr2',
-            f'-sOutputFile={output}',
-        ]
-
-        gs_paper = paper_size_to_ghostscript(job.paper_size)
-        if gs_paper:
-            command.append(f'-sPAPERSIZE={gs_paper}')
-
-        if job.orientation == ORIENTATION_LANDSCAPE:
-            command.extend(['-c', '<</Orientation 1>> setpagedevice'])
-
-        # Extensões opcionais — só anexadas quando diferem do default.
-        if job.copies and int(job.copies) > 1:
-            command.append(f'-dNumCopies={int(job.copies)}')
-        if job.duplex in (DUPLEX_LONG_EDGE, DUPLEX_SHORT_EDGE):
-            command.append('-dDuplex')
-            command.append('-dTumble' if job.duplex == DUPLEX_SHORT_EDGE else '-dTumble=false')
-
-        command.append(job.pdf_path)
+        command = build_ghostscript_command(gs_exe, job)
 
         if job.tray is not None:
             log.warning('Ghostscript/mswinpr2 não controla bandeja por job; ignorando tray=%s', job.tray)
