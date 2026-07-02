@@ -25,6 +25,7 @@ $RequiredDirs = @(
     'img',
     'vendor\ghostscript\lib',
     'app\i18n\locales',
+    'locales',
     'temp',
     'logs'
 )

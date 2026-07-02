@@ -10,12 +10,22 @@ from typing import Any
 
 PDF_MODE_SENTINEL = 'Criar PDF'
 
-if getattr(sys, 'frozen', False):
-    _MODULE_DIR = Path(sys._MEIPASS) / 'app' / 'i18n'
-else:
-    _MODULE_DIR = Path(__file__).resolve().parent
 
-_BUILTIN_LOCALES_DIR = _MODULE_DIR / 'locales'
+def _candidate_builtin_locale_dirs() -> list[Path]:
+    """Pastas de idiomas embutidos (dev e dist portável)."""
+    if getattr(sys, 'frozen', False):
+        exe_dir = Path(sys.executable).resolve().parent
+        dirs = [
+            exe_dir / 'app' / 'i18n' / 'locales',
+            exe_dir / 'locales',
+        ]
+        meipass = getattr(sys, '_MEIPASS', None)
+        if meipass:
+            internal = Path(meipass) / 'app' / 'i18n' / 'locales'
+            if internal not in dirs:
+                dirs.append(internal)
+        return dirs
+    return [Path(__file__).resolve().parent / 'locales']
 
 
 class I18n:
@@ -46,9 +56,13 @@ class I18n:
                 self._locales[code] = data
 
     def _locale_search_dirs(self) -> list[Path]:
-        dirs: list[Path] = [_BUILTIN_LOCALES_DIR]
+        dirs: list[Path] = []
+        for folder in _candidate_builtin_locale_dirs():
+            if folder not in dirs:
+                dirs.append(folder)
         cwd_locales = Path.cwd() / 'locales'
-        if cwd_locales != _BUILTIN_LOCALES_DIR:
+        builtin_dirs = set(_candidate_builtin_locale_dirs())
+        if cwd_locales not in builtin_dirs and cwd_locales not in dirs:
             dirs.append(cwd_locales)
         if self._locales_folder:
             custom = Path(self._locales_folder)

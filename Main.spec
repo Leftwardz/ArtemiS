@@ -43,8 +43,9 @@ for _res in ('img', 'fontes', 'theme'):
     resource_datas.append((_res_path, _res))
 
 _i18n_locales = os.path.join(base_dir, 'app', 'i18n', 'locales')
-if os.path.isdir(_i18n_locales):
-    resource_datas.append((_i18n_locales, os.path.join('app', 'i18n', 'locales')))
+if not os.path.isdir(_i18n_locales):
+    raise SystemExit('Pasta obrigatoria ausente: app/i18n/locales/')
+resource_datas.append((_i18n_locales, os.path.join('app', 'i18n', 'locales')))
 
 _azure_tcl = os.path.join(base_dir, 'azure.tcl')
 if os.path.isfile(_azure_tcl):
@@ -132,6 +133,19 @@ if os.path.isdir(_gs_vendor_dst):
     shutil.rmtree(_gs_vendor_dst)
 shutil.copytree(_gs_vendor_src, _gs_vendor_dst)
 
+# Traducoes ao lado de Main.exe (dist portavel). PyInstaller 6+ coloca datas em
+# _internal/, mas o app e verify_dist esperam app/i18n/locales/ e locales/.
+_i18n_dst = os.path.join(_bundle_dir, 'app', 'i18n', 'locales')
+if os.path.isdir(_i18n_dst):
+    shutil.rmtree(_i18n_dst)
+os.makedirs(os.path.dirname(_i18n_dst), exist_ok=True)
+shutil.copytree(_i18n_locales, _i18n_dst)
+
+_locales_dst = os.path.join(_bundle_dir, 'locales')
+if os.path.isdir(_locales_dst):
+    shutil.rmtree(_locales_dst)
+shutil.copytree(_i18n_locales, _locales_dst)
+
 for _subdir in ('temp', 'logs'):
     os.makedirs(os.path.join(_bundle_dir, _subdir), exist_ok=True)
 
@@ -162,6 +176,10 @@ _required_in_dist = [
     'vendor/ghostscript/bin/gswin64c.exe',
     'libdmtx-64.dll',
     'PDFtoPrinter.exe',
+    'app/i18n/locales/pt.json',
+    'app/i18n/locales/en.json',
+    'app/i18n/locales/fr.json',
+    'locales/pt.json',
 ]
 for _rel in _required_in_dist:
     if not os.path.exists(os.path.join(_dist_dir, _rel.replace('/', os.sep))):
@@ -169,4 +187,4 @@ for _rel in _required_in_dist:
 
 print('dist/ pronta para deploy nos PCs:')
 print('  Main.exe, fontes/, theme/, img/, vendor/ghostscript/, azure.tcl')
-print('  config.json, PDFtoPrinter*.exe, libdmtx-64.dll, temp/, logs/')
+print('  app/i18n/locales/, locales/, config.json, PDFtoPrinter*.exe, libdmtx-64.dll, temp/, logs/')
