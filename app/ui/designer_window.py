@@ -71,12 +71,11 @@ class EditWindow(ctk.CTkToplevel):
         self.iconbitmap(ICON)
         ctk.deactivate_automatic_dpi_awareness()
 
-        self.geometry(calculate_center_screen_with_monitor(master, 1220, 750, get_monitor(master)))
         self.minsize(900, 600)
         self.resizable(True, True)
         self.master = master
         self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=1)
+        self.grid_columnconfigure(1, weight=0, minsize=300)
         self.client = master.client_list.radio_var.get()
         self.id_selected_item = None
         self.copied_item = None
@@ -90,7 +89,7 @@ class EditWindow(ctk.CTkToplevel):
 
         # ------------------------ Name Frame ------------------------------------------------
         self.name_frame = ctk.CTkFrame(self, fg_color='transparent', width=500, height=100)
-        self.name_frame.grid(row=0, column=0, columnspan=2, pady=10)
+        self.name_frame.grid(row=0, column=0, pady=10, sticky='ew')
 
         ctk.CTkLabel(self.name_frame, text='Nome do produto:').grid(row=0, column=0, padx=10)
 
@@ -145,7 +144,7 @@ class EditWindow(ctk.CTkToplevel):
         self.btn_zoom_reset.grid(row=0, column=3, padx=(6, 2))
 
         self.lbl_id = ctk.CTkLabel(self, text=f'ID: {self.client} - {self.product_name}', font=('arial', 13, 'bold'))
-        self.lbl_id.grid(row=1, column=0, columnspan=2, padx=10)
+        self.lbl_id.grid(row=1, column=0, padx=10, sticky='w')
 
         # ------------------------ Buttons ------------------------------------------------
 
@@ -155,13 +154,13 @@ class EditWindow(ctk.CTkToplevel):
                                                         'Medir'],
                                                 command=self.reset_all
                                                 )
-        self.btn_tools.grid(row=2, column=0, columnspan=2, padx=0, pady=(0, 4), sticky='ew')
+        self.btn_tools.grid(row=2, column=0, padx=0, pady=(0, 4), sticky='ew')
         self.btn_tools.set(value='Selecionar')
 
 
         # ------------------------ Paper Color --------------------------------------------
         self.frame_paper_color = ctk.CTkFrame(self, fg_color='transparent')
-        self.frame_paper_color.grid(row=3, column=1, padx=30, sticky='E')
+        self.frame_paper_color.grid(row=3, column=0, padx=30, sticky='e')
 
         product = admin_service.get_db().search_product(self.client, self.product_name)
         if product:
@@ -187,7 +186,7 @@ class EditWindow(ctk.CTkToplevel):
 
         # ------------------------ Paper Size --------------------------------------------
         self.frame_paper_size = ctk.CTkFrame(self, fg_color='transparent')
-        self.frame_paper_size.grid(row=1, column=1, padx=70, sticky='E')
+        self.frame_paper_size.grid(row=1, column=0, padx=10, sticky='e')
 
         lbl_paper_size = ctk.CTkLabel(self.frame_paper_size, text='Tamanho Papel: ')
         lbl_paper_size.grid(row=0, column=0, padx=2)
@@ -233,7 +232,7 @@ class EditWindow(ctk.CTkToplevel):
             canvas_height = self.resolution[product_orientation]['height']
 
         canvas_container = ctk.CTkFrame(self)
-        canvas_container.grid(row=5, column=0, columnspan=5, padx=5, pady=(4, 10), sticky="nswe")
+        canvas_container.grid(row=5, column=0, padx=5, pady=(4, 10), sticky='nswe')
         canvas_container.grid_rowconfigure(0, weight=1)
         canvas_container.grid_columnconfigure(0, weight=1)
 
@@ -268,9 +267,10 @@ class EditWindow(ctk.CTkToplevel):
         self.canvas_db_saved_items = self.consult_drawings_from_db()
         self.history.append(self.canvas_db_saved_items)
         self.lbl_testes = ctk.CTkLabel(self, text='X: , Y:', width=150)
-        self.lbl_testes.grid(row=6, column=1, padx=10, sticky='SE')
-        # --------------------- Variables and Windows ------------------------------------
+        self.lbl_testes.grid(row=6, column=0, padx=10, sticky='se')
+        # --------------------- Painel de propriedades (barra lateral) -----------------
         self.properties_window = ListOfPropertiesWindow(self)
+        self.properties_window.grid(row=0, column=1, rowspan=7, padx=(0, 8), pady=8, sticky='nswe')
         self.start_x = None
         self.start_y = None
         self.draw_object = None
@@ -290,8 +290,6 @@ class EditWindow(ctk.CTkToplevel):
         self.bind("<Control-Z>", self.control_z)
         self.bind("<Return>", self.reset_all)
         self.bind("<F4>", self.testes)
-        self.bind("<Map>", self.bring_windows_back)
-        self.bind("<Unmap>", self.minimize_windows)
         self.protocol("WM_DELETE_WINDOW", self.confirm_exit)
 
         # Any Event That Occurs
@@ -300,7 +298,24 @@ class EditWindow(ctk.CTkToplevel):
 
         self.draw_items_into_canvas(self.canvas_db_saved_items)
         self._toggle_custom_layout_panel()
+        self.after(50, self._try_maximize)
         self.focus_force()
+
+    def _try_maximize(self):
+        """Abre o editor maximizado (Windows: zoomed)."""
+        try:
+            self.state('zoomed')
+            return
+        except Exception:
+            pass
+        try:
+            self.attributes('-zoomed', True)
+            return
+        except Exception:
+            pass
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        self.geometry(f'{sw}x{sh}+0+0')
 
     _CUSTOM_SPIN_WIDTH = 76
 
@@ -327,7 +342,7 @@ class EditWindow(ctk.CTkToplevel):
     def _build_custom_layout_panel(self):
         layout = self.sheet_layout
         self.frame_custom_layout = ctk.CTkFrame(self, fg_color='transparent')
-        self.frame_custom_layout.grid(row=4, column=0, columnspan=2, padx=16, sticky='EW', pady=(0, 2))
+        self.frame_custom_layout.grid(row=4, column=0, padx=16, sticky='EW', pady=(0, 2))
 
         ctk.CTkLabel(self.frame_custom_layout, text='Folha:').grid(row=0, column=0, padx=(2, 4), sticky='E')
         self.custom_page_preset = ctk.CTkComboBox(
@@ -1534,15 +1549,6 @@ class EditWindow(ctk.CTkToplevel):
             self.canvas.move(i, dx, dy)
         self.properties_window.update_xy_entrys()
 
-    def minimize_windows(self, event):
-        if hasattr(self, 'properties_window'):
-            self.properties_window.iconify()
-
-    def bring_windows_back(self, event):
-        if hasattr(self, 'properties_window'):
-            self.properties_window.deiconify()
-            self.properties_window.lift()
-
     def delete_object(self):
         if not self.selected_items:
             return
@@ -1564,8 +1570,6 @@ class EditWindow(ctk.CTkToplevel):
     def click_mouse_m1(self, event):
         self._clear_input_focus()
         self._event_xy(event)
-        self.properties_window.wm_state('normal')
-        self.properties_window.lift()
         self.start_x = event.x
         self.start_y = event.y
         if self.btn_tools.get() in ['Linha', 'Quadrado']:
@@ -1776,30 +1780,31 @@ class EditWindow(ctk.CTkToplevel):
             self.exit()
 
     def exit(self):
-        
-        #ctk.activate_automatic_dpi_awareness()
-        self.properties_window.destroy()
         self.destroy()
         self.master.focus_set()
         self.master.deiconify()
 
 
-class ListOfPropertiesWindow(ctk.CTkToplevel):
+class ListOfPropertiesWindow(ctk.CTkFrame):
+    PANEL_WIDTH = 300
+
     def __init__(self, master, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.title('Lista de Propriedades')
-        self.iconbitmap(ICON)
-        self.width, self.height = 300, 680
-        self.minsize(self.width, self.height)
-        self.maxsize(self.width, self.height)
-        self.resizable(False, False)
+        super().__init__(master, width=self.PANEL_WIDTH, fg_color='transparent', *args, **kwargs)
+        self.grid_propagate(False)
         self.master = master
         self.last_id = master.id_selected_item
 
-        self.geometry(calculate_center_screen_with_monitor(master, 300, 680, get_monitor(master),
-                                                           move_x=-470))
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            self, text='Propriedades', font=('Arial', 14, 'bold'),
+        ).grid(row=0, column=0, padx=12, pady=(8, 4), sticky='w')
+
+        self._body = ctk.CTkScrollableFrame(self, fg_color='transparent', width=self.PANEL_WIDTH - 16)
+        self._body.grid(row=1, column=0, padx=4, pady=(0, 8), sticky='nsew')
+        self._body.grid_columnconfigure(0, weight=1)
+        self._body.grid_rowconfigure(0, weight=1)
 
         self.validation = self.register(self.is_valid_input)
         self.frame = None
@@ -1849,7 +1854,6 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
         self.duplex_checkbox = None
 
         self.refresh()
-        self.protocol('WM_DELETE_WINDOW', lambda: None)
 
     @staticmethod
     def is_valid_input(input_str):
@@ -2147,7 +2151,7 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             lbl_text_help.pack(side='left', padx=(4, 0))
             Tooltip(lbl_text_help, FIXED_TEXT_PAGE_TIP)
 
-            self.entry_text = ctk.CTkEntry(self.frame, width=self.width - 80, justify='center')
+            self.entry_text = ctk.CTkEntry(self.frame, width=self.PANEL_WIDTH - 80, justify='center')
             self.entry_text.grid(row=pos_row + 3, column=0, columnspan=2, padx=10, pady=5)
             self.entry_text.configure(textvariable=ctk.StringVar(value=texto))
             self.entry_text.bind("<KeyRelease>", self.update_item)
@@ -2335,8 +2339,8 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             self.frame.grid(row=0, column=0, padx=10, pady=10)
             self._fill_current_panel()
             return
-        frame = ctk.CTkFrame(self, width=280, height=self.height - 20, fg_color='transparent')
-        frame.grid(row=0, column=0, padx=10, pady=10)
+        frame = ctk.CTkFrame(self._body, fg_color='transparent')
+        frame.grid(row=0, column=0, padx=10, pady=10, sticky='nsew')
         self.frame = frame
         self._reset_panel_refs()
         canvas_type = self.master.canvas.type(self.master.id_selected_item)
@@ -2390,8 +2394,8 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             self._fill_multi_spacing()
             self.frame.grid(row=0, column=0, padx=10, pady=10)
             return
-        frame = ctk.CTkFrame(self, width=280, height=self.height - 20, fg_color='transparent')
-        frame.grid(row=0, column=0, padx=10, pady=10)
+        frame = ctk.CTkFrame(self._body, fg_color='transparent')
+        frame.grid(row=0, column=0, padx=10, pady=10, sticky='nsew')
         frame.rowconfigure(0, weight=1)
         self.frame = frame
         self._multi_count_label = ctk.CTkLabel(frame, text=text, font=('Lato', 16, 'bold'))
@@ -2469,8 +2473,8 @@ class ListOfPropertiesWindow(ctk.CTkToplevel):
             self.frame = cached
             self.frame.grid(row=0, column=0, padx=10, pady=10)
             return
-        frame = ctk.CTkFrame(self, width=280, height=self.height - 20, fg_color='transparent')
-        frame.grid(row=0, column=0, padx=10, pady=10)
+        frame = ctk.CTkFrame(self._body, fg_color='transparent')
+        frame.grid(row=0, column=0, padx=10, pady=10, sticky='nsew')
         frame.rowconfigure(0, weight=1)
         self.frame = frame
         ctk.CTkLabel(frame, text='Nenhum item selecionado', font=('Lato', 16, 'bold')).grid(
