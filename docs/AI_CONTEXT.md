@@ -1,0 +1,264 @@
+# Contexto para IAs — ArtemiS
+
+Documento de onboarding para qualquer agente de IA (Cursor, Codex, Antigravity ou outro) que trabalhe neste repositório.  
+**Leia este arquivo antes de propor ou implementar alterações.**
+
+**Última atualização:** 2026-06-21 (auth Windows para configuração)
+
+---
+
+## Sobre o Projeto
+
+**ArtemiS** é uma aplicação desktop Python para Windows que automatiza a impressão em lote de formulários de **Aviso de Recebimento (AR)** dos Correios brasileiros.
+
+### O que o sistema faz
+
+- Lê arquivos CSV (WO — Workorders) de pastas configuráveis.
+- Cruza dados variáveis com layouts visuais (templates) por cliente/produto.
+- Gera PDFs dinamicamente (texto, logotipos, códigos de barras, QR, DataMatrix).
+- Envia lotes para impressoras Windows via `PDFtoPrinter.exe` (até 5 filas paralelas) ou exporta PDF.
+- Oferece editor visual de templates, reimpressão seletiva (Remake) e painel de configuração/admin.
+
+### Stack principal
+
+- Python, CustomTkinter/Tkinter (UI)
+- SQLAlchemy + SQLite (persistência)
+- ReportLab (PDF)
+- PyInstaller (`Main.spec` → executável Windows)
+
+### Documentação complementar
+
+| Arquivo | Quando ler |
+|---------|------------|
+| `docs/PROJECT_OVERVIEW.md` | Funcionalidades, fluxos de uso, bugs conhecidos |
+| `docs/REFACTOR_PLAN.md` | Estado da refatoração, próximas etapas, ordem de execução |
+| `docs/DECISIONS.md` | Decisões arquiteturais — o que fazer e o que **não** fazer |
+| `docs/Tasks.md` | Checklist original (parcialmente superseded por `REFACTOR_PLAN.md`) |
+
+---
+
+## Arquitetura
+
+### Estrutura de pastas (estado atual)
+
+```
+ArtemiS/
+├── Main.py                 # Shim → app.bootstrap.main()
+├── main.py                 # Entry PyInstaller (idêntico a Main.py no Windows)
+├── config.json             # Caminhos: database_location, search_folder
+├── database.db             # SQLite
+├── Main.spec               # PyInstaller (entry: main.py)
+├── fontes/                 # TTF/OTF para PDF e canvas
+├── theme/                  # Recursos azure.tcl
+├── img/                    # Ícones
+├── temp/                   # Barcodes e PDFs intermediários
+└── app/
+    ├── bootstrap.py        # Inicialização config + db + App
+    ├── runtime.py          # ApplicationContext em runtime.context
+    ├── application_context.py
+    ├── models/
+    │   ├── schema.py
+    │   └── database_manager.py
+    ├── utils/
+    │   ├── file_parser.py
+    │   ├── barcode_generator.py
+    │   ├── printer_handler.py
+    │   ├── window_geometry.py
+    │   ├── text_utils.py
+    │   └── document_delivery.py
+    ├── services/
+    │   ├── pdf_service.py
+    │   ├── print_service.py
+    │   ├── production_service.py
+    │   ├── designer_service.py
+    │   ├── work_queue_service.py
+    │   ├── remake_service.py
+    │   ├── print_job_coordinator.py
+    │   ├── admin_service.py
+    │   └── settings_service.py
+    ├── controllers/            # VAZIO — não criar controladores artificiais
+    └── ui/
+        ├── constants.py
+        ├── components/
+        ├── remake_window.py
+        ├── main_app.py
+        ├── designer_window.py
+        └── config_window.py
+```
+
+### Responsabilidades por camada
+
+| Camada | Responsabilidade | Status |
+|--------|------------------|--------|
+| `app/models` | Schema e acesso a dados | ✅ Concluído |
+| `app/utils` | Funções puras/auxiliares (CSV, barcode, impressora, geometria) | ✅ Concluído |
+| `app/services/pdf_service` | Desenho e montagem de PDFs | ✅ Desacoplado (callbacks) |
+| `app/services/print_service` | Pós-impressão e arquivamento | ✅ Concluído |
+| `app/services/production_service` | Fila de WO, validações, remake | ✅ Concluído |
+| `app/services/designer_service` | Serialização canvas, import/export | ✅ Concluído |
+| `app/ui/main_app` | Tela principal de produção + progresso paralelo | ✅ Concluído (D3) |
+| `app/ui/designer_window` | Editor de templates + janelas auxiliares | ✅ Concluído (D4) |
+| `app/ui/config_window` | Configurações, login, import/export | ✅ Concluído (D5) |
+| `Main.py` / `main.py` | Shim → `app.bootstrap.main()` | ✅ D6 + A3 |
+| `app/bootstrap.py` | Bootstrap (`config`, `db`, `App`) | ✅ D6 |
+
+### Classes principais
+
+| Classe | Módulo | Papel |
+|--------|--------|-------|
+| `App` | `app/ui/main_app.py` | Tela principal — fila de WO, Start, impressão |
+| `LoadingBarFrame` | `app/ui/main_app.py` | Progresso paralelo (até 5 impressoras) |
+| `RemakeWindow` | `app/ui/remake_window.py` | Reimpressão seletiva |
+| `EditWindow` | `app/ui/designer_window.py` | Designer de templates |
+| `ListOfPropertiesWindow` / `Get*Window` | `app/ui/designer_window.py` | Auxiliares do designer |
+| `ConfigWindow` | `app/ui/config_window.py` | Administração |
+| `ManageAccessWindow` | `app/ui/config_window.py` | Liberação de usuários/grupos Windows |
+| `Table`, `ListBox`, `SpinBox`, `Tooltip` | `app/ui/components/` | Componentes reutilizáveis |
+
+### Globals importantes
+
+- `runtime.context` — `ApplicationContext` com `config` (dict de `config.json`) e `db` (`DataBase`).
+- Inicializado em `app/bootstrap.py` via `runtime.init(...)`.
+- UI não acessa `runtime` diretamente: usa `settings_service` e `admin_service`.
+
+---
+
+## Estado Atual da Refatoração
+
+### Concluído ✅
+
+1. Estrutura `app/` com pacotes.
+2. Modelos em `app/models/` (sem ponte raiz).
+3. Utilitários em `app/utils/` (sem ponte raiz).
+4. `pdf_service.py` — **desacoplado da UI (A1)**.
+5. `print_service.py` — pós-impressão e validação de papel **(A2)**.
+6. `production_service.py` — fila de WO e remake **(B1)**.
+7. `designer_service.py` — editor de layouts **(C1)**.
+8. Componentes UI em `app/ui/components/` **(D1)**.
+9. `RemakeWindow` em `app/ui/remake_window.py` **(D2)**.
+10. `App` + `LoadingBarFrame` em `app/ui/main_app.py` **(D3)**.
+11. Designer em `app/ui/designer_window.py` **(D4)**.
+12. Config/admin em `app/ui/config_window.py` **(D5)**.
+13. Bootstrap em `app/bootstrap.py`; entry `main.py` **(D6)**.
+14. Estado em `app/runtime.py` (`ApplicationContext`) **(Fase E + A3)**.
+15. Desacoplamento E1–E6 **(serviços de orquestração, admin, settings)**.
+16. Pontes raiz removidas **(A3)**.
+
+### Próximo passo opcional
+
+- Dividir `EditWindow` / `DataBase` (god objects) — longo prazo.
+- Testes automatizados headless dos serviços.
+
+### Explicitamente fora do escopo imediato 🚫
+
+- `auth_controller` — não criar.
+- Controladores vazios ou por padrão MVC.
+- Migrar UI (`app/ui/`) antes de concluir Fases A–C.
+- Reescrita completa de `Main.py`.
+- Implementar controle de privilégios (coluna `privileges` existe mas não é usada).
+
+### Auth de configuração ✅
+
+- Acesso via identidade Windows (`app/utils/windows_auth.py`); sem login/senha no ArtemiS.
+- Lista de permissões em tabela `config_access` (usuários/grupos da rede) — **persistida no SQLite**, compartilhado entre PCs quando `database_location` aponta para rede.
+- Verificação de identidade é **local por PC**; lista de liberados é **centralizada no banco**. Sem conflito entre as duas camadas. Detalhes: `docs/PROJECT_OVERVIEW.md` → *Deploy em rede*.
+
+---
+
+## Regras para Alterações
+
+### Obrigatório
+
+1. **Mudanças incrementais** — extrair blocos pequenos e testáveis; nunca reescrever módulos inteiros de uma vez.
+2. **Imports explícitos `app.*`** — pontes raiz removidas (A3); não recriar `Database.py` / `utils.py` / `pdf_utils.py`.
+3. **Não criar camadas artificiais** — só extrair módulo quando há responsabilidade real observável no código.
+4. **Preservar comportamento** — refatoração estrutural, não alteração funcional (salvo bugs explicitamente solicitados).
+5. **Atualizar documentação** ao concluir cada etapa (ver Processo Obrigatório abaixo).
+6. **Não commitar** a menos que o usuário peça explicitamente.
+
+### Preferências de estilo (do projeto)
+
+- Reutilizar funções e convenções existentes.
+- Diff mínimo focado no problema.
+- Comentários só para lógica não óbvia.
+- Não adicionar testes triviais nem abstrações prematuras.
+
+### Armadilhas conhecidas
+
+- `write_text_to_pdf` roda em **thread separada** — callbacks de UI usam `App.after()` (implementado em A1).
+- Remake tem dois fluxos: com tela secundária (`RemakeWindow`) e direto (checkbox "Não Utilizar Tela Secundária").
+- Grupo de impressão `'AR'` é tratado como string vazia no caminho (legado).
+- Vazamentos de sessão DB em métodos de impressoras/grupos (ver `PROJECT_OVERVIEW.md`).
+- **SQLite em pasta compartilhada:** vários PCs usam o mesmo `database.db` para layouts; auth Windows não altera produção, mas `config_access` também vive nesse arquivo — preferir grupos de domínio e evitar edição simultânea do banco (ver *Deploy em rede* em `PROJECT_OVERVIEW.md`).
+- `Main.spec` aponta para `Main.py` — não mudar entry point até fase bootstrap.
+
+---
+
+## Processo Obrigatório
+
+### Antes de alterar código
+
+1. Ler `docs/PROJECT_OVERVIEW.md` — entender o produto e bugs conhecidos.
+2. Ler `docs/REFACTOR_PLAN.md` — identificar etapa atual e dependências.
+3. Ler `docs/DECISIONS.md` — respeitar decisões registradas (especialmente o que **não** fazer).
+4. Confirmar qual fase está em execução (A1, A2, B1, etc.) e não pular etapas sem motivo.
+
+### Durante a implementação
+
+- Alterar o mínimo necessário para a etapa corrente.
+- Manter pontes de compatibilidade funcionando.
+- Não mover arquivos de UI (`app/ui/`) antes da Fase D unless explicitly requested.
+
+### Após análise ou implementação
+
+1. **Atualizar `docs/REFACTOR_PLAN.md`** — marcar etapa concluída, ajustar "Estado Atual" se necessário.
+2. **Atualizar `docs/DECISIONS.md`** — se houver nova decisão arquitetural (formato: data, decisão, motivo, impacto).
+3. **Registrar progresso** — descrever o que foi feito, riscos remanescentes e próximo passo.
+4. Opcionalmente sincronizar `docs/Tasks.md` se o usuário mantiver esse checklist.
+
+### Casos de teste manuais (fluxo de produção)
+
+Após alterações em PDF, impressão ou fila de WO, validar:
+
+- [ ] Lote normal → impressora física
+- [ ] Opção "Criar PDF"
+- [ ] Remake parcial via `RemakeWindow`
+- [ ] Remake sem tela secundária (checkbox)
+- [ ] Múltiplas WOs (mesma cor e tamanho de papel)
+- [ ] Rejeição de WO com cor ou tamanho divergente
+- [ ] Arquivo movido para `Old/` após impressão normal (não movido em remake)
+
+---
+
+## Ordem de execução (referência rápida)
+
+```
+A1  pdf_service callbacks          ✅
+A2  print_service completo         ✅
+B1  production_service             ✅
+C1  designer_service              ✅
+D1  app/ui/components             ✅
+D2  app/ui/remake_window          ✅
+D3  app/ui/main_app               ✅
+D4  app/ui/designer_window         ✅
+D5  app/ui/config_window          ✅
+D6  bootstrap main.py + Main.spec ✅
+E   infraestrutura (app/runtime.py) ✅
+A3  limpar imports (opcional)
+E   infraestrutura (injeção db/config, bugs)
+A3  limpar imports (opcional)
+```
+
+Detalhes completos, riscos e dependências: **`docs/REFACTOR_PLAN.md`**.
+
+---
+
+## Contato com decisões-chave (resumo)
+
+| Pergunta | Resposta |
+|----------|----------|
+| Criar `auth_controller`? | **Não** (D-003) |
+| Criar controlador só por padrão MVC? | **Não** (D-004) |
+| Mover UI agora? | **Incremental** — serviços primeiro (D-007); UI em D1–D6 |
+| O que fazer primeiro? | **Plano concluído** — A3 opcional; bugs funcionais em `PROJECT_OVERVIEW.md` |
+| Onde colocar orquestração? | `app/services/`, não `app/controllers/` (D-004, D-005, D-006) |
