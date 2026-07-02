@@ -8,8 +8,10 @@ Extensões opcionais (só entram quando o job pede algo diferente do default,
 preservando 100% o comportamento atual quando os defaults são usados):
 - cópias  -> -dNumCopies=<n>
 - duplex  -> -dDuplex / -dTumble  (suportado pelo mswinpr2 via DEVMODE interno)
-Nenhuma dessas opções altera a configuração permanente da impressora; valem
-apenas para o processo do Ghostscript (ou seja, só para o JOB).
+
+Paisagem: o mswinpr2 não controla dmOrientation por job (limitação do
+dispositivo Ghostscript no Windows). Jobs em paisagem usam DEVMODE+GDI, o
+mesmo caminho do backend Win32 DEVMODE — que o driver respeita.
 """
 
 import os
@@ -20,10 +22,7 @@ from app.utils.ghostscript_paths import (
     ghostscript_is_available,
     resolve_ghostscript_exe,
 )
-from app.utils.paper_size_map import (
-    paper_size_to_ghostscript,
-    paper_size_to_ghostscript_landscape,
-)
+from app.utils.paper_size_map import paper_size_to_ghostscript
 from app.utils.printing.base import (
     DUPLEX_LONG_EDGE,
     DUPLEX_SHORT_EDGE,
@@ -34,8 +33,13 @@ from app.utils.printing.base import (
 )
 
 
+def uses_devmode_gdi_for_job(job: PrintJob) -> bool:
+    """True quando o job deve usar DEVMODE+GDI em vez de mswinpr2."""
+    return job.orientation == ORIENTATION_LANDSCAPE
+
+
 def build_ghostscript_command(gs_exe: str, job: PrintJob) -> list[str]:
-    """Monta a linha de comando do Ghostscript para um PrintJob."""
+    """Monta a linha de comando mswinpr2 (somente retrato)."""
     output = f'%printer%{job.printer}'
     command = [
         gs_exe,
@@ -44,22 +48,9 @@ def build_ghostscript_command(gs_exe: str, job: PrintJob) -> list[str]:
         f'-sOutputFile={output}',
     ]
 
-    landscape = job.orientation == ORIENTATION_LANDSCAPE
-    if landscape:
-        gs_paper = paper_size_to_ghostscript_landscape(job.paper_size)
-        if gs_paper:
-            command.append(f'-sPAPERSIZE={gs_paper}')
-        else:
-            gs_portrait = paper_size_to_ghostscript(job.paper_size)
-            if gs_portrait:
-                command.append(f'-sPAPERSIZE={gs_portrait}')
-            # PostScript inline exige -f antes do PDF; sem isso o GS falha com
-            # "Unrecoverable error, exit code 1".
-            command.extend(['-c', '<</Orientation 1>> setpagedevice', '-f'])
-    else:
-        gs_paper = paper_size_to_ghostscript(job.paper_size)
-        if gs_paper:
-            command.append(f'-sPAPERSIZE={gs_paper}')
+    gs_paper = paper_size_to_ghostscript(job.paper_size)
+    if gs_paper:
+        command.append(f'-sPAPERSIZE={gs_paper}')
 
     if job.copies and int(job.copies) > 1:
         command.append(f'-dNumCopies={int(job.copies)}')
@@ -69,6 +60,17 @@ def build_ghostscript_command(gs_exe: str, job: PrintJob) -> list[str]:
 
     command.append(job.pdf_path)
     return command
+
+
+def _gdi_available() -> bool:
+    try:
+        import win32gui  # noqa: F401
+        import win32print  # noqa: F401
+        import win32ui  # noqa: F401
+        from PIL import ImageWin  # noqa: F401
+        return True
+    except Exception:
+        return False
 
 
 class GhostscriptBackend(PrintBackend):
@@ -85,6 +87,9 @@ class GhostscriptBackend(PrintBackend):
     def print_job(self, job: PrintJob) -> PrintResult:
         from app.utils.printing.logger import get_print_logger
         log = get_print_logger()
+
+        if uses_devmode_gdi_for_job(job):
+            return self._print_landscape(job, log)
 
         config = job.config
         gs_exe = resolve_ghostscript_exe(config)
@@ -115,3 +120,28 @@ class GhostscriptBackend(PrintBackend):
             )
 
         return PrintResult.success(self.name, message='Enviado via Ghostscript')
+
+    def _print_landscape(self, job: PrintJob, log) -> PrintResult:
+        if not _gdi_available():
+            return PrintResult.failure(
+                self.name,
+                'Orientação paisagem exige pywin32 (DEVMODE+GDI). '
+                'Use o motor Win32 DEVMODE nas configurações.',
+            )
+        log.info(
+            'paisagem: mswinpr2 não controla orientação por job; '
+            'usando DEVMODE+GDI (Ghostscript rasteriza, GDI imprime)',
+        )
+        try:
+            from app.utils.printing.devmode_gdi_print import print_job_via_devmode_gdi
+            pages = print_job_via_devmode_gdi(job, log=log)
+        except Exception as exc:
+            return PrintResult.failure(
+                self.name,
+                f'Erro ao imprimir paisagem via DEVMODE+GDI: {exc}',
+                detail=repr(exc),
+            )
+        return PrintResult.success(
+            self.name,
+            message=f'Enviado via Ghostscript (paisagem, {pages} pág.)',
+        )

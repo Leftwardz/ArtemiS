@@ -63,7 +63,7 @@ sucesso/falha com detalhe do erro de driver/GS.
 | Backend | Papel/job | Duplex | Cópias | Bandeja | Orientação | Admin? | Saída | Dependência | Maturidade |
 |---|---|---|---|---|---|---|---|---|---|
 | **PDFtoPrinter** | ❌ (usa preferência da impressora) | ❌ | ❌ | ❌ | ❌ | Não | Vetorial (driver) | `PDFtoPrinter*.exe` | Estável (produção) |
-| **Ghostscript** | ✅ (`-sPAPERSIZE`) | ⚠️ best-effort | ✅ (`-dNumCopies`) | ❌ | ❌ | Não | Vetorial (mswinpr2) | Ghostscript empacotado | Estável |
+| **Ghostscript** | ✅ (`-sPAPERSIZE`) | ⚠️ best-effort | ✅ (`-dNumCopies`) | ❌ | ✅ paisagem (DEVMODE+GDI) | Não | Vetorial (retrato) / raster (paisagem) | Ghostscript empacotado + pywin32 (paisagem) | Estável |
 | **Win32 DEVMODE** | ✅ (`dmPaperSize`) | ✅ (`dmDuplex`) | ✅ (`dmCopies`) | ✅ (`dmDefaultSource`) | ✅ (`dmOrientation`) | Não | **Rasterizada** (GDI) | Ghostscript (só p/ rasterizar) + pywin32 | Experimental |
 | **Win32 avançada** | ✅ | ✅ | ✅ | ✅ | ✅ | Não | **Rasterizada** (GDI) | igual ao DEVMODE | Experimental |
 | **XPS Print API** | ✅ (do PDF) | ⚠️ default do driver | ⚠️ default do driver | ⚠️ default do driver | ✅ (do PDF) | Não | Vetorial (XPS) | Ghostscript (`xpswrite`) + `XpsPrint.dll` | Experimental |
@@ -73,7 +73,8 @@ sucesso/falha com detalhe do erro de driver/GS.
 - **Limitações**: não controla papel/duplex/cópias/bandeja por job — depende da preferência já configurada na impressora (por isso `validate_printer_paper` continua exigindo papel correto **apenas** neste backend).
 
 ### Ghostscript (produção)
-- **Vantagens**: define o **papel por job** (`-sPAPERSIZE`); saída vetorial via `mswinpr2`; cópias por job; não precisa de admin.
+- **Vantagens**: define o **papel por job** (`-sPAPERSIZE`); saída vetorial via `mswinpr2` em retrato; cópias por job; não precisa de admin.
+- **Paisagem**: o dispositivo `mswinpr2` **não controla orientação física** da impressora por job (limitação do Ghostscript no Windows). Jobs em paisagem usam o mesmo caminho do Win32 DEVMODE: rasteriza o PDF via Ghostscript e imprime com `dmOrientation` via GDI.
 - **Limitações**: bandeja não é controlada por job; duplex é *best-effort* (depende do device/driver); processo bloqueia até o GS terminar.
 
 ### Win32 DEVMODE por JOB (experimental)
