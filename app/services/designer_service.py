@@ -160,6 +160,32 @@ def import_product_with_new_client(
     )
 
 
+def _normalize_drawing_row(row: dict) -> dict:
+    """Normaliza linha do banco/serialização para comparação estável (None → '')."""
+    string_fields = (
+        'item_type', 'scope', 'duplex', 'x1', 'x2', 'y1', 'y2',
+        'font_name', 'font_size', 'font_style', 'orientation', 'thickness', 'dashed',
+        'text', 'file_columns', 'barcode_height', 'barcode_width',
+        'line_distance', 'segment_id', 'tag', 'proportion', 'char_limit',
+    )
+    out = {}
+    for key in string_fields:
+        value = row.get(key)
+        out[key] = '' if value is None else str(value)
+    out['stack_order'] = int(row.get('stack_order') or 0)
+    out['image'] = row.get('image')
+    return out
+
+
+def _drawings_equal(current: list, saved: list) -> bool:
+    sort_key = lambda r: (
+        r['stack_order'], r['item_type'], r['segment_id'], r['x1'], r['y1'], r['tag'],
+    )
+    a = sorted((_normalize_drawing_row(r) for r in current), key=sort_key)
+    b = sorted((_normalize_drawing_row(r) for r in saved), key=sort_key)
+    return a == b
+
+
 def has_unsaved_changes(
     client: str,
     product_name: str,
@@ -176,7 +202,7 @@ def has_unsaved_changes(
     if not product:
         return True
 
-    if new_name != product_name or current_drawings != saved_drawings:
+    if new_name != product_name or not _drawings_equal(current_drawings, saved_drawings):
         return True
     if color != product.paper_color:
         return True

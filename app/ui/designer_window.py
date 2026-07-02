@@ -713,6 +713,7 @@ class EditWindow(ctk.CTkToplevel):
             self.product_name = new_name
             self.title(f'{self.client} - {self.product_name}')
             self.lbl_id.configure(text=f'ID: {self.client} - {self.product_name}')
+            self.canvas_db_saved_items = self.pass_canvas_to_dict()
 
             self.master.refresh()
             self.update_save_button()

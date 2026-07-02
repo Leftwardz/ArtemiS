@@ -216,11 +216,10 @@ def _generate_placeholder_test_pdf(items=None, path="temp/text.pdf", orientation
     front_items, back_items = partition_drawings_by_duplex(items)
     qtd_pages = 1
     for page in range(qtd_pages):
-        pdf.setDash([10, 4])
-        pdf.setLineWidth(0.5)
-
         if orientation == 0:
             def draw_guides_0():
+                pdf.setDash([10, 4])
+                pdf.setLineWidth(0.5)
                 pdf.line(0, 2 * (A4[1] // 3), A4[0], 2 * (A4[1] // 3))
                 pdf.line(0, A4[1] // 3, A4[0], A4[1] // 3)
                 pdf.setDash([])
@@ -237,6 +236,8 @@ def _generate_placeholder_test_pdf(items=None, path="temp/text.pdf", orientation
 
         elif orientation == 1:
             def draw_guides_1():
+                pdf.setDash([10, 4])
+                pdf.setLineWidth(0.5)
                 pdf.line((A4[0] // 2), 0, (A4[0] // 2), A4[1])
                 pdf.setDash([])
 
@@ -251,8 +252,6 @@ def _generate_placeholder_test_pdf(items=None, path="temp/text.pdf", orientation
             _close_physical_sheet(pdf, back_items, draw_slots_1, draw_guides_1)
 
         elif orientation == 2:
-            pdf.setDash([])
-
             def draw_full(slot_items):
                 draw_ar(slot_items, pdf, is_test=True)
 
@@ -261,6 +260,8 @@ def _generate_placeholder_test_pdf(items=None, path="temp/text.pdf", orientation
 
         elif orientation == 3:
             def draw_guides_3():
+                pdf.setDash([10, 4])
+                pdf.setLineWidth(0.5)
                 pdf.line(0, (A4[1] // 2), A4[0], (A4[1] // 2))
                 pdf.setDash([])
 
@@ -280,7 +281,6 @@ def _generate_placeholder_test_pdf(items=None, path="temp/text.pdf", orientation
             slot_items, sheet_items = partition_drawings_by_scope(items)
             slot_front, slot_back = partition_drawings_by_duplex(slot_items)
             sheet_front, sheet_back = partition_drawings_by_duplex(sheet_items)
-            pdf.setDash([])
 
             def draw_custom(slot_draw, sheet_draw):
                 if sheet_draw:
