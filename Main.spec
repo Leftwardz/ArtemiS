@@ -43,7 +43,7 @@ if _gs_missing:
         + '.\nFaca git clone completo (bin/ e lib/ versionados) ou rode scripts/fetch_ghostscript.ps1.'
     )
 
-_gs_upx_exclude = ['gswin64c.exe', 'gswin64.exe', 'gsdll64.dll']
+_gs_upx_exclude = ['gswin64c.exe', 'gswin64.exe', 'gsdll64.dll']  # só em EXE/COLLECT (PyInstaller 5.x)
 
 resource_datas = []
 for _res in ('img', 'fontes', 'theme'):
@@ -83,7 +83,6 @@ a = Analysis(
     win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
-    upx_exclude=_gs_upx_exclude,
 )
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
