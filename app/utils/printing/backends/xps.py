@@ -27,6 +27,7 @@ from app.utils.ghostscript_paths import (
 )
 from app.utils.printing.base import (
     DUPLEX_SIMPLEX,
+    ORIENTATION_LANDSCAPE,
     PrintBackend,
     PrintJob,
     PrintResult,
@@ -210,6 +211,8 @@ class XpsBackend(PrintBackend):
             unsupported.append(f'copies={job.copies}')
         if job.tray is not None:
             unsupported.append(f'tray={job.tray}')
+        if job.orientation == ORIENTATION_LANDSCAPE:
+            unsupported.append(f'orientation={job.orientation}')
         if unsupported:
             log.warning('XPS (sem PrintTicket custom) usa default do driver para: %s',
                         ', '.join(unsupported))

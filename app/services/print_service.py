@@ -6,7 +6,7 @@ from threading import Thread
 from app import audit, runtime
 from app.services.settings_service import get_print_backend
 from app.utils.document_delivery import open_path
-from app.utils.printing.base import DUPLEX_LONG_EDGE, DUPLEX_SIMPLEX, ORIENTATION_PORTRAIT
+from app.utils.printing.base import DUPLEX_LONG_EDGE, DUPLEX_SIMPLEX, ORIENTATION_LANDSCAPE, ORIENTATION_PORTRAIT
 from app.utils.printer_handler import is_papersize_a4, print_pdf_file
 from app.utils.temp_pdf import remove_temp_pdf, write_temp_pdf
 
@@ -60,6 +60,11 @@ def finish_print_job(pdf_data, files_to_move, is_remake, printer_name, exe_index
             if requires_duplex and backend == 'pdftoprinter':
                 raise Exception(
                     'PDFtoPrinter não suporta impressão duplex por job. '
+                    'Use Ghostscript ou Win32 DEVMODE nas configurações.'
+                )
+            if orientation == ORIENTATION_LANDSCAPE and backend == 'pdftoprinter':
+                raise Exception(
+                    'PDFtoPrinter não suporta orientação paisagem por job. '
                     'Use Ghostscript ou Win32 DEVMODE nas configurações.'
                 )
             duplex_mode = DUPLEX_LONG_EDGE if requires_duplex else DUPLEX_SIMPLEX

@@ -346,7 +346,9 @@ class App(ctk.CTk):
         if duplex_error:
             PopUpWindow(self, t('main.error'), t(duplex_error))
             return
-        landscape_error = validate_landscape_batch(orientations, layout_config_list)
+        landscape_error = validate_landscape_batch(
+            orientations, layout_config_list, get_print_backend(),
+        )
         if landscape_error:
             PopUpWindow(self, t('main.error'), t(landscape_error))
             return

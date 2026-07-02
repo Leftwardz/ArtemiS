@@ -290,6 +290,7 @@
     "pdftoprinter_unsupported": "PDFtoPrinter não suporta duplex por job.\nUse Ghostscript ou Win32 DEVMODE nas configurações, ou remova itens duplex do layout."
   },
   "landscape": {
-    "mixed_batch": "A fila mistura produtos em retrato e paisagem.\nRemova WOs ou use apenas produtos com a mesma orientação de folha."
+    "mixed_batch": "A fila mistura produtos em retrato e paisagem.\nRemova WOs ou use apenas produtos com a mesma orientação de folha.",
+    "pdftoprinter_unsupported": "PDFtoPrinter não suporta orientação paisagem por job.\nUse Ghostscript ou Win32 DEVMODE nas configurações, ou defina a folha em retrato."
   }
 }

@@ -58,3 +58,9 @@ def test_validate_landscape_batch_mixed():
 def test_validate_landscape_batch_ok():
     configs = [_layout_json(297, 210)]
     assert validate_landscape_batch(['4'], configs) is None
+
+
+def test_validate_landscape_batch_pdftoprinter():
+    configs = [_layout_json(297, 210)]
+    assert validate_landscape_batch(['4'], configs, 'pdftoprinter') == 'landscape.pdftoprinter_unsupported'
+    assert validate_landscape_batch(['4'], configs, 'ghostscript') is None

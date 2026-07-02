@@ -63,15 +63,15 @@ class GhostscriptBackend(PrintBackend):
         if gs_paper:
             command.append(f'-sPAPERSIZE={gs_paper}')
 
+        if job.orientation == ORIENTATION_LANDSCAPE:
+            command.extend(['-c', '<</Orientation 1>> setpagedevice'])
+
         # Extensões opcionais — só anexadas quando diferem do default.
         if job.copies and int(job.copies) > 1:
             command.append(f'-dNumCopies={int(job.copies)}')
         if job.duplex in (DUPLEX_LONG_EDGE, DUPLEX_SHORT_EDGE):
             command.append('-dDuplex')
             command.append('-dTumble' if job.duplex == DUPLEX_SHORT_EDGE else '-dTumble=false')
-
-        if job.orientation == ORIENTATION_LANDSCAPE:
-            command.extend(['-c', '<</Orientation 2>> setpagedevice', '-f'])
 
         command.append(job.pdf_path)
 

@@ -189,6 +189,25 @@ def build_remake_file_lines(file_utils: FileUtils, filepath: str, position_list:
     return lines_to_remake
 
 
+def validate_landscape_batch(orientation_list, layout_config_list=None, backend: Optional[str] = None) -> Optional[str]:
+    """Retorna chave i18n se o lote misturar retrato/paisagem ou backend não suportar."""
+    from app.services.layout_service import batch_print_orientation, resolve_print_orientation
+    from app.utils.printing.base import ORIENTATION_LANDSCAPE
+
+    if batch_print_orientation(orientation_list, layout_config_list) is None:
+        return 'landscape.mixed_batch'
+
+    if backend != 'pdftoprinter':
+        return None
+
+    configs = layout_config_list or []
+    for i, product_orientation in enumerate(orientation_list):
+        layout_json = configs[i] if i < len(configs) else None
+        if resolve_print_orientation(product_orientation, layout_json) == ORIENTATION_LANDSCAPE:
+            return 'landscape.pdftoprinter_unsupported'
+    return None
+
+
 def validate_duplex_batch(items_list, backend: str) -> Optional[str]:
     """Retorna chave i18n se o lote ou backend for incompatível com duplex."""
     from app.services.pdf_service import product_requires_duplex
@@ -198,13 +217,4 @@ def validate_duplex_batch(items_list, backend: str) -> Optional[str]:
         return 'duplex.mixed_batch'
     if any(flags) and backend == 'pdftoprinter':
         return 'duplex.pdftoprinter_unsupported'
-    return None
-
-
-def validate_landscape_batch(orientation_list, layout_config_list=None) -> Optional[str]:
-    """Retorna chave i18n se o lote misturar retrato e paisagem."""
-    from app.services.layout_service import batch_print_orientation
-
-    if batch_print_orientation(orientation_list, layout_config_list) is None:
-        return 'landscape.mixed_batch'
     return None

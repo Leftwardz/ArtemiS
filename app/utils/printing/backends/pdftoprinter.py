@@ -11,7 +11,7 @@ Limitações conhecidas (registradas em log, não falham o job):
 
 import subprocess
 
-from app.utils.printing.base import DUPLEX_SIMPLEX, PrintBackend, PrintJob, PrintResult
+from app.utils.printing.base import DUPLEX_SIMPLEX, ORIENTATION_LANDSCAPE, PrintBackend, PrintJob, PrintResult
 
 # Lista preservada de printer_handler.PDFTOPRINTER_EXECUTABLES.
 PDFTOPRINTER_EXECUTABLES = (
@@ -39,6 +39,12 @@ class PdfToPrinterBackend(PrintBackend):
             return PrintResult.failure(
                 self.name,
                 'PDFtoPrinter não suporta impressão duplex por job.',
+            )
+
+        if job.orientation == ORIENTATION_LANDSCAPE:
+            return PrintResult.failure(
+                self.name,
+                'PDFtoPrinter não suporta orientação paisagem por job.',
             )
 
         ignored = [p for p, used in (
