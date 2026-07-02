@@ -21,19 +21,20 @@ def _find_dll():
 
 dll_path = _find_dll()
 
-# Ghostscript empacotado (versionado em vendor/ghostscript/ — vem no git clone)
-gs_bin = os.path.join(base_dir, 'vendor', 'ghostscript', 'bin')
-gs_lib = os.path.join(base_dir, 'vendor', 'ghostscript', 'lib')
-gs_exe = os.path.join(gs_bin, 'gswin64c.exe')
-if not os.path.isfile(gs_exe) or not os.path.isdir(gs_lib):
+# Ghostscript: NÃO empacotar em _internal/ (UPX quebra gswin64c/gsdll64).
+# A pasta completa é copiada para dist/vendor/ghostscript/ após o COLLECT.
+_gs_vendor_src = os.path.join(base_dir, 'vendor', 'ghostscript')
+_gs_exe = os.path.join(_gs_vendor_src, 'bin', 'gswin64c.exe')
+_gs_dll = os.path.join(_gs_vendor_src, 'bin', 'gsdll64.dll')
+_gs_lib = os.path.join(_gs_vendor_src, 'lib')
+_gs_init = os.path.join(_gs_lib, 'gs_init.ps')
+if not os.path.isfile(_gs_exe) or not os.path.isfile(_gs_dll) or not os.path.isfile(_gs_init):
     raise SystemExit(
-        'Ghostscript nao encontrado em vendor/ghostscript/.\n'
-        'Faca git clone completo (bin/ e lib/ estao versionados) ou rode scripts/fetch_ghostscript.ps1.'
+        'Ghostscript incompleto em vendor/ghostscript/.\n'
+        'Faca git clone completo (bin/ e lib/ versionados) ou rode scripts/fetch_ghostscript.ps1.'
     )
-gs_datas = [
-    (gs_bin, os.path.join('vendor', 'ghostscript', 'bin')),
-    (gs_lib, os.path.join('vendor', 'ghostscript', 'lib')),
-]
+
+_gs_upx_exclude = ['gswin64c.exe', 'gswin64.exe', 'gsdll64.dll']
 
 resource_datas = []
 for _res in ('img', 'fontes', 'theme'):
@@ -51,10 +52,10 @@ _azure_tcl = os.path.join(base_dir, 'azure.tcl')
 if os.path.isfile(_azure_tcl):
     resource_datas.append((_azure_tcl, '.'))
 
-all_datas = gs_datas + resource_datas
+all_datas = resource_datas
 
 a = Analysis(
-    ['main.py'],
+    ['Main.py'],
     pathex=[],
     binaries=[(dll_path, '.')],
     datas=all_datas,
@@ -73,6 +74,7 @@ a = Analysis(
     win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
+    upx_exclude=_gs_upx_exclude,
 )
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
@@ -103,7 +105,7 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    upx_exclude=[],
+    upx_exclude=_gs_upx_exclude,
     name='Main',
 )
 
@@ -125,13 +127,16 @@ for _name in _external_files:
         raise SystemExit(f'Arquivo obrigatorio para dist/ nao encontrado: {_name}')
     shutil.copy2(_src, os.path.join(_bundle_dir, _name))
 
-# Ghostscript ao lado de Main.exe (dist portavel). PyInstaller 6+ coloca datas em
-# _internal/, mas o app resolve vendor/ na pasta do executavel.
-_gs_vendor_src = os.path.join(base_dir, 'vendor', 'ghostscript')
+# Ghostscript ao lado de Main.exe (dist portavel). Nao vai em _internal/ (UPX).
 _gs_vendor_dst = os.path.join(_bundle_dir, 'vendor', 'ghostscript')
 if os.path.isdir(_gs_vendor_dst):
     shutil.rmtree(_gs_vendor_dst)
 shutil.copytree(_gs_vendor_src, _gs_vendor_dst)
+for _parts in (('bin', 'gswin64c.exe'), ('bin', 'gsdll64.dll'), ('lib', 'gs_init.ps')):
+    _check = os.path.join(_gs_vendor_dst, *_parts)
+    if not os.path.isfile(_check):
+        rel = '/'.join(('vendor', 'ghostscript', *_parts))
+        raise SystemExit(f'dist/ incompleto: {rel} ausente apos copytree')
 
 # Traducoes ao lado de Main.exe (dist portavel). PyInstaller 6+ coloca datas em
 # _internal/, mas o app e verify_dist esperam app/i18n/locales/ e locales/.
@@ -174,6 +179,8 @@ _required_in_dist = [
     'img',
     'azure.tcl',
     'vendor/ghostscript/bin/gswin64c.exe',
+    'vendor/ghostscript/bin/gsdll64.dll',
+    'vendor/ghostscript/lib/gs_init.ps',
     'libdmtx-64.dll',
     'PDFtoPrinter.exe',
     'app/i18n/locales/pt.json',

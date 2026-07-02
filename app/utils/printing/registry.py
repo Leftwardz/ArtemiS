@@ -88,6 +88,9 @@ def dispatch(job: PrintJob, backend_name: str) -> PrintResult:
     try:
         if not backend.is_available():
             msg = f'Backend {backend_name} não está disponível nesta máquina.'
+            if backend_name in ('ghostscript', 'win32_devmode', 'win32_advanced', 'xps'):
+                from app.utils.ghostscript_paths import describe_ghostscript_paths
+                log.error('Ghostscript paths: %s', describe_ghostscript_paths())
             log.error(msg)
             return PrintResult.failure(backend_name, msg)
     except Exception as exc:

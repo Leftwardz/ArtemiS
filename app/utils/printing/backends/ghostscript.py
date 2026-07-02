@@ -18,6 +18,7 @@ import os
 import subprocess
 
 from app.utils.ghostscript_paths import (
+    ghostscript_bin_dir,
     ghostscript_env,
     ghostscript_is_available,
     resolve_ghostscript_exe,
@@ -94,19 +95,21 @@ class GhostscriptBackend(PrintBackend):
         config = job.config
         gs_exe = resolve_ghostscript_exe(config)
         env = ghostscript_env(config)
+        bin_dir = ghostscript_bin_dir()
         command = build_ghostscript_command(gs_exe, job)
 
         if job.tray is not None:
             log.warning('Ghostscript/mswinpr2 não controla bandeja por job; ignorando tray=%s', job.tray)
 
         log.info('comando Ghostscript: %s', command)
+        log.info('Ghostscript cwd=%s GS_LIB=%s', bin_dir, env.get('GS_LIB'))
         try:
             result = subprocess.run(
                 command,
                 env=env,
                 capture_output=True,
                 text=True,
-                cwd=os.path.dirname(gs_exe) if os.path.isfile(gs_exe) else None,
+                cwd=bin_dir,
             )
         except Exception as exc:
             return PrintResult.failure(self.name, f'Falha ao iniciar Ghostscript: {exc}', detail=repr(exc))

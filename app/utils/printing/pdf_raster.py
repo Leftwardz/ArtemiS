@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import tempfile
 
-from app.utils.ghostscript_paths import ghostscript_env, resolve_ghostscript_exe
+from app.utils.ghostscript_paths import ghostscript_bin_dir, ghostscript_env, resolve_ghostscript_exe
 
 DEFAULT_DPI = 300
 
@@ -43,6 +43,7 @@ def rasterize_pdf(pdf_path, dpi=DEFAULT_DPI, config=None):
     """
     gs_exe = resolve_ghostscript_exe(config)
     env = ghostscript_env(config)
+    bin_dir = ghostscript_bin_dir()
     tmpdir = tempfile.mkdtemp(prefix='ar_raster_')
     pattern = os.path.join(tmpdir, 'page_%04d.png')
 
@@ -60,7 +61,7 @@ def rasterize_pdf(pdf_path, dpi=DEFAULT_DPI, config=None):
         env=env,
         capture_output=True,
         text=True,
-        cwd=os.path.dirname(gs_exe) if os.path.isfile(gs_exe) else None,
+        cwd=bin_dir,
     )
     if result.returncode != 0:
         shutil.rmtree(tmpdir, ignore_errors=True)

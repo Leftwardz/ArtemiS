@@ -33,4 +33,4 @@ Ghostscript é distribuído sob **AGPL**. O arquivo `LICENSE.txt` deve acompanha
 
 ## PyInstaller
 
-`Main.spec` empacota `vendor/ghostscript/bin` e `lib` e **copia a pasta inteira** para `dist/vendor/ghostscript/` ao lado de `Main.exe`. Em runtime, `app/utils/ghostscript_paths.py` procura primeiro na pasta do executável (deploy portável) e depois em `sys._MEIPASS` (bundle interno do PyInstaller).
+`Main.spec` copia `vendor/ghostscript/` inteiro para `dist/vendor/ghostscript/` ao lado de `Main.exe` (fora de `_internal/`, para evitar UPX quebrar os binários). Em runtime, `app/utils/ghostscript_paths.py` procura primeiro na pasta do executável.
