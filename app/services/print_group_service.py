@@ -23,7 +23,9 @@ def resolve_work_search_path(search_folder: str, group_flag: str, is_remake: boo
 
 def ensure_group_subdirectory(search_folder: str, group_name: str) -> None:
     if search_folder and group_name:
-        os.makedirs(os.path.join(search_folder, group_name), exist_ok=True)
+        group_path = os.path.join(search_folder, group_name)
+        os.makedirs(group_path, exist_ok=True)
+        os.makedirs(os.path.join(group_path, 'Old'), exist_ok=True)
 
 
 def migrate_legacy_group_folder(search_folder: str) -> None:
@@ -41,6 +43,9 @@ def ensure_workorder_directories(search_folder: str, group_names: list[str] | No
         return
     migrate_legacy_group_folder(search_folder)
     os.makedirs(search_folder, exist_ok=True)
-    os.makedirs(os.path.join(search_folder, 'Old'), exist_ok=True)
     for name in group_names or []:
-        ensure_group_subdirectory(search_folder, name)
+        if not name:
+            continue
+        group_path = os.path.join(search_folder, name)
+        os.makedirs(group_path, exist_ok=True)
+        os.makedirs(os.path.join(group_path, 'Old'), exist_ok=True)
