@@ -21,6 +21,16 @@ PAGE_PRESETS: dict[str, tuple[float, float]] = {
 
 PAGE_PRESET_LABELS = list(PAGE_PRESETS.keys())
 
+# Código DMPAPER (Windows) para validação de impressora — ver PAPER_SIZE_TIP em constants.py
+PAGE_PRESET_TO_PAPER_SIZE: dict[str, str] = {
+    'A4': '9',
+    'A3': '8',
+    'Carta': '1',
+}
+
+# Modos legados (3/2/1 AR por folha) imprimem sempre em A4 físico
+LEGACY_ORIENTATION_PAPER_SIZE = '9'
+
 
 def apply_page_preset(layout: SheetLayout, preset: str) -> SheetLayout:
     if preset in PAGE_PRESETS and preset != 'Personalizado':
@@ -120,3 +130,32 @@ def batch_print_orientation(
     if all(o == ORIENTATION_PORTRAIT for o in resolved):
         return ORIENTATION_PORTRAIT
     return None
+
+
+def resolve_product_paper_size(orientation_index: int, layout_config_json: Optional[str] = None) -> str:
+    """Deriva o código DMPAPER para validação/impressão a partir da orientação do produto."""
+    if not is_custom_orientation(orientation_index):
+        return LEGACY_ORIENTATION_PAPER_SIZE
+
+    layout = SheetLayout.from_json(layout_config_json)
+    preset = layout.page_preset
+    if preset in PAGE_PRESET_TO_PAPER_SIZE:
+        return PAGE_PRESET_TO_PAPER_SIZE[preset]
+
+    # Personalizado: tenta casar dimensões com um preset conhecido
+    w, h = sorted((float(layout.page_width_mm), float(layout.page_height_mm)))
+    for name, (pw, ph) in PAGE_PRESETS.items():
+        if name == 'Personalizado':
+            continue
+        pw_s, ph_s = sorted((pw, ph))
+        if abs(w - pw_s) < 1.0 and abs(h - ph_s) < 1.0:
+            return PAGE_PRESET_TO_PAPER_SIZE.get(name, LEGACY_ORIENTATION_PAPER_SIZE)
+    return '0'
+
+
+def get_product_paper_size(product) -> str:
+    """Código DMPAPER efetivo de um produto (ignora paper_size legado no banco se inconsistente)."""
+    if product is None:
+        return LEGACY_ORIENTATION_PAPER_SIZE
+    orient = int(product.orientation) if str(product.orientation).isdigit() else 0
+    return resolve_product_paper_size(orient, getattr(product, 'layout_config', None))

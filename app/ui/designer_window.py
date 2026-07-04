@@ -20,7 +20,7 @@ from app.models.sheet_layout import (
     CUSTOM_ORIENTATION_INDEX, PACKING_COLUMN_DEPTH, PACKING_SEQUENTIAL,
     PACKING_UI_LABELS, PACKING_VALUE_TO_LABEL, SCOPE_SHEET, SCOPE_SLOT, SheetLayout,
 )
-from app.services.layout_service import PAGE_PRESET_LABELS, build_grid_layout
+from app.services.layout_service import PAGE_PRESET_LABELS, build_grid_layout, resolve_product_paper_size
 from app.models.drawing_items import (
     BarcodeObject, BarcodeTextObject, CounterObject, ImageObject, LineObject,
     RectangleObject, SegmentLine, SegmentObject, TextObject, new_object_id,
@@ -47,7 +47,6 @@ from app.ui.constants import (
     ICON,
     PAPER_COLOR_LIST,
     FIXED_TEXT_PAGE_TIP,
-    PAPER_SIZE_TIP,
     THEME_ACCENT,
     THEME_ACCENT_HOVER,
     THEME_BG,
@@ -114,16 +113,14 @@ class EditWindow(ctk.CTkToplevel):
         if product:
             product_color = product.paper_color
             product_orientation = product.orientation
-            product_paper_size = product.paper_size
             self.sheet_layout = SheetLayout.from_json(getattr(product, 'layout_config', None))
         else:
             product_orientation = '0'
             product_color = 'Branco'
-            product_paper_size = '9'
             self.sheet_layout = SheetLayout.default()
 
         self._build_header()
-        self._build_product_settings(product_color, product_paper_size, product_orientation)
+        self._build_product_settings(product_color, product_orientation)
         self._build_custom_layout_panel()
         self._build_workspace(product_orientation)
         self._build_hidden_tools()
@@ -267,7 +264,7 @@ class EditWindow(ctk.CTkToplevel):
         )
         self.lbl_id.grid(row=0, column=2, sticky='w', padx=(0, 16))
 
-    def _build_product_settings(self, product_color, product_paper_size, product_orientation):
+    def _build_product_settings(self, product_color, product_orientation):
         strip = ctk.CTkFrame(self, fg_color='transparent')
         strip.grid(row=1, column=0, columnspan=2, sticky='ew', padx=12, pady=(10, 0))
 
@@ -284,20 +281,6 @@ class EditWindow(ctk.CTkToplevel):
         self.paper_color_list.set(product_color)
         self.color = ctk.CTkFrame(row_c, fg_color=PAPER_COLOR_LIST[product_color], width=24, height=24, corner_radius=4)
         self.color.pack(side='left', padx=(8, 0))
-
-        card_size, body_size = self._editor_card(strip, 'Tamanho')
-        card_size.pack(side='left', fill='y', padx=(0, 8))
-        row_s = ctk.CTkFrame(body_size, fg_color='transparent')
-        row_s.pack(fill='x')
-        lbl_paper_size = ctk.CTkLabel(row_s, text='Código', text_color=THEME_TEXT_SECONDARY)
-        lbl_paper_size.pack(side='left', padx=(0, 6))
-        self.paper_size_list = ctk.CTkComboBox(
-            row_s, values=[str(i) for i in range(21)], width=72,
-            command=self.update_save_button, **self._combo_kwargs(),
-        )
-        self.paper_size_list.pack(side='left')
-        self.paper_size_list.set(product_paper_size)
-        Tooltip(lbl_paper_size, PAPER_SIZE_TIP)
 
         card_orient, body_orient = self._editor_card(strip, 'Orientação')
         card_orient.pack(side='left', fill='y')
@@ -749,6 +732,10 @@ class EditWindow(ctk.CTkToplevel):
         else:
             raise f'mode invalid: {mode}, use "edit" or "add"'
 
+    def _resolved_paper_size(self) -> str:
+        orient = orientation_index_from_label(self.combobox_type.get())
+        return resolve_product_paper_size(orient, self._current_layout_config_json())
+
     def verify_changes(self):
         return has_unsaved_changes(
             self.client,
@@ -756,7 +743,7 @@ class EditWindow(ctk.CTkToplevel):
             self.entry_name.get(),
             self.paper_color_list.get(),
             orientation_index_from_label(self.combobox_type.get()),
-            self.paper_size_list.get(),
+            self._resolved_paper_size(),
             self.pass_canvas_to_dict(),
             self.consult_drawings_from_db(),
             admin_service.get_db(),
@@ -833,7 +820,7 @@ class EditWindow(ctk.CTkToplevel):
 
             color = self.paper_color_list.get()
             orientation_type = orientation_index_from_label(self.combobox_type.get())
-            paper_size = self.paper_size_list.get()
+            paper_size = self._resolved_paper_size()
             new_name = self.entry_name.get()
 
             save_product_with_drawings(

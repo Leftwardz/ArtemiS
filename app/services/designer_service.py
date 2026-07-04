@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from app import audit
 from app.models.sheet_layout import CUSTOM_ORIENTATION_INDEX
+from app.services.layout_service import get_product_paper_size
 
 
 ORIENTATION_LABELS = [
@@ -73,12 +74,13 @@ def duplicate_product(
         return 'Nome de produto já existe'
 
     product_obj = db.search_product(source_client, source_product)
+    paper_size = get_product_paper_size(product_obj)
     db.insert_product(
         target_product,
         target_client,
         product_obj.paper_color,
         product_obj.orientation,
-        product_obj.paper_size,
+        paper_size,
         getattr(product_obj, 'layout_config', None),
     )
     items = db.consult_drawings_from_product(source_client, source_product)
@@ -101,7 +103,7 @@ def build_export_payload(client: str, product: str, db) -> dict:
     return {
         'cliente': client,
         'produto': product,
-        'paper_size': product_db.paper_size,
+        'paper_size': get_product_paper_size(product_db),
         'color': db.search_color(client, product),
         'orientation': product_db.orientation,
         'layout_config': getattr(product_db, 'layout_config', None),
@@ -208,7 +210,8 @@ def has_unsaved_changes(
         return True
     if orientation_index != int(product.orientation):
         return True
-    if paper_size != product.paper_size:
+    saved_paper = get_product_paper_size(product)
+    if paper_size != saved_paper:
         return True
     if orientation_index == CUSTOM_ORIENTATION_INDEX:
         saved_layout = getattr(product, 'layout_config', None) or ''

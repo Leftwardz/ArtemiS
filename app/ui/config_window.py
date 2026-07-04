@@ -33,6 +33,7 @@ from app.services.designer_service import (
     parse_import_file,
     replace_imported_drawings,
 )
+from app.services.layout_service import resolve_product_paper_size
 from app.ui.components import ConfirmWindow, ListBox, PopUpWindow, Table
 from app.ui.constants import (
     BTN_HOVER_RED,
@@ -805,7 +806,7 @@ class ConfigWindow(ctk.CTkToplevel):
 
         client_name = product_file['cliente']
         product_name = product_file['produto']
-        paper_size = product_file['paper_size']
+        paper_size = resolve_product_paper_size(int(orientation), layout_config)
         color = product_file['color']
         orientation = product_file['orientation']
         layout_config = product_file.get('layout_config')

@@ -7,7 +7,7 @@ from app.services.print_group_service import (
     normalize_group_flag,
     resolve_work_search_path,
 )
-from app.utils.file_parser import FileUtils
+from app.services.layout_service import get_product_paper_size
 
 
 @dataclass
@@ -75,7 +75,7 @@ def get_work_product_info(path: str, db) -> Optional[WorkProductInfo]:
         client=client,
         product=product,
         color=product_obj.paper_color,
-        paper_size=product_obj.paper_size,
+        paper_size=get_product_paper_size(product_obj),
     )
 
 
@@ -174,7 +174,7 @@ def get_paper_size_from_path(path: str, db) -> Optional[str]:
     client, product = get_product_from_file(path)
     product_obj = db.search_product(client, product)
     if product_obj:
-        return product_obj.paper_size
+        return get_product_paper_size(product_obj)
     return None
 
 
