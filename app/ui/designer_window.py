@@ -478,23 +478,27 @@ class EditWindow(ctk.CTkToplevel):
 
         card_label, body_label = self._editor_card(self.frame_custom_layout, 'Etiqueta')
         card_label.pack(side='left', fill='y', padx=(0, 8))
-        row_label_size = ctk.CTkFrame(body_label, fg_color='transparent')
-        row_label_size.pack(fill='x')
-        ctk.CTkLabel(row_label_size, text='L×A (mm)', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=0, padx=(0, 4), sticky='w')
-        self.custom_label_w = self._mm_spin(row_label_size, layout.label_width_mm, entry_width=64)
-        self.custom_label_w.grid(row=0, column=1, padx=2, sticky='w')
-        self.custom_label_h = self._mm_spin(row_label_size, layout.label_height_mm, entry_width=64)
-        self.custom_label_h.grid(row=0, column=2, padx=2, sticky='w')
+        label_grid = ctk.CTkFrame(body_label, fg_color='transparent')
+        label_grid.pack(fill='x')
+        label_grid.grid_columnconfigure(0, weight=0)
+        label_grid.grid_columnconfigure(1, weight=0, minsize=88)
+        label_grid.grid_columnconfigure(2, weight=0, minsize=88)
 
-        row_label_margin = ctk.CTkFrame(body_label, fg_color='transparent')
-        row_label_margin.pack(fill='x', pady=(6, 0))
-        ctk.CTkLabel(row_label_margin, text='Margem L/T', text_color=THEME_TEXT_SECONDARY).grid(
-            row=0, column=0, padx=(0, 4), sticky='w',
+        ctk.CTkLabel(label_grid, text='L×A (mm)', text_color=THEME_TEXT_SECONDARY).grid(
+            row=0, column=0, padx=(0, 8), sticky='w',
         )
-        self.custom_margin_l = self._mm_spin(row_label_margin, layout.margin_left_mm, entry_width=56)
-        self.custom_margin_l.grid(row=0, column=1, padx=2, sticky='w')
-        self.custom_margin_t = self._mm_spin(row_label_margin, layout.margin_top_mm, entry_width=56)
-        self.custom_margin_t.grid(row=0, column=2, padx=2, sticky='w')
+        self.custom_label_w = self._mm_spin(label_grid, layout.label_width_mm)
+        self.custom_label_w.grid(row=0, column=1, padx=2, sticky='ew')
+        self.custom_label_h = self._mm_spin(label_grid, layout.label_height_mm)
+        self.custom_label_h.grid(row=0, column=2, padx=2, sticky='ew')
+
+        ctk.CTkLabel(label_grid, text='Margem L/T', text_color=THEME_TEXT_SECONDARY).grid(
+            row=1, column=0, padx=(0, 8), pady=(6, 0), sticky='w',
+        )
+        self.custom_margin_l = self._mm_spin(label_grid, layout.margin_left_mm)
+        self.custom_margin_l.grid(row=1, column=1, padx=2, pady=(6, 0), sticky='ew')
+        self.custom_margin_t = self._mm_spin(label_grid, layout.margin_top_mm)
+        self.custom_margin_t.grid(row=1, column=2, padx=2, pady=(6, 0), sticky='ew')
 
         card_grid, body_grid = self._editor_card(self.frame_custom_layout, 'Grade')
         card_grid.pack(side='left', fill='y', padx=(0, 8))
