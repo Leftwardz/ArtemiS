@@ -262,30 +262,27 @@ class EditWindow(ctk.CTkToplevel):
 
         card_preview, body_preview = self._editor_card(strip, 'Preview arquivo')
         card_preview.pack(side='left', fill='y', padx=(0, 8))
-        preview_row = ctk.CTkFrame(body_preview, fg_color='transparent')
-        preview_row.pack(fill='x')
         self.btn_preview_file = ctk.CTkButton(
-            preview_row, text='Arquivo', width=72, height=32, corner_radius=8,
+            body_preview, text='Arquivo CSV', width=100, height=32, corner_radius=8,
             fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
             border_width=1, border_color=THEME_CARD_BORDER, command=self.load_preview_file,
         )
-        self.btn_preview_file.pack(side='left', padx=(0, 6))
-        ctk.CTkLabel(preview_row, text='Linha', text_color=THEME_TEXT_SECONDARY).pack(side='left', padx=(0, 4))
-        self.preview_line_spin = SpinBox(preview_row, step=1, func=self._on_preview_line_change, entry_width=48)
+        self.btn_preview_file.pack(anchor='w')
+
+        self._preview_controls = ctk.CTkFrame(body_preview, fg_color='transparent')
+        preview_controls_row = ctk.CTkFrame(self._preview_controls, fg_color='transparent')
+        preview_controls_row.pack(fill='x')
+        self.lbl_preview_line = ctk.CTkLabel(preview_controls_row, text='Linha', text_color=THEME_TEXT_SECONDARY)
+        self.lbl_preview_line.pack(side='left', padx=(0, 4))
+        self.preview_line_spin = SpinBox(preview_controls_row, step=1, func=self._on_preview_line_change, entry_width=48)
         self.preview_line_spin.set(1)
         self.preview_line_spin.entry.bind('<Return>', self._on_preview_line_change)
         self.preview_line_spin.pack(side='left', padx=(0, 4))
         self.btn_clear_preview = ctk.CTkButton(
-            preview_row, text='×', width=28, height=32, corner_radius=8,
-            fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
-            command=self.clear_preview_file, state='disabled',
+            preview_controls_row, text='×', width=28, height=32, corner_radius=8,
+            fg_color=BTN_RED, hover_color=BTN_HOVER_RED, command=self.clear_preview_file,
         )
         self.btn_clear_preview.pack(side='left')
-        self.lbl_preview_file = ctk.CTkLabel(
-            body_preview, text='', font=(FONT, 10), text_color=THEME_TEXT_SECONDARY,
-            anchor='w', wraplength=200,
-        )
-        self.lbl_preview_file.pack(fill='x', pady=(6, 0))
 
         card_view, body_view = self._editor_card(strip, 'Visualizar')
         card_view.pack(side='left', fill='y')
@@ -294,6 +291,7 @@ class EditWindow(ctk.CTkToplevel):
             fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER, command=self.show_pdf,
         )
         self.btn_visualize.pack(anchor='w')
+        self._sync_preview_ui()
 
     def _build_workspace(self, product_orientation):
         product_orientation = str(int(product_orientation) if str(product_orientation).isdigit() else 0)
@@ -746,12 +744,50 @@ class EditWindow(ctk.CTkToplevel):
 
     def set_title(self, master, mode):
         if mode == 'add':
-            self.title(f'{self.client} - Novo Produto')
+            self._window_title_product = 'Novo Produto'
         elif mode == 'edit':
-            product = master.product_list.radio_var.get()
-            self.title(f'{self.client} - {product}')
+            self._window_title_product = master.product_list.radio_var.get()
         else:
             raise f'mode invalid: {mode}, use "edit" or "add"'
+        self._update_window_title()
+
+    def _update_window_title(self):
+        if hasattr(self, 'entry_name_value'):
+            product = self.entry_name_value.get()
+        else:
+            product = getattr(self, 'product_name', getattr(self, '_window_title_product', ''))
+        title = f'{self.client} - {product}'
+        preview_path = getattr(self, 'preview_file_path', '')
+        if preview_path:
+            name = os.path.basename(preview_path)
+            line = getattr(self, 'preview_line_idx', 0) + 1
+            preview_file = getattr(self, 'preview_file', None)
+            total = len(preview_file.lines) if preview_file else 1
+            title += f'  ·  {name} (L{line}/{total})'
+        self.title(title)
+
+    def _canvas_status_text(self, lx, ly, *, medir=False):
+        if medir:
+            text = f'X: {lx}  Y: {ly}  ({format_mm(lx)}, {format_mm(ly)})'
+        else:
+            text = f'X: {lx}, Y: {ly}'
+        if self.preview_file_path and self.preview_file:
+            name = os.path.basename(self.preview_file_path)
+            line = self.preview_line_idx + 1
+            total = len(self.preview_file.lines)
+            text += f'  ·  {name}  L{line}/{total}'
+        return text
+
+    def _set_preview_controls_visible(self, visible: bool):
+        if visible:
+            self._preview_controls.pack(fill='x', pady=(6, 0))
+        else:
+            self._preview_controls.pack_forget()
+
+    def _sync_preview_ui(self):
+        has_file = bool(self.preview_file_path and self.preview_file)
+        self._set_preview_controls_visible(has_file)
+        self._update_window_title()
 
     def _resolved_paper_size(self) -> str:
         orient = orientation_index_from_label(self.combobox_type.get())
@@ -857,7 +893,7 @@ class EditWindow(ctk.CTkToplevel):
             )
 
             self.product_name = new_name
-            self.title(f'{self.client} - {self.product_name}')
+            self._update_window_title()
             self.canvas_db_saved_items = self.pass_canvas_to_dict()
 
             self.master.refresh()
@@ -985,8 +1021,7 @@ class EditWindow(ctk.CTkToplevel):
         self.preview_file_path = path
         self.preview_line_idx = 0
         self.preview_line_spin.set(1)
-        self.btn_clear_preview.configure(state='normal')
-        self._update_preview_file_label()
+        self._sync_preview_ui()
         self._redraw_editor_view()
 
     def clear_preview_file(self):
@@ -994,17 +1029,8 @@ class EditWindow(ctk.CTkToplevel):
         self.preview_file_path = ''
         self.preview_line_idx = 0
         self.preview_line_spin.set(1)
-        self.btn_clear_preview.configure(state='disabled')
-        self.lbl_preview_file.configure(text='')
+        self._sync_preview_ui()
         self._redraw_editor_view()
-
-    def _update_preview_file_label(self):
-        if not self.preview_file_path:
-            self.lbl_preview_file.configure(text='')
-            return
-        name = os.path.basename(self.preview_file_path)
-        total = len(self.preview_file.lines)
-        self.lbl_preview_file.configure(text=f'{name} ({total} linha(s))')
 
     def _on_preview_line_change(self, *args):
         if not self.preview_file:
@@ -1015,6 +1041,7 @@ class EditWindow(ctk.CTkToplevel):
             return
         self.preview_line_idx = min(line_no - 1, len(self.preview_file.lines) - 1)
         self.preview_line_spin.set(self.preview_line_idx + 1)
+        self._update_window_title()
         self._redraw_editor_view()
 
     def _group_canvas_ids(self, canvas_id):
@@ -1489,11 +1516,9 @@ class EditWindow(ctk.CTkToplevel):
         self._event_xy(event)
         lx, ly = int(round(self._zl(event.x))), int(round(self._zl(event.y)))
         if self.btn_tools.get() == 'Medir':
-            self.lbl_testes.configure(
-                text=f'X: {lx}  Y: {ly}  ({format_mm(lx)}, {format_mm(ly)})',
-            )
+            self.lbl_testes.configure(text=self._canvas_status_text(lx, ly, medir=True))
         else:
-            self.lbl_testes.configure(text=f'X: {lx}, Y: {ly}')
+            self.lbl_testes.configure(text=self._canvas_status_text(lx, ly))
 
     def _group_bbox(self, rep):
         boxes = []
@@ -1773,11 +1798,9 @@ class EditWindow(ctk.CTkToplevel):
         self._event_xy(event)
         lx, ly = int(round(self._zl(event.x))), int(round(self._zl(event.y)))
         if self.btn_tools.get() == 'Medir':
-            self.lbl_testes.configure(
-                text=f'X: {lx}  Y: {ly}  ({format_mm(lx)}, {format_mm(ly)})',
-            )
+            self.lbl_testes.configure(text=self._canvas_status_text(lx, ly, medir=True))
         else:
-            self.lbl_testes.configure(text=f'X: {lx}, Y: {ly}')
+            self.lbl_testes.configure(text=self._canvas_status_text(lx, ly))
         if self.btn_tools.get() == 'Linha':
             if self.draw_object:
                 self.canvas.delete(self.draw_object)
