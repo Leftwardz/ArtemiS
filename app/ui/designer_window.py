@@ -188,7 +188,7 @@ class EditWindow(ctk.CTkToplevel):
         left.grid(row=0, column=0, sticky='w', padx=12, pady=10)
         ctk.CTkLabel(left, text='Nome do produto:', text_color=THEME_TEXT_SECONDARY).pack(side='left', padx=(0, 8))
         self.entry_name_value = ctk.StringVar(value=self.product_name)
-        self.entry_name = ctk.CTkEntry(left, width=220, textvariable=self.entry_name_value, **self._entry_kwargs())
+        self.entry_name = ctk.CTkEntry(left, width=280, textvariable=self.entry_name_value, **self._entry_kwargs())
         self.entry_name.pack(side='left')
 
         actions = ctk.CTkFrame(header, fg_color='transparent')
@@ -202,40 +202,7 @@ class EditWindow(ctk.CTkToplevel):
             actions, text='Deletar', width=88, height=32, corner_radius=8,
             fg_color=BTN_RED, hover_color=BTN_HOVER_RED, command=self.confirm_delete,
         )
-        self.btn_delete.pack(side='left', padx=(0, 6))
-        self.btn_visualize = ctk.CTkButton(
-            actions, text='Visualizar', width=96, height=32, corner_radius=8,
-            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
-            border_width=1, border_color=THEME_CARD_BORDER, command=self.show_pdf,
-        )
-        self.btn_visualize.pack(side='left', padx=(0, 10))
-
-        self.preview_frame = ctk.CTkFrame(actions, fg_color='transparent')
-        self.preview_frame.pack(side='left', padx=(0, 10))
-        self.btn_preview_file = ctk.CTkButton(
-            self.preview_frame, text='Preview', width=80, height=32, corner_radius=8,
-            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
-            border_width=1, border_color=THEME_CARD_BORDER, command=self.load_preview_file,
-        )
-        self.btn_preview_file.pack(side='left', padx=(0, 4))
-        ctk.CTkLabel(self.preview_frame, text='Linha:', text_color=THEME_TEXT_SECONDARY).pack(side='left', padx=(0, 2))
-        self.preview_line_spin = SpinBox(self.preview_frame, step=1, func=self._on_preview_line_change, entry_width=42)
-        self.preview_line_spin.set(1)
-        self.preview_line_spin.entry.bind('<Return>', self._on_preview_line_change)
-        self.preview_line_spin.pack(side='left', padx=(0, 4))
-        self.btn_clear_preview = ctk.CTkButton(
-            self.preview_frame, text='×', width=28, height=32, corner_radius=8,
-            fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
-            command=self.clear_preview_file, state='disabled',
-        )
-        self.btn_clear_preview.pack(side='left')
-        self.lbl_preview_file = ctk.CTkLabel(
-            self.preview_frame, text='', font=(FONT, 10), text_color=THEME_TEXT_SECONDARY, width=100,
-        )
-        self.lbl_preview_file.pack(side='left', padx=(6, 0))
-        self.preview_file = None
-        self.preview_file_path = ''
-        self.preview_line_idx = 0
+        self.btn_delete.pack(side='left', padx=(0, 10))
 
         self.zoom_frame = ctk.CTkFrame(actions, fg_color='transparent')
         self.zoom_frame.pack(side='left')
@@ -258,11 +225,9 @@ class EditWindow(ctk.CTkToplevel):
         )
         self.btn_zoom_reset.grid(row=0, column=3, padx=(6, 2))
 
-        self.lbl_id = ctk.CTkLabel(
-            header, text=f'ID: {self.client} - {self.product_name}',
-            font=(FONT, 11, 'bold'), text_color='white',
-        )
-        self.lbl_id.grid(row=0, column=2, sticky='w', padx=(0, 16))
+        self.preview_file = None
+        self.preview_file_path = ''
+        self.preview_line_idx = 0
 
     def _build_product_settings(self, product_color, product_orientation):
         strip = ctk.CTkFrame(self, fg_color='transparent')
@@ -283,7 +248,7 @@ class EditWindow(ctk.CTkToplevel):
         self.color.pack(side='left', padx=(8, 0))
 
         card_orient, body_orient = self._editor_card(strip, 'Orientação')
-        card_orient.pack(side='left', fill='y')
+        card_orient.pack(side='left', fill='y', padx=(0, 8))
         self.orient_values = ORIENTATION_LABELS
         self.combobox_type = ctk.CTkComboBox(
             body_orient, values=self.orient_values, width=200,
@@ -294,6 +259,41 @@ class EditWindow(ctk.CTkToplevel):
         if orient_idx >= len(self.orient_values):
             orient_idx = 0
         self.combobox_type.set(self.orient_values[orient_idx])
+
+        card_preview, body_preview = self._editor_card(strip, 'Preview arquivo')
+        card_preview.pack(side='left', fill='y', padx=(0, 8))
+        preview_row = ctk.CTkFrame(body_preview, fg_color='transparent')
+        preview_row.pack(fill='x')
+        self.btn_preview_file = ctk.CTkButton(
+            preview_row, text='Arquivo', width=72, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER, command=self.load_preview_file,
+        )
+        self.btn_preview_file.pack(side='left', padx=(0, 6))
+        ctk.CTkLabel(preview_row, text='Linha', text_color=THEME_TEXT_SECONDARY).pack(side='left', padx=(0, 4))
+        self.preview_line_spin = SpinBox(preview_row, step=1, func=self._on_preview_line_change, entry_width=48)
+        self.preview_line_spin.set(1)
+        self.preview_line_spin.entry.bind('<Return>', self._on_preview_line_change)
+        self.preview_line_spin.pack(side='left', padx=(0, 4))
+        self.btn_clear_preview = ctk.CTkButton(
+            preview_row, text='×', width=28, height=32, corner_radius=8,
+            fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
+            command=self.clear_preview_file, state='disabled',
+        )
+        self.btn_clear_preview.pack(side='left')
+        self.lbl_preview_file = ctk.CTkLabel(
+            body_preview, text='', font=(FONT, 10), text_color=THEME_TEXT_SECONDARY,
+            anchor='w', wraplength=200,
+        )
+        self.lbl_preview_file.pack(fill='x', pady=(6, 0))
+
+        card_view, body_view = self._editor_card(strip, 'Visualizar')
+        card_view.pack(side='left', fill='y')
+        self.btn_visualize = ctk.CTkButton(
+            body_view, text='Gerar PDF', width=120, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER, command=self.show_pdf,
+        )
+        self.btn_visualize.pack(anchor='w')
 
     def _build_workspace(self, product_orientation):
         product_orientation = str(int(product_orientation) if str(product_orientation).isdigit() else 0)
@@ -837,7 +837,6 @@ class EditWindow(ctk.CTkToplevel):
 
             self.product_name = new_name
             self.title(f'{self.client} - {self.product_name}')
-            self.lbl_id.configure(text=f'ID: {self.client} - {self.product_name}')
             self.canvas_db_saved_items = self.pass_canvas_to_dict()
 
             self.master.refresh()
