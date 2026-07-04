@@ -1942,10 +1942,12 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
         self._empty_center = ctk.CTkFrame(shell, fg_color='transparent')
         self._empty_center.grid_columnconfigure(0, weight=1)
         self._empty_center.grid_rowconfigure(0, weight=1)
-        ctk.CTkLabel(
+        self._empty_center.grid_rowconfigure(2, weight=1)
+        self._empty_label = ctk.CTkLabel(
             self._empty_center, text='Nenhum item selecionado',
             font=(FONT, 14), text_color=THEME_TEXT_SECONDARY,
-        ).grid(row=0, column=0)
+        )
+        self._empty_label.grid(row=1, column=0)
 
         self.validation = self.register(self.is_valid_input)
         self.frame = None
