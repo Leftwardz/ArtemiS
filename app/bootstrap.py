@@ -3,6 +3,8 @@ import os
 
 from app import audit, runtime
 from app.models.database_manager import DataBase
+from app.services.print_group_service import ensure_workorder_directories
+from app.services.print_group_service import DEFAULT_SEARCH_FOLDER
 from app.ui.main_app import App
 
 
@@ -10,13 +12,11 @@ def main():
     try:
         with open("config.json") as config_file:
             config = json.load(config_file)
-            if not os.path.exists(config["search_folder"]):
-                os.mkdir(config["search_folder"])
     except FileNotFoundError:
         with open("config.json", "w") as config_file:
             config = {
                 "database_location": "database.db",
-                "search_folder": "C:\\AR",
+                "search_folder": DEFAULT_SEARCH_FOLDER,
                 "print_backend": "pdftoprinter",
                 "audit_enabled": True,
                 "audit_central_location": "",
@@ -26,11 +26,13 @@ def main():
                 "locales_folder": "",
             }
             json.dump(config, config_file, indent=4)
-        if not os.path.exists("C:\\AR"):
-            os.mkdir("C:\\AR")
 
     runtime.init(config, DataBase(config["database_location"]))
     runtime.context.db.create_tables()
+    ensure_workorder_directories(
+        config["search_folder"],
+        runtime.context.db.search_print_group(),
+    )
 
     from app.i18n import init_i18n
     init_i18n(config)

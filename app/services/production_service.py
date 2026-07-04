@@ -2,6 +2,11 @@ import os
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
+from app.services.print_group_service import (
+    ensure_workorder_directories,
+    normalize_group_flag,
+    resolve_work_search_path,
+)
 from app.utils.file_parser import FileUtils
 
 
@@ -28,23 +33,16 @@ class QueueConsistencyResult:
     show_color: bool = False
 
 
-def normalize_group_flag(group_name: str) -> str:
-    if group_name == 'AR':
-        return ''
-    return f'\\{group_name}'
+def ensure_output_directories(search_folder: str) -> None:
+    from app import runtime
 
-
-def resolve_work_search_path(search_folder: str, group_flag: str, is_remake: bool) -> str:
-    if is_remake:
-        return search_folder + group_flag + '\\Old'
-    return search_folder + group_flag
-
-
-def ensure_output_directories(search_folder: str):
-    old_path = os.path.join(search_folder, 'Old')
-
-    if not os.path.exists(old_path):
-        os.mkdir(old_path)
+    groups: list[str] = []
+    try:
+        if runtime.context and runtime.context.db:
+            groups = runtime.context.db.search_print_group()
+    except Exception:
+        pass
+    ensure_workorder_directories(search_folder, groups)
 
 
 def is_empty_file(path: str) -> bool:

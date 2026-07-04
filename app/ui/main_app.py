@@ -36,9 +36,20 @@ from app.ui.constants import (
     DEFAULT_WIDTH,
     FONT,
     ICON,
-    LOADING_SIDEBAR_WIDTH,
     PAPER_COLOR_LIST,
+    SIDEBAR_WIDTH,
+    THEME_ACCENT,
+    THEME_ACCENT_HOVER,
+    THEME_ACCENT_SECONDARY,
+    THEME_BG,
+    THEME_CARD,
+    THEME_CARD_BORDER,
+    THEME_NAV_ACTIVE,
+    THEME_PROGRESS_BG,
+    THEME_SIDEBAR,
+    THEME_TEXT_SECONDARY,
 )
+from app.ui.theme_assets import GradientButton, IconCache, gradient_ctk_image
 from app.ui.remake_window import RemakeWindow
 from app.ui.ttk_theme import apply_azure_dark_theme
 from app.utils.document_delivery import open_path
@@ -58,138 +69,351 @@ class App(ctk.CTk):
         ctk.set_appearance_mode("dark")
         apply_azure_dark_theme(self)
         self.option_add("*Font", ("Segoe UI", 15))
+        self.configure(fg_color=THEME_BG)
 
-        self.winfo_screenwidth()
         self.geometry(calculate_center_screen(DEFAULT_WIDTH, DEFAULT_HEIGHT, self))
         self.minsize(DEFAULT_WIDTH, DEFAULT_HEIGHT)
-        self.maxsize(DEFAULT_WIDTH, DEFAULT_HEIGHT)
 
-        for col in range(4):
-            self.grid_columnconfigure(col, weight=1)
-        self.grid_rowconfigure(7, weight=1)
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
         self.config_window = None
         self.file_lines = None
         self.progressbar = None
         self.lbl_progressbar = None
+        self._nav_buttons = {}
+        self._icons = IconCache()
+        self._card_titles = {}
 
-        # ################## Title ##############################
-        self.lbl_title = ctk.CTkLabel(self, text=APP_NAME, font=(FONT, 45, "bold"), fg_color="transparent")
-        self.lbl_title.grid(row=0, column=0, columnspan=4, padx=10, pady=10)
+        self._build_sidebar()
+        self._build_content()
+        self.verify_directorys()
 
-        # ############# Botão config ############################
-        self.btn_config = ctk.CTkButton(self, text="⚙", font=(FONT, 18, "normal"),
-                                        width=35, height=35, fg_color='transparent',
-                                        hover=False, command=self.open_toplevel)
-        self.btn_config.bind("<Enter>", lambda x: self.btn_config.configure(text_color='gray'))
-        self.btn_config.bind("<Leave>", lambda x: self.btn_config.configure(text_color='white'))
-        self.btn_config.grid(row=0, column=3, padx=10, pady=10, sticky="ne")
+    def _build_sidebar(self):
+        self.sidebar = ctk.CTkFrame(self, width=SIDEBAR_WIDTH, corner_radius=0, fg_color=THEME_SIDEBAR)
+        self.sidebar.grid(row=0, column=0, sticky='nswe')
+        self.sidebar.grid_propagate(False)
+        self.sidebar.grid_rowconfigure(2, weight=1)
 
-        # ########### Selecione a impressora ####################
-        self.frame_printers = ctk.CTkFrame(self, fg_color='transparent')
-        self.frame_printers.grid(row=1, column=0, columnspan=4, pady=10)
+        logo_frame = ctk.CTkFrame(self.sidebar, fg_color='transparent')
+        logo_frame.grid(row=0, column=0, sticky='ew', padx=12, pady=(16, 20))
 
-        self.lbl_select_printer = ctk.CTkLabel(self.frame_printers, text=t('main.select_printer'))
-        self.lbl_select_printer.grid(row=0, column=0, padx=10)
-
-        self.printers_list = ctk.CTkComboBox(self.frame_printers, values=self._printer_combo_values(), width=210)
-        self.printers_list.grid(row=0, column=1, padx=15)
-
-        self.lbl_select_group = ctk.CTkLabel(self.frame_printers, text=t('main.select_group'))
-        self.lbl_select_group.grid(row=1, column=0, padx=10)
-
-        self.print_group_list = ctk.CTkComboBox(self.frame_printers, values=admin_service.list_print_groups(), width=210)
-        self.print_group_list.grid(row=1, column=1, padx=15, pady=5)
-
-        # ######################## Remake Checkbox ##############################
-        self.remake_frame = ctk.CTkFrame(self, fg_color='transparent')
-        self.remake_frame.grid(row=2, column=0, columnspan=4, pady=10)
-
-        self.checkbox_remake = ctk.CTkCheckBox(
-            self.remake_frame, text=t('main.enable_remake'), command=self.remake_checkbox_event,
+        logo_img = gradient_ctk_image(36, 36, THEME_ACCENT, THEME_ACCENT_SECONDARY, radius=18)
+        logo_mark = ctk.CTkLabel(
+            logo_frame, image=logo_img, text='A',
+            font=(FONT, 18, 'bold'), text_color='white', width=36, height=36,
+            fg_color='transparent',
         )
-        self.checkbox_remake.pack(side='left', padx=8)
+        logo_mark.pack(side='left')
+        logo_mark.image = logo_img
 
-        self.checkbox_remake_refazer = None
+        ctk.CTkLabel(logo_frame, text=APP_NAME, font=(FONT, 20, 'bold'), text_color='white').pack(side='left', padx=(10, 0))
 
-        # ################ Selecione Works #####################
-        frame_works = ctk.CTkFrame(self, fg_color="transparent")
-        frame_works.grid(row=3, column=0, columnspan=4, pady=10)
+        nav_frame = ctk.CTkFrame(self.sidebar, fg_color='transparent')
+        nav_frame.grid(row=1, column=0, sticky='ew', padx=8)
 
-        self.lbl_scan_work = ctk.CTkLabel(frame_works, text=t('main.scan_workorders'))
-        self.lbl_scan_work.grid(row=0, column=0, sticky='w')
+        self._nav_buttons['production'] = self._nav_item(
+            nav_frame, 'production', 'main.nav_production', active=True, command=self._nav_production,
+        )
+        self._nav_buttons['settings'] = self._nav_item(
+            nav_frame, 'settings', 'main.nav_settings', command=self.open_toplevel,
+        )
+        self._nav_buttons['remake'] = self._nav_item(
+            nav_frame, 'remake', 'main.nav_remake', disabled=True,
+        )
+        self._nav_buttons['reports'] = self._nav_item(
+            nav_frame, 'reports', 'main.nav_reports', disabled=True,
+        )
+
+        ctk.CTkFrame(nav_frame, height=1, fg_color=THEME_CARD_BORDER).pack(fill='x', padx=8, pady=10)
+        self._nav_buttons['help'] = self._nav_item(
+            nav_frame, 'help', 'main.nav_help', disabled=True,
+        )
+
+        self.loading_frame = LoadingBarFrame(
+            self.sidebar,
+            fg_color='transparent',
+            width=SIDEBAR_WIDTH - 16,
+        )
+        self.loading_frame.grid(row=2, column=0, sticky='sw', padx=8, pady=8)
+
+        footer = ctk.CTkFrame(self.sidebar, fg_color='transparent')
+        footer.grid(row=3, column=0, sticky='ew', padx=12, pady=(0, 12))
+
+        self.lbl_language = ctk.CTkLabel(footer, text=t('main.language'), text_color=THEME_TEXT_SECONDARY, font=(FONT, 11))
+        self.lbl_language.pack(anchor='w')
+
+        self._lang_code_by_label = {label: code for code, label in available_languages()}
+        self.language_combo = ctk.CTkComboBox(
+            footer,
+            width=SIDEBAR_WIDTH - 40,
+            height=28,
+            values=[label for _, label in available_languages()],
+            command=self._on_language_changed,
+            fg_color=THEME_CARD,
+            border_color=THEME_CARD_BORDER,
+            button_color=THEME_ACCENT,
+            button_hover_color=THEME_ACCENT_HOVER,
+        )
+        self.language_combo.pack(anchor='w', pady=(4, 8))
+        self.language_combo.set(get_i18n().language_label())
+
+        user = admin_service.get_current_windows_user()
+        account = user.split('\\')[-1] if user else 'User'
+        parts = [p[0].upper() for p in account.replace('_', '.').split('.') if p]
+        initials = ''.join(parts[:2]) or 'U'
+        user_row = ctk.CTkFrame(footer, fg_color='transparent')
+        user_row.pack(fill='x', pady=(4, 0))
+        avatar_img = gradient_ctk_image(28, 28, THEME_ACCENT, THEME_ACCENT_SECONDARY, radius=14)
+        avatar = ctk.CTkLabel(
+            user_row, image=avatar_img, text=initials,
+            font=(FONT, 10, 'bold'), text_color='white', width=28, height=28,
+        )
+        avatar.pack(side='left')
+        avatar.image = avatar_img
+        ctk.CTkLabel(
+            user_row, text=account, font=(FONT, 10), text_color=THEME_TEXT_SECONDARY, anchor='w',
+        ).pack(side='left', padx=(8, 0))
+
+    def _nav_icon_color(self, *, active=False, disabled=False):
+        if disabled:
+            return '#5c5f6a'
+        if active:
+            return '#c4b5fd'
+        return '#e8ecf4'
+
+    def _nav_item(self, parent, icon_key, text_key, *, active=False, command=None, disabled=False):
+        text = t(text_key)
+        icon = self._icons.get(icon_key, 18, self._nav_icon_color(active=active, disabled=disabled))
+
+        wrapper = ctk.CTkFrame(
+            parent,
+            fg_color=THEME_NAV_ACTIVE if active else 'transparent',
+            corner_radius=8,
+        )
+        wrapper.pack(fill='x', pady=2)
+
+        if active:
+            ctk.CTkFrame(wrapper, width=3, corner_radius=2, fg_color=THEME_ACCENT).pack(side='left', fill='y', padx=(0, 2))
+
+        btn = ctk.CTkButton(
+            wrapper,
+            image=icon,
+            compound='left',
+            text=f'  {text}',
+            anchor='w',
+            height=36,
+            corner_radius=8,
+            fg_color='transparent',
+            hover_color=THEME_NAV_ACTIVE,
+            text_color=THEME_TEXT_SECONDARY if disabled else 'white',
+            font=(FONT, 13, 'bold' if active else 'normal'),
+            command=command,
+            state='disabled' if disabled else 'normal',
+        )
+        btn.pack(fill='x', padx=(4 if active else 6, 8))
+        btn._nav_wrapper = wrapper
+        btn._nav_active = active
+        btn._icon_key = icon_key
+        btn._i18n_key = text_key
+        btn._nav_icon = icon
+        return btn
+
+    def _nav_production(self):
+        pass
+
+    def _card(self, parent, title_key, icon_key):
+        title = t(title_key)
+        outer = ctk.CTkFrame(
+            parent, fg_color=THEME_CARD, corner_radius=12,
+            border_width=1, border_color=THEME_CARD_BORDER,
+        )
+        header = ctk.CTkFrame(outer, fg_color='transparent')
+        header.pack(fill='x', padx=16, pady=(12, 6))
+        icon = self._icons.get(icon_key, 16, '#a78bfa')
+        ctk.CTkLabel(header, image=icon, text='').pack(side='left')
+        title_lbl = ctk.CTkLabel(
+            header, text=title, font=(FONT, 13, 'bold'),
+            text_color='#a78bfa', anchor='w',
+        )
+        title_lbl.pack(side='left', padx=(8, 0))
+        self._card_titles[title_key] = title_lbl
+        body = ctk.CTkFrame(outer, fg_color='transparent')
+        body.pack(fill='both', expand=True, padx=16, pady=(0, 14))
+        return outer, body
+
+    def _build_content(self):
+        self.content = ctk.CTkFrame(self, fg_color=THEME_BG, corner_radius=0)
+        self.content.grid(row=0, column=1, sticky='nswe', padx=(0, 0), pady=0)
+        self.content.grid_columnconfigure(0, weight=3)
+        self.content.grid_columnconfigure(1, weight=2)
+        self.content.grid_rowconfigure(2, weight=1)
+
+        header = ctk.CTkFrame(self.content, fg_color='transparent')
+        header.grid(row=0, column=0, columnspan=2, sticky='ew', padx=24, pady=(20, 12))
+
+        self.lbl_page_title = ctk.CTkLabel(
+            header, text=t('main.production_title'), font=(FONT, 26, 'bold'), text_color='white', anchor='w',
+        )
+        self.lbl_page_title.pack(anchor='w')
+        self.lbl_page_subtitle = ctk.CTkLabel(
+            header, text=t('main.production_subtitle'), font=(FONT, 12),
+            text_color=THEME_TEXT_SECONDARY, anchor='w',
+        )
+        self.lbl_page_subtitle.pack(anchor='w', pady=(2, 0))
+
+        left_col = ctk.CTkFrame(self.content, fg_color='transparent')
+        left_col.grid(row=1, column=0, rowspan=2, sticky='nsew', padx=(24, 8), pady=(0, 20))
+        left_col.grid_columnconfigure(0, weight=1)
+
+        card_print, body_print = self._card(left_col, 'main.card_printing', 'printing')
+        card_print.pack(fill='x', pady=(0, 12))
+
+        self.lbl_select_printer = ctk.CTkLabel(body_print, text=t('main.select_printer'), anchor='w', text_color=THEME_TEXT_SECONDARY)
+        self.lbl_select_printer.pack(fill='x')
+        self.printers_list = ctk.CTkComboBox(
+            body_print, values=self._printer_combo_values(), width=WORK_QUEUE_WIDTH,
+            fg_color=THEME_BG, border_color=THEME_CARD_BORDER,
+            button_color=THEME_ACCENT, button_hover_color=THEME_ACCENT_HOVER,
+        )
+        self.printers_list.pack(fill='x', pady=(4, 10))
+
+        self.lbl_select_group = ctk.CTkLabel(body_print, text=t('main.select_group'), anchor='w', text_color=THEME_TEXT_SECONDARY)
+        self.lbl_select_group.pack(fill='x')
+        groups = admin_service.list_print_groups()
+        self.print_group_list = ctk.CTkComboBox(
+            body_print, values=groups, width=WORK_QUEUE_WIDTH,
+            fg_color=THEME_BG, border_color=THEME_CARD_BORDER,
+            button_color=THEME_ACCENT, button_hover_color=THEME_ACCENT_HOVER,
+        )
+        self.print_group_list.pack(fill='x', pady=(4, 0))
+        self._sync_print_group_combo()
+        self.lbl_select_group_hint = ctk.CTkLabel(
+            body_print, text=t('main.select_group_hint'), anchor='w',
+            font=(FONT, 10), text_color=THEME_TEXT_SECONDARY, justify='left', wraplength=420,
+        )
+        self.lbl_select_group_hint.pack(fill='x', pady=(4, 0))
+
+        card_queue, body_queue = self._card(left_col, 'main.card_queue', 'queue')
+        card_queue.pack(fill='both', expand=True)
+
+        self.lbl_scan_work = ctk.CTkLabel(body_queue, text=t('main.scan_workorders'), anchor='w', text_color=THEME_TEXT_SECONDARY)
+        self.lbl_scan_work.pack(fill='x')
 
         self.entry_work = ctk.CTkEntry(
-            frame_works,
+            body_queue,
             border_width=2,
-            corner_radius=0,
+            corner_radius=8,
+            border_color=THEME_CARD_BORDER,
+            fg_color=THEME_BG,
             width=WORK_QUEUE_WIDTH,
         )
-        self.entry_work.grid(row=1, column=0, sticky='w')
+        self.entry_work.pack(fill='x', pady=(4, 8))
         self.entry_work.bind('<Return>', self.search_work)
+        self.entry_work.bind('<FocusIn>', lambda _e: self.entry_work.configure(border_color=THEME_ACCENT))
+        self.entry_work.bind('<FocusOut>', lambda _e: self.entry_work.configure(border_color=THEME_CARD_BORDER))
 
-        self.work_queue = WorkQueueList(frame_works, width=WORK_QUEUE_WIDTH, height=122)
-        self.work_queue.grid(row=2, column=0, sticky='nw')
+        self.work_queue = WorkQueueList(body_queue, width=WORK_QUEUE_WIDTH, height=122)
+        self.work_queue.pack(fill='x')
 
-        worklist_actions = ctk.CTkFrame(frame_works, fg_color='transparent')
-        worklist_actions.grid(row=3, column=0, sticky='w', pady=(4, 0))
+        worklist_actions = ctk.CTkFrame(body_queue, fg_color='transparent')
+        worklist_actions.pack(fill='x', pady=(8, 0))
 
-        self.btn_remove_work = ctk.CTkButton(worklist_actions, text=t('main.remove'), width=70, height=24, corner_radius=0,
-                      command=self.remove_selected_works)
-        self.btn_remove_work.pack(side='left', padx=(0, 6))
-        self.btn_clear_works = ctk.CTkButton(worklist_actions, text=t('main.clear'), width=70, height=24, corner_radius=0,
-                      command=self.clean_worklist)
+        self.btn_remove_work = ctk.CTkButton(
+            worklist_actions, text=t('main.remove'), width=80, height=28, corner_radius=8,
+            fg_color=THEME_CARD, hover_color=THEME_CARD_BORDER, border_width=1, border_color=THEME_CARD_BORDER,
+            command=self.remove_selected_works,
+        )
+        self.btn_remove_work.pack(side='left', padx=(0, 8))
+        self.btn_clear_works = ctk.CTkButton(
+            worklist_actions, text=t('main.clear'), width=80, height=28, corner_radius=8,
+            fg_color=THEME_CARD, hover_color=THEME_CARD_BORDER, border_width=1, border_color=THEME_CARD_BORDER,
+            command=self.clean_worklist,
+        )
         self.btn_clear_works.pack(side='left')
 
-        # ######################## Paper Color ##############################
-        self.frame_papercolor = ctk.CTkFrame(self, height=60, fg_color='transparent', corner_radius=0)
+        self.remake_frame = ctk.CTkFrame(body_queue, fg_color='transparent')
+        self.remake_frame.pack(fill='x', pady=(12, 0))
+        self.checkbox_remake = ctk.CTkCheckBox(
+            self.remake_frame, text=t('main.enable_remake'), command=self.remake_checkbox_event,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+        )
+        self.checkbox_remake.pack(side='left')
+        self.checkbox_remake_refazer = None
 
-        self.lbl_paper_color = ctk.CTkLabel(self.frame_papercolor, text=t('main.paper_color'), font=('Arial', 13, 'bold'))
-        self.lbl_paper_color.grid(row=5, padx=10, column=0)
+        right_col = ctk.CTkFrame(self.content, fg_color='transparent')
+        right_col.grid(row=1, column=1, rowspan=2, sticky='nsew', padx=(8, 24), pady=(0, 20))
+        right_col.grid_rowconfigure(1, weight=1)
 
-        self.paper_color = ctk.CTkFrame(self.frame_papercolor, height=60, width=60, fg_color='#3CB371', corner_radius=0)
-        self.paper_color.grid(row=5, column=1)
+        card_status, body_status = self._card(right_col, 'main.card_status', 'status')
+        card_status.pack(fill='x')
+
+        self.lbl_status_empty = ctk.CTkLabel(
+            body_status,
+            text=t('main.status_empty'),
+            font=(FONT, 11),
+            text_color=THEME_TEXT_SECONDARY,
+            wraplength=240,
+            justify='left',
+            anchor='w',
+        )
+        self.lbl_status_empty.pack(fill='x')
+
+        self.frame_papercolor = ctk.CTkFrame(body_status, fg_color=THEME_BG, corner_radius=10, border_width=1, border_color=THEME_CARD_BORDER)
+        inner_color = ctk.CTkFrame(self.frame_papercolor, fg_color='transparent')
+        inner_color.pack(fill='x', padx=12, pady=12)
+
+        self.lbl_paper_color = ctk.CTkLabel(
+            inner_color, text=t('main.paper_color'),
+            font=(FONT, 11), text_color=THEME_TEXT_SECONDARY, anchor='w',
+        )
+        self.lbl_paper_color.pack(anchor='w')
+
+        color_row = ctk.CTkFrame(inner_color, fg_color='transparent')
+        color_row.pack(anchor='w', pady=(8, 0))
+        self.paper_color = ctk.CTkFrame(color_row, height=44, width=44, fg_color='#3CB371', corner_radius=10)
+        self.paper_color.pack(side='left')
+        self.paper_color.pack_propagate(False)
+
+        name_col = ctk.CTkFrame(color_row, fg_color='transparent')
+        name_col.pack(side='left', padx=(12, 0))
+        self.lbl_paper_color_name = ctk.CTkLabel(
+            name_col, text='—', font=(FONT, 16, 'bold'), text_color='white', anchor='w',
+        )
+        self.lbl_paper_color_name.pack(anchor='w')
+        self.lbl_paper_color_hint = ctk.CTkLabel(
+            name_col, text=t('main.paper_color_hint'),
+            font=(FONT, 10), text_color=THEME_TEXT_SECONDARY, anchor='w',
+        )
+        self.lbl_paper_color_hint.pack(anchor='w', pady=(2, 0))
 
         self.defined_color = None
         self.defined_paper_size = None
-        # ######################## Label Impressão ################################
+        self.frame_papercolor.pack_forget()
+
         self.printing_label = None
-        # ######################## Botão Start ################################
-        self.btn_start = ctk.CTkButton(self, text=t('main.start'), font=(FONT, 14, "bold"), state='disabled',
-                                       command=self.btn_start)
-        self.btn_start.grid(row=7, column=0, columnspan=4, padx=10, pady=10, sticky="s")
 
-        self.footer_frame = ctk.CTkFrame(self, fg_color='transparent')
-        self.footer_frame.grid(row=7, column=0, columnspan=4, padx=8, pady=6, sticky='se')
-
-        self.lbl_language = ctk.CTkLabel(self.footer_frame, text=t('main.language'), text_color='grey')
-        self.lbl_language.pack(side='left', padx=(0, 6))
-        self._lang_code_by_label = {label: code for code, label in available_languages()}
-        self.language_combo = ctk.CTkComboBox(
-            self.footer_frame,
-            width=120,
-            height=24,
-            values=[label for _, label in available_languages()],
-            command=self._on_language_changed,
+        self.btn_start = GradientButton(
+            right_col,
+            text=t('main.start'),
+            font=(FONT, 16, 'bold'),
+            state='disabled',
+            min_height=48,
+            corner_radius=10,
+            color_left=THEME_ACCENT,
+            color_right=THEME_ACCENT_SECONDARY,
+            hover_left=THEME_ACCENT_HOVER,
+            hover_right='#4338ca',
+            command=self.btn_start,
+            text_color='white',
         )
-        self.language_combo.pack(side='left')
-        self.language_combo.set(get_i18n().language_label())
-
-        # Barra de progresso à esquerda — não ocupa coluna do grid (evita deslocar o centro visual)
-        self.loading_frame = LoadingBarFrame(
-            self,
-            fg_color='transparent',
-            width=LOADING_SIDEBAR_WIDTH,
-            height=DEFAULT_HEIGHT,
-        )
-        self.loading_frame.place(x=0, y=0, relheight=1.0, anchor='nw')
-
-        self.verify_directorys()
+        self.btn_start.pack(fill='x', pady=(16, 0), side='bottom')
 
     def remake_checkbox_event(self, event=None):
         if self.checkbox_remake.get():
             self.checkbox_remake_refazer = ctk.CTkCheckBox(
                 self.remake_frame, text=t('main.skip_remake_screen'), command=self.clean_worklist,
+                fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
             )
             self.checkbox_remake_refazer.pack(side='left', padx=8)
         else:
@@ -200,22 +424,27 @@ class App(ctk.CTk):
 
     def create_printing_label(self):
         self.printing_label = ctk.CTkLabel(
-            self,
+            self.content,
             text=t('main.printing_wait'),
             font=('Arial', 30, 'bold'),
-            fg_color='transparent',
-            bg_color='transparent',
+            fg_color=THEME_BG,
+            bg_color=THEME_BG,
         )
-        self.printing_label.grid(row=0, column=0, rowspan=7, columnspan=4)
+        self.printing_label.place(relx=0.5, rely=0.5, anchor='center')
 
     def remove_printing_label(self):
         if self.printing_label:
             self.printing_label.destroy()
+            self.printing_label = None
 
     def show_color(self, color):
-        self.frame_papercolor.grid(row=5, column=0, columnspan=4, pady=10)
+        self.lbl_status_empty.pack_forget()
+        self.frame_papercolor.pack(fill='x', pady=(8, 0))
         self.defined_color = color
-        self.lbl_paper_color.configure(text=t('main.paper_color_value', color=paper_color_label(color)))
+        label = paper_color_label(color)
+        self.lbl_paper_color.configure(text=t('main.paper_color'))
+        self.lbl_paper_color_name.configure(text=label)
+        self.lbl_paper_color_hint.configure(text=t('main.paper_color_hint'))
         self.paper_color.configure(fg_color=PAPER_COLOR_LIST[color])
 
     def remake_widget_update(self):
@@ -268,9 +497,25 @@ class App(ctk.CTk):
         self.language_combo.configure(values=[label for _, label in available_languages()])
         self.language_combo.set(get_i18n().language_label())
 
+        self.lbl_page_title.configure(text=t('main.production_title'))
+        self.lbl_page_subtitle.configure(text=t('main.production_subtitle'))
+        for btn in self._nav_buttons.values():
+            active = getattr(btn, '_nav_active', False)
+            disabled = str(btn.cget('state')) == 'disabled'
+            icon = self._icons.get(
+                btn._icon_key, 18, self._nav_icon_color(active=active, disabled=disabled),
+            )
+            btn.configure(image=icon, text=f'  {t(btn._i18n_key)}')
+        for key, lbl in self._card_titles.items():
+            lbl.configure(text=t(key))
+        self.lbl_status_empty.configure(text=t('main.status_empty'))
+        self.lbl_paper_color_hint.configure(text=t('main.paper_color_hint'))
+
         current_printer = self._selected_printer_name()
         self.lbl_select_printer.configure(text=t('main.select_printer'))
         self.lbl_select_group.configure(text=t('main.select_group'))
+        self.lbl_select_group_hint.configure(text=t('main.select_group_hint'))
+        self._sync_print_group_combo()
         self.lbl_scan_work.configure(text=t('main.scan_workorders'))
         self.checkbox_remake.configure(text=t('main.enable_remake'))
         if self.checkbox_remake_refazer is not None:
@@ -290,9 +535,8 @@ class App(ctk.CTk):
                     break
 
         if self.defined_color:
-            self.lbl_paper_color.configure(
-                text=t('main.paper_color_value', color=paper_color_label(self.defined_color)),
-            )
+            self.lbl_paper_color.configure(text=t('main.paper_color'))
+            self.lbl_paper_color_name.configure(text=paper_color_label(self.defined_color))
         else:
             self.lbl_paper_color.configure(text=t('main.paper_color'))
 
@@ -390,7 +634,8 @@ class App(ctk.CTk):
         paths = self.get_work_paths()
         if not paths:
             self.btn_start.configure(state='disabled')
-            self.frame_papercolor.grid_forget()
+            self.frame_papercolor.pack_forget()
+            self.lbl_status_empty.pack(fill='x')
             self.defined_color = None
             self.defined_paper_size = None
             self.entry_work.focus()
@@ -500,13 +745,15 @@ class App(ctk.CTk):
             self.loading_frame.show_error(slot, traceback.format_exc())
 
     def create_progress_bar(self):
-        self.progressbar = ctk.CTkProgressBar(self.loading_frame, orientation="horizontal", height=30,
-                                              corner_radius=0, width=150, border_width=2)
+        self.progressbar = ctk.CTkProgressBar(
+            self.loading_frame, orientation="horizontal", height=20,
+            corner_radius=6, width=SIDEBAR_WIDTH - 40, border_width=0,
+            progress_color=THEME_ACCENT, fg_color=THEME_PROGRESS_BG,
+        )
         self.progressbar.pack()
-        # self.progressbar.grid(row=0, column=0, columnspan=4, rowspan=7, pady=10)
 
-        self.lbl_progressbar = ctk.CTkLabel(self, text='', font=('Arial', 15, 'bold'))
-        self.lbl_progressbar.grid(row=0, column=0, columnspan=4, rowspan=7, pady=10)
+        self.lbl_progressbar = ctk.CTkLabel(self.content, text='', font=('Arial', 15, 'bold'))
+        self.lbl_progressbar.place(relx=0.5, rely=0.5, anchor='center')
 
     def destroy_progress_bar(self):
         if self.progressbar:
@@ -524,10 +771,9 @@ class App(ctk.CTk):
 
     def refresh(self, *args):
         self.btn_start.configure(state='disabled')
-        self.btn_config.configure(state='normal')
+        self._nav_buttons['settings'].configure(state='normal')
         self.printers_list.configure(state='normal')
 
-        # update the printers list, when it's included in the Printer List in configs
         self.printers_list.configure(values=self._printer_combo_values())
 
         self.remove_printing_label()
@@ -540,6 +786,18 @@ class App(ctk.CTk):
 
         self.checkbox_remake.deselect()
         self.clean_worklist()
+        self._sync_print_group_combo()
+
+    def _sync_print_group_combo(self):
+        current = self.print_group_list.get()
+        groups = admin_service.list_print_groups()
+        self.print_group_list.configure(values=groups)
+        if not groups:
+            return
+        if current in groups:
+            self.print_group_list.set(current)
+        else:
+            self.print_group_list.set(groups[0])
 
 
 class LoadingBarFrame(ctk.CTkFrame):
@@ -563,21 +821,30 @@ class LoadingBarFrame(ctk.CTkFrame):
             exe_index = self.__get_exe_to_use()
 
         frame = ctk.CTkFrame(self, fg_color='transparent')
-        frame.pack()
-
-        ctk.CTkLabel(frame, text=45 * '-', bg_color='transparent').grid(row=0)
+        frame.pack(fill='x', pady=(0, 8))
 
         lbl_printer = ctk.CTkLabel(
-            frame, text=t('main.printer_label', name=display_name), font=('Arial', 10),
-            bg_color='transparent',
+            frame, text=t('main.printer_label', name=display_name), font=(FONT, 10),
+            text_color=THEME_TEXT_SECONDARY, anchor='w',
         )
-        lbl_printer.grid(row=1)
+        lbl_printer.pack(fill='x')
 
-        loadingbar = ctk.CTkProgressBar(frame, orientation="horizontal", height=30, width=150, corner_radius=0)
-        loadingbar.grid(row=2, column=0)
+        bar_row = ctk.CTkFrame(frame, fg_color='transparent')
+        bar_row.pack(fill='x', pady=(2, 0))
 
-        progress_lbl = ctk.CTkLabel(frame, text='1/2', font=('Arial', 13), bg_color='#1F538D')
-        progress_lbl.grid(row=2, column=0)
+        loadingbar = ctk.CTkProgressBar(
+            bar_row, orientation="horizontal", height=18,
+            width=SIDEBAR_WIDTH - 48, corner_radius=6,
+            progress_color=THEME_ACCENT, fg_color=THEME_PROGRESS_BG,
+        )
+        loadingbar.pack(fill='x')
+        loadingbar.set(0)
+
+        progress_lbl = ctk.CTkLabel(
+            bar_row, text='1/2', font=(FONT, 10, 'bold'),
+            text_color='white',
+        )
+        progress_lbl.place(relx=0.5, rely=0.5, anchor='center')
 
         self.printers_status[slot_id] = {
             'ProgressBar': loadingbar,
@@ -619,14 +886,17 @@ class LoadingBarFrame(ctk.CTkFrame):
     def show_error(self, slot_id, error_tracebak):
         frame = self.printers_status[slot_id]['Frame']
 
-        ctk.CTkLabel(frame, font=('Arial', 10), text=t('main.create_error')).grid(row=0)
+        ctk.CTkLabel(frame, font=(FONT, 10), text=t('main.create_error'), text_color=BTN_RED).pack()
 
         path = 'Errors_Logs.txt'
         FileUtils.write_log_file(path, error_tracebak)
         audit.log_error(detail=error_tracebak, printer=str(slot_id))
 
-        ctk.CTkButton(frame, text=t('main.view'), fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
-                      command=lambda: self.visualize_error(slot_id, path)).grid(row=1)
+        ctk.CTkButton(
+            frame, text=t('main.view'), fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
+            height=24, corner_radius=6,
+            command=lambda: self.visualize_error(slot_id, path),
+        ).pack(pady=(4, 0))
 
     def visualize_error(self, slot_id, path):
         self.remove_progressbar(slot_id)

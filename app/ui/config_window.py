@@ -37,26 +37,51 @@ from app.ui.components import ConfirmWindow, ListBox, PopUpWindow, Table
 from app.ui.constants import (
     BTN_HOVER_RED,
     BTN_RED,
-    DEFAULT_WIDTH,
+    CONFIG_HEIGHT,
+    CONFIG_WIDTH,
     FONT,
     ICON,
+    THEME_ACCENT,
+    THEME_ACCENT_HOVER,
+    THEME_BG,
+    THEME_CARD,
+    THEME_CARD_BORDER,
+    THEME_NAV_ACTIVE,
+    THEME_TEXT_SECONDARY,
 )
 from app.ui.designer_window import EditWindow
+from app.ui.theme_assets import IconCache
 from app.utils.window_geometry import calculate_center_screen_with_monitor, get_monitor
+
+
+def _entry_kwargs(**extra):
+    return dict(
+        fg_color=THEME_BG, border_color=THEME_CARD_BORDER,
+        border_width=2, corner_radius=8, height=32, **extra,
+    )
+
+
+def _combo_kwargs(**extra):
+    return dict(
+        fg_color=THEME_BG, border_color=THEME_CARD_BORDER,
+        button_color=THEME_ACCENT, button_hover_color=THEME_ACCENT_HOVER,
+        height=32, **extra,
+    )
 
 
 class ConfigWindow(ctk.CTkToplevel):
     def __init__(self, master, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.title(t('config.title'))
+        self.configure(fg_color=THEME_BG)
 
-        self.geometry(calculate_center_screen_with_monitor(master, DEFAULT_WIDTH, 600, get_monitor(master)))
-        self.minsize(DEFAULT_WIDTH, 600)
-        self.maxsize(DEFAULT_WIDTH, 600)
-        self.resizable(False, False)
+        self.geometry(calculate_center_screen_with_monitor(master, CONFIG_WIDTH, CONFIG_HEIGHT, get_monitor(master)))
+        self.minsize(CONFIG_WIDTH, CONFIG_HEIGHT)
+        self.resizable(True, True)
         self.master = master
-        self.grid_columnconfigure(1, weight=1)
-        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=2)
+        self.grid_columnconfigure(1, weight=3)
+        self.grid_rowconfigure(1, weight=1)
         ctk.deactivate_automatic_dpi_awareness()
 
         self.edit_window = None
@@ -65,244 +90,472 @@ class ConfigWindow(ctk.CTkToplevel):
         self.btn_delete_client = None
         self.btn_add_product = None
         self.btn_edit_product = None
+        self._icons = IconCache()
+        self._search_query = ''
 
-        label = ctk.CTkLabel(self, text=t('config.title'), font=(FONT, 18, "bold"))
-        label.grid(row=0, column=0, columnspan=2, padx=10, pady=10)
+        self._build_header()
+        self._build_left_panel()
+        self._build_settings_tabs()
 
-        self.frame = ctk.CTkFrame(self, fg_color='transparent')
-        self.frame.grid(row=1, column=0, padx=10, sticky='W')
-
-        self.btn_add_client = ctk.CTkButton(self.frame, text=t('config.add_client'), command=self.create_client)
-        self.btn_add_client.grid(row=0, column=0, sticky='W')
-
-        client_names = admin_service.list_client_names()
-        self.client_list = ListBox(
-            self, items=client_names, label_text=t('config.clients'), width=345, height=150,
-            on_select=lambda _child: self.refresh(),
-        )
-        self.client_list.grid(row=2, column=0, columnspan=1, padx=10, pady=10)
-
-        self.product_list = ListBox(
-            self, [], child=True, width=345, height=150, label_text=t('config.products'),
-            on_select=lambda _child: self.refresh(True),
-        )
-        self.product_list.grid(row=2, column=1, columnspan=1, padx=10, pady=10)
-
-        # ############################# Config Frame ##################################################
-
-        self.main_frame = ctk.CTkScrollableFrame(self, height=280)
-        self.main_frame.grid(row=3, column=0, padx=10, columnspan=2, sticky='NSEW')
-
-        ctk.CTkLabel(self.main_frame, text=t('config.import_export'), font=(FONT, 15, "bold")) \
-            .grid(row=1, column=0, columnspan=2, padx=10, sticky='W')
-
-        ctk.CTkButton(self.main_frame, text=t('config.import'), command=self.import_product). \
-            grid(row=2, padx=10, pady=5, column=0, sticky='W')
-
-        ctk.CTkButton(self.main_frame, text=t('config.export'),
-                      command=lambda: ExportProductWindow(self)).grid(row=3, padx=10, pady=5, column=0, sticky='W')
-
-        # ------------------------------- Search Folder -------------------------------------------------
-
-        ctk.CTkLabel(self.main_frame, text=t('config.search_folder'), font=(FONT, 15, "bold")) \
-            .grid(row=4, column=0, columnspan=2, padx=10, sticky='W')
-
-        self.inpt_search_folder = ctk.CTkEntry(self.main_frame, width=220)
-        self.inpt_search_folder.grid(row=5, column=0, padx=10, sticky='W')
-        search_folder = get_search_folder()
-        if search_folder:
-            self.inpt_search_folder.insert(0, search_folder)
-
-        self.btn_save_folder = ctk.CTkButton(self.main_frame, text=t('config.save'), width=80,
-                                             state='disabled', command=self.save_folder)
-        self.btn_save_folder.grid(row=5, column=1, sticky='W')
-
-        # ------------------------------- DataBase Location --------------------------------------------
-        ctk.CTkLabel(self.main_frame, text=t('config.database'), font=(FONT, 15, "bold")) \
-            .grid(row=6, column=0, columnspan=2, padx=10, sticky='W')
-
-        self.inpt_db_location = ctk.CTkEntry(self.main_frame, width=220)
-        self.inpt_db_location.grid(row=7, column=0, padx=10, sticky='W')
-        database_location = get_database_location()
-        if database_location:
-            self.inpt_db_location.insert(0, database_location)
-
-        self.btn_save_db = ctk.CTkButton(self.main_frame, text=t('config.save'), width=80,
-                                         state='disabled', command=self.save_database_location)
-        self.btn_save_db.grid(row=7, column=1, sticky='W')
-
-        # ------------------------------- Config Access --------------------------------------------
-        ctk.CTkLabel(self.main_frame, text=t('config.config_access'), font=(FONT, 15, "bold")) \
-            .grid(row=8, column=0, columnspan=2, padx=10, sticky='W')
-
-        current_user = admin_service.get_current_windows_user()
-        admin_hint = t('config.admin_suffix') if admin_service.is_windows_admin() else ''
-        ctk.CTkLabel(
-            self.main_frame,
-            text=t('config.current_user', user=current_user, admin=admin_hint),
-            font=(FONT, 11),
-        ).grid(row=9, column=0, columnspan=2, padx=10, sticky='W')
-
-        ctk.CTkLabel(
-            self.main_frame,
-            text=t('config.admin_always_access'),
-            font=(FONT, 11),
-            text_color='gray',
-        ).grid(row=10, column=0, columnspan=2, padx=10, sticky='W')
-
-        self.btn_manage_access = ctk.CTkButton(
-            self.main_frame, text=t('config.manage_access'), width=120,
-            command=lambda: ManageAccessWindow(self),
-        )
-        self.btn_manage_access.grid(row=11, column=0, padx=10, pady=5, sticky='W')
-
-        self.btn_audit = ctk.CTkButton(
-            self.main_frame, text=t('config.audit_logs'), width=120,
-            command=lambda: AuditWindow(self),
-        )
-        self.btn_audit.grid(row=12, column=0, padx=10, pady=5, sticky='W')
-
-        ctk.CTkLabel(self.main_frame, text=t('config.audit_db'), font=(FONT, 15, "bold")) \
-            .grid(row=13, column=0, columnspan=2, padx=10, sticky='W')
-
-        self.inpt_audit_location = ctk.CTkEntry(
-            self.main_frame, width=220,
-            placeholder_text=r'\\servidor\pasta\artemis_audit_central.db',
-        )
-        self.inpt_audit_location.grid(row=14, column=0, padx=10, sticky='W')
-        audit_location = get_audit_central_location()
-        if audit_location:
-            self.inpt_audit_location.insert(0, audit_location)
-
-        self.btn_save_audit_location = ctk.CTkButton(
-            self.main_frame, text=t('config.save'), width=80,
-            command=self.save_audit_location,
-        )
-        self.btn_save_audit_location.grid(row=14, column=1, sticky='W')
-
-        ctk.CTkLabel(
-            self.main_frame,
-            text=t('config.audit_hint'),
-            font=(FONT, 10),
-            text_color='gray',
-        ).grid(row=15, column=0, columnspan=2, padx=10, sticky='W')
-
-        # ------------------------------- Language / i18n --------------------------------------------
-        ctk.CTkLabel(self.main_frame, text=t('config.language_section'), font=(FONT, 15, "bold")) \
-            .grid(row=16, column=0, columnspan=2, padx=10, sticky='W', pady=(8, 0))
-
-        ctk.CTkLabel(self.main_frame, text=t('config.language_label'), font=(FONT, 11)) \
-            .grid(row=17, column=0, padx=10, sticky='W')
-
-        self._lang_labels = {label: code for code, label in available_languages()}
-        self.combo_default_language = ctk.CTkComboBox(
-            self.main_frame, width=220,
-            values=[label for _, label in available_languages()],
-            command=self._on_default_language_pick,
-        )
-        self.combo_default_language.grid(row=17, column=1, padx=10, sticky='W')
-        current_code = get_language()
-        self.combo_default_language.set(get_i18n().language_label(current_code))
-
-        ctk.CTkLabel(self.main_frame, text=t('config.locales_folder'), font=(FONT, 11)) \
-            .grid(row=18, column=0, padx=10, sticky='W', pady=(6, 0))
-
-        self.inpt_locales_folder = ctk.CTkEntry(self.main_frame, width=220)
-        self.inpt_locales_folder.grid(row=18, column=1, padx=10, sticky='W', pady=(6, 0))
-        locales_folder = get_locales_folder()
-        if locales_folder:
-            self.inpt_locales_folder.insert(0, locales_folder)
-
-        self.btn_save_locales_folder = ctk.CTkButton(
-            self.main_frame, text=t('config.save'), width=80,
-            command=self.save_locales_folder,
-        )
-        self.btn_save_locales_folder.grid(row=19, column=1, sticky='W', pady=4)
-
-        ctk.CTkLabel(
-            self.main_frame,
-            text=t('config.locales_hint'),
-            font=(FONT, 10),
-            text_color='gray',
-            justify='left',
-        ).grid(row=20, column=0, columnspan=2, padx=10, sticky='W')
-
-        locales_row = ctk.CTkFrame(self.main_frame, fg_color='transparent')
-        locales_row.grid(row=21, column=0, columnspan=2, padx=10, pady=4, sticky='W')
-        ctk.CTkButton(
-            locales_row, text=t('config.open_locales_folder'), width=160,
-            command=self.open_locales_folder,
-        ).pack(side='left', padx=(0, 8))
-        ctk.CTkButton(
-            locales_row, text=t('config.reload_locales'), width=120,
-            command=self.reload_locales,
-        ).pack(side='left')
-
-        self.lbl_available_locales = ctk.CTkLabel(
-            self.main_frame,
-            text=self._available_locales_text(),
-            font=(FONT, 10),
-            text_color='gray',
-            justify='left',
-        )
-        self.lbl_available_locales.grid(row=22, column=0, columnspan=2, padx=10, sticky='W', pady=(0, 8))
-
-        # ------------------------------- Printers ---------------------------------------------
-        ctk.CTkLabel(self.main_frame, text=t('config.printers'), font=(FONT, 15, "bold")) \
-            .grid(row=1, column=2, padx=50, sticky='W')
-
-        count = len(admin_service.list_registered_printers())
-        ctk.CTkLabel(
-            self.main_frame,
-            text=t('config.printers_count', count=count),
-            font=(FONT, 11),
-            text_color='gray',
-        ).grid(row=2, column=2, padx=50, sticky='W')
-
-        self.btn_manage_printers = ctk.CTkButton(
-            self.main_frame, text=t('config.manage_printers'), width=140,
-            command=lambda: ManagePrintersWindow(self),
-        )
-        self.btn_manage_printers.grid(row=3, column=2, padx=50, pady=5, sticky='W')
-
-        ctk.CTkLabel(self.main_frame, text=t('config.print_backend'), font=(FONT, 15, "bold")) \
-            .grid(row=4, column=2, padx=50, sticky='W')
-
-        backend_values = self._available_backend_labels()
-        self.combo_print_backend = ctk.CTkComboBox(
-            self.main_frame, width=200, values=backend_values,
-        )
-        self.combo_print_backend.grid(row=5, column=2, padx=50, sticky='W')
-        self.combo_print_backend.set(get_print_backend_label())
-
-        ctk.CTkLabel(
-            self.main_frame,
-            text=t('config.print_backend_hint'),
-            font=(FONT, 10),
-            text_color='gray',
-            wraplength=280,
-        ).grid(row=6, column=2, padx=50, sticky='W')
-
-        self.btn_save_print_backend = ctk.CTkButton(
-            self.main_frame, text=t('config.save_backend'), width=100,
-            command=self.save_print_backend,
-        )
-        self.btn_save_print_backend.grid(row=7, column=2, padx=50, pady=5, sticky='W')
-
-        # ------------------------------- List or Printing Groups ---------------------------------------------
-        ctk.CTkLabel(self.main_frame, text=t('config.print_groups'), font=(FONT, 15, "bold")) \
-            .grid(row=8, column=2, padx=50, sticky='W')
-
-        self.btn_manage_groups = ctk.CTkButton(self.main_frame, text=t('config.manage_groups_btn'), width=80,
-                                               command=lambda: ManageGroupWindow(self, t('group.manage_title')))
-        self.btn_manage_groups.grid(row=9, column=2, padx=50, sticky='W')
-        # #################### Event Binds ##########################################
         self.inpt_db_location.bind('<KeyRelease>', self.update_save_button)
         self.inpt_search_folder.bind('<KeyRelease>', self.update_save_button)
         self.inpt_db_location.bind('<Return>', self.save_database_location)
         self.inpt_search_folder.bind('<Return>', self.save_folder)
-
         self.protocol("WM_DELETE_WINDOW", self.exit)
+
+        self._apply_search_filter()
+
+    def _build_header(self):
+        header = ctk.CTkFrame(self, fg_color=THEME_CARD, corner_radius=0, height=56)
+        header.grid(row=0, column=0, columnspan=2, sticky='ew')
+        header.grid_propagate(False)
+
+        title_row = ctk.CTkFrame(header, fg_color='transparent')
+        title_row.pack(side='left', padx=20, pady=12)
+        gear = self._icons.get('settings', 20, '#a78bfa')
+        ctk.CTkLabel(title_row, image=gear, text='').pack(side='left')
+        ctk.CTkLabel(
+            title_row, text=t('config.title'), font=(FONT, 20, 'bold'), text_color='white',
+        ).pack(side='left', padx=(10, 0))
+
+        current_user = admin_service.get_current_windows_user()
+        admin_hint = t('config.admin_suffix') if admin_service.is_windows_admin() else ''
+        ctk.CTkLabel(
+            header,
+            text=t('config.current_user', user=current_user, admin=admin_hint),
+            font=(FONT, 11), text_color=THEME_TEXT_SECONDARY,
+        ).pack(side='right', padx=20)
+
+    def _settings_card(self, parent, title):
+        card = ctk.CTkFrame(
+            parent, fg_color=THEME_CARD, corner_radius=12,
+            border_width=1, border_color=THEME_CARD_BORDER,
+        )
+        ctk.CTkLabel(
+            card, text=title, font=(FONT, 15, 'bold'), text_color='white', anchor='w',
+        ).pack(fill='x', padx=16, pady=(12, 8))
+        body = ctk.CTkFrame(card, fg_color='transparent')
+        body.pack(fill='x', padx=16, pady=(0, 14))
+        return card, body
+
+    def _build_left_panel(self):
+        left = ctk.CTkFrame(self, fg_color='transparent')
+        left.grid(row=1, column=0, sticky='nsew', padx=(16, 8), pady=(12, 16))
+
+        card, body = self._settings_card(left, t('config.clients_products'))
+        card.pack(fill='both', expand=True)
+
+        self.entry_search = ctk.CTkEntry(
+            body, placeholder_text=t('config.search_placeholder'), **_entry_kwargs(),
+        )
+        self.entry_search.pack(fill='x', pady=(0, 6))
+        self.entry_search.bind('<KeyRelease>', self._on_search_changed)
+
+        self.lbl_search_count = ctk.CTkLabel(
+            body, text='', font=(FONT, 10), text_color=THEME_TEXT_SECONDARY, anchor='w',
+        )
+        self.lbl_search_count.pack(fill='x', pady=(0, 8))
+
+        lists_row = ctk.CTkFrame(body, fg_color='transparent')
+        lists_row.pack(fill='both', expand=True)
+        lists_row.grid_columnconfigure(0, weight=1)
+        lists_row.grid_columnconfigure(1, weight=1)
+        lists_row.grid_rowconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            lists_row, text=t('config.clients'), font=(FONT, 11, 'bold'),
+            text_color=THEME_TEXT_SECONDARY, anchor='w',
+        ).grid(row=0, column=0, sticky='w', padx=(0, 4))
+        ctk.CTkLabel(
+            lists_row, text=t('config.products'), font=(FONT, 11, 'bold'),
+            text_color=THEME_TEXT_SECONDARY, anchor='w',
+        ).grid(row=0, column=1, sticky='w', padx=(4, 0))
+
+        self.clients_list_host = ctk.CTkFrame(
+            lists_row, fg_color=THEME_BG, corner_radius=8,
+            border_width=1, border_color=THEME_CARD_BORDER,
+        )
+        self.clients_list_host.grid(row=1, column=0, sticky='nsew', padx=(0, 4), pady=(4, 0))
+        self.products_list_host = ctk.CTkFrame(
+            lists_row, fg_color=THEME_BG, corner_radius=8,
+            border_width=1, border_color=THEME_CARD_BORDER,
+        )
+        self.products_list_host.grid(row=1, column=1, sticky='nsew', padx=(4, 0), pady=(4, 0))
+
+        self.actions_frame = ctk.CTkFrame(body, fg_color='transparent')
+        self.actions_frame.pack(fill='x', pady=(12, 0))
+
+        self.btn_add_client = ctk.CTkButton(
+            self.actions_frame, text=f'+ {t("config.add_client")}', height=30, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER,
+            command=self.create_client,
+        )
+        self.btn_add_client.pack(side='left', padx=(0, 6))
+
+    def _build_settings_tabs(self):
+        right = ctk.CTkFrame(self, fg_color='transparent')
+        right.grid(row=1, column=1, sticky='nsew', padx=(8, 16), pady=(12, 16))
+
+        self.tabs = ctk.CTkTabview(
+            right,
+            fg_color=THEME_CARD,
+            border_width=1,
+            border_color=THEME_CARD_BORDER,
+            corner_radius=12,
+            segmented_button_fg_color=THEME_BG,
+            segmented_button_selected_color=THEME_NAV_ACTIVE,
+            segmented_button_selected_hover_color=THEME_NAV_ACTIVE,
+            segmented_button_unselected_color=THEME_CARD,
+            segmented_button_unselected_hover_color=THEME_NAV_ACTIVE,
+            text_color=THEME_TEXT_SECONDARY,
+        )
+        self.tabs.pack(fill='both', expand=True)
+
+        tab_general = self.tabs.add(t('config.tab_general'))
+        tab_printing = self.tabs.add(t('config.tab_printing'))
+        tab_access = self.tabs.add(t('config.tab_access'))
+        tab_language = self.tabs.add(t('config.tab_language'))
+
+        for tab in (tab_general, tab_printing, tab_access, tab_language):
+            tab.configure(fg_color='transparent')
+
+        self._build_tab_general(tab_general)
+        self._build_tab_printing(tab_printing)
+        self._build_tab_access(tab_access)
+        self._build_tab_language(tab_language)
+
+    def _build_tab_general(self, parent):
+        scroll = ctk.CTkScrollableFrame(parent, fg_color='transparent')
+        scroll.pack(fill='both', expand=True, padx=4, pady=4)
+
+        card_ie, body_ie = self._settings_card(scroll, t('config.card_import_export'))
+        card_ie.pack(fill='x', pady=(0, 10))
+        btns = ctk.CTkFrame(body_ie, fg_color='transparent')
+        btns.pack(fill='x')
+        ctk.CTkButton(
+            btns, text=t('config.import'), width=120, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER,
+            command=self.import_product,
+        ).pack(side='left', padx=(0, 8))
+        ctk.CTkButton(
+            btns, text=t('config.export'), width=120, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER,
+            command=lambda: ExportProductWindow(self),
+        ).pack(side='left')
+
+        card_files, body_files = self._settings_card(scroll, t('config.card_files'))
+        card_files.pack(fill='x', pady=(0, 10))
+
+        ctk.CTkLabel(
+            body_files, text=t('config.search_folder'), anchor='w', text_color=THEME_TEXT_SECONDARY,
+        ).pack(fill='x')
+        self.inpt_search_folder = ctk.CTkEntry(body_files, **_entry_kwargs())
+        self.btn_save_folder = ctk.CTkButton(
+            body_files, text=t('config.save'), width=80, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            state='disabled', command=self.save_folder,
+        )
+        row_sf = ctk.CTkFrame(body_files, fg_color='transparent')
+        row_sf.pack(fill='x', pady=(4, 10))
+        self.inpt_search_folder.pack(in_=row_sf, side='left', fill='x', expand=True, padx=(0, 8))
+        self.btn_save_folder.pack(in_=row_sf, side='left')
+        search_folder = get_search_folder()
+        if search_folder:
+            self.inpt_search_folder.insert(0, search_folder)
+        ctk.CTkLabel(
+            body_files, text=t('config.search_folder_hint'), font=(FONT, 10),
+            text_color=THEME_TEXT_SECONDARY, justify='left', wraplength=420, anchor='w',
+        ).pack(fill='x', pady=(0, 10))
+
+        ctk.CTkLabel(
+            body_files, text=t('config.database'), anchor='w', text_color=THEME_TEXT_SECONDARY,
+        ).pack(fill='x')
+        self.inpt_db_location = ctk.CTkEntry(body_files, **_entry_kwargs())
+        self.btn_save_db = ctk.CTkButton(
+            body_files, text=t('config.save'), width=80, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            state='disabled', command=self.save_database_location,
+        )
+        row_db = ctk.CTkFrame(body_files, fg_color='transparent')
+        row_db.pack(fill='x', pady=(4, 0))
+        self.inpt_db_location.pack(in_=row_db, side='left', fill='x', expand=True, padx=(0, 8))
+        self.btn_save_db.pack(in_=row_db, side='left')
+        database_location = get_database_location()
+        if database_location:
+            self.inpt_db_location.insert(0, database_location)
+
+        card_audit, body_audit = self._settings_card(scroll, t('config.card_audit'))
+        card_audit.pack(fill='x')
+        ctk.CTkLabel(
+            body_audit, text=t('config.audit_db'), anchor='w', text_color=THEME_TEXT_SECONDARY,
+        ).pack(fill='x')
+        self.inpt_audit_location = ctk.CTkEntry(
+            body_audit,
+            placeholder_text=r'\\servidor\pasta\artemis_audit_central.db',
+            **_entry_kwargs(),
+        )
+        self.btn_save_audit_location = ctk.CTkButton(
+            body_audit, text=t('config.save'), width=80, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            command=self.save_audit_location,
+        )
+        row_au = ctk.CTkFrame(body_audit, fg_color='transparent')
+        row_au.pack(fill='x', pady=(4, 6))
+        self.inpt_audit_location.pack(in_=row_au, side='left', fill='x', expand=True, padx=(0, 8))
+        self.btn_save_audit_location.pack(in_=row_au, side='left')
+        audit_location = get_audit_central_location()
+        if audit_location:
+            self.inpt_audit_location.insert(0, audit_location)
+        ctk.CTkLabel(
+            body_audit, text=t('config.audit_hint'), font=(FONT, 10),
+            text_color=THEME_TEXT_SECONDARY, justify='left', anchor='w',
+        ).pack(fill='x', pady=(0, 8))
+        ctk.CTkButton(
+            body_audit, text=t('config.audit_logs'), width=160, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER,
+            command=lambda: AuditWindow(self),
+        ).pack(anchor='w')
+
+    def _build_tab_printing(self, parent):
+        scroll = ctk.CTkScrollableFrame(parent, fg_color='transparent')
+        scroll.pack(fill='both', expand=True, padx=4, pady=4)
+
+        card, body = self._settings_card(scroll, t('config.printers'))
+        card.pack(fill='x', pady=(0, 10))
+        count = len(admin_service.list_registered_printers())
+        ctk.CTkLabel(
+            body, text=t('config.printers_count', count=count),
+            font=(FONT, 11), text_color=THEME_TEXT_SECONDARY, anchor='w',
+        ).pack(fill='x', pady=(0, 8))
+        ctk.CTkButton(
+            body, text=t('config.manage_printers'), width=180, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER,
+            command=lambda: ManagePrintersWindow(self),
+        ).pack(anchor='w')
+
+        card_be, body_be = self._settings_card(scroll, t('config.print_backend'))
+        card_be.pack(fill='x', pady=(0, 10))
+        backend_values = self._available_backend_labels()
+        self.combo_print_backend = ctk.CTkComboBox(body_be, width=280, values=backend_values, **_combo_kwargs())
+        self.combo_print_backend.pack(anchor='w', pady=(0, 6))
+        self.combo_print_backend.set(get_print_backend_label())
+        ctk.CTkLabel(
+            body_be, text=t('config.print_backend_hint'), font=(FONT, 10),
+            text_color=THEME_TEXT_SECONDARY, justify='left', wraplength=420, anchor='w',
+        ).pack(fill='x', pady=(0, 8))
+        self.btn_save_print_backend = ctk.CTkButton(
+            body_be, text=t('config.save_backend'), width=140, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            command=self.save_print_backend,
+        )
+        self.btn_save_print_backend.pack(anchor='w')
+
+        card_gr, body_gr = self._settings_card(scroll, t('config.print_groups'))
+        card_gr.pack(fill='x')
+        self.btn_manage_groups = ctk.CTkButton(
+            body_gr, text=t('config.manage_groups_btn'), width=180, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER,
+            command=lambda: ManageGroupWindow(self, t('group.manage_title')),
+        )
+        self.btn_manage_groups.pack(anchor='w')
+        ctk.CTkLabel(
+            body_gr, text=t('config.print_groups_hint'), font=(FONT, 10),
+            text_color=THEME_TEXT_SECONDARY, justify='left', wraplength=420, anchor='w',
+        ).pack(fill='x', pady=(8, 0))
+
+    def _build_tab_access(self, parent):
+        scroll = ctk.CTkScrollableFrame(parent, fg_color='transparent')
+        scroll.pack(fill='both', expand=True, padx=4, pady=4)
+
+        card, body = self._settings_card(scroll, t('config.config_access'))
+        card.pack(fill='x')
+        ctk.CTkLabel(
+            body, text=t('config.admin_always_access'),
+            font=(FONT, 11), text_color=THEME_TEXT_SECONDARY, justify='left', anchor='w',
+        ).pack(fill='x', pady=(0, 10))
+        ctk.CTkButton(
+            body, text=t('config.manage_access'), width=180, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            command=lambda: ManageAccessWindow(self),
+        ).pack(anchor='w', pady=(0, 8))
+
+    def _build_tab_language(self, parent):
+        scroll = ctk.CTkScrollableFrame(parent, fg_color='transparent')
+        scroll.pack(fill='both', expand=True, padx=4, pady=4)
+
+        card, body = self._settings_card(scroll, t('config.language_section'))
+        card.pack(fill='x')
+
+        ctk.CTkLabel(
+            body, text=t('config.language_label'), anchor='w', text_color=THEME_TEXT_SECONDARY,
+        ).pack(fill='x')
+        self._lang_labels = {label: code for code, label in available_languages()}
+        self.combo_default_language = ctk.CTkComboBox(
+            body, width=280, values=[label for _, label in available_languages()],
+            command=self._on_default_language_pick, **_combo_kwargs(),
+        )
+        self.combo_default_language.pack(anchor='w', pady=(4, 12))
+        current_code = get_language()
+        self.combo_default_language.set(get_i18n().language_label(current_code))
+
+        ctk.CTkLabel(
+            body, text=t('config.locales_folder'), anchor='w', text_color=THEME_TEXT_SECONDARY,
+        ).pack(fill='x')
+        self.inpt_locales_folder = ctk.CTkEntry(body, **_entry_kwargs())
+        self.btn_save_locales_folder = ctk.CTkButton(
+            body, text=t('config.save'), width=80, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            command=self.save_locales_folder,
+        )
+        row_loc = ctk.CTkFrame(body, fg_color='transparent')
+        row_loc.pack(fill='x', pady=(4, 8))
+        self.inpt_locales_folder.pack(in_=row_loc, side='left', fill='x', expand=True, padx=(0, 8))
+        self.btn_save_locales_folder.pack(in_=row_loc, side='left')
+        locales_folder = get_locales_folder()
+        if locales_folder:
+            self.inpt_locales_folder.insert(0, locales_folder)
+
+        ctk.CTkLabel(
+            body, text=t('config.locales_hint'), font=(FONT, 10),
+            text_color=THEME_TEXT_SECONDARY, justify='left', anchor='w',
+        ).pack(fill='x', pady=(0, 8))
+
+        locales_row = ctk.CTkFrame(body, fg_color='transparent')
+        locales_row.pack(fill='x', pady=(0, 8))
+        ctk.CTkButton(
+            locales_row, text=t('config.open_locales_folder'), width=170, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER,
+            command=self.open_locales_folder,
+        ).pack(side='left', padx=(0, 8))
+        ctk.CTkButton(
+            locales_row, text=t('config.reload_locales'), width=140, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER,
+            command=self.reload_locales,
+        ).pack(side='left')
+
+        self.lbl_available_locales = ctk.CTkLabel(
+            body, text=self._available_locales_text(),
+            font=(FONT, 10), text_color=THEME_TEXT_SECONDARY, justify='left', anchor='w',
+        )
+        self.lbl_available_locales.pack(fill='x')
+
+    def _on_search_changed(self, *_args):
+        self._search_query = self.entry_search.get().strip().lower()
+        self._apply_search_filter()
+
+    def _filter_clients(self, query: str) -> list[str]:
+        clients = admin_service.list_client_names()
+        if not query:
+            return clients
+        filtered = []
+        for client in clients:
+            if query in client.lower():
+                filtered.append(client)
+                continue
+            products = admin_service.list_products(client)
+            if any(query in product.lower() for product in products):
+                filtered.append(client)
+        return filtered
+
+    def _filter_products(self, client: str, query: str) -> list[str]:
+        products = admin_service.list_products(client)
+        if not query:
+            return products
+        if query in client.lower():
+            return products
+        return [product for product in products if query in product.lower()]
+
+    def _update_search_count(self, clients: list[str], products_count: int):
+        if not clients and self._search_query:
+            self.lbl_search_count.configure(text=t('config.search_no_results'))
+            return
+        self.lbl_search_count.configure(
+            text=t('config.search_count', clients=len(clients), products=products_count),
+        )
+
+    @staticmethod
+    def _clear_host(host):
+        for child in host.winfo_children():
+            child.destroy()
+
+    def _mount_client_list(self, items: list[str]):
+        selected = ''
+        if hasattr(self, 'client_list'):
+            try:
+                selected = self.client_list.radio_var.get()
+            except Exception:
+                selected = ''
+        self._clear_host(self.clients_list_host)
+        self.client_list = ListBox(
+            self.clients_list_host,
+            items,
+            height=240,
+            border_width=0,
+            fg_color='transparent',
+            on_select=lambda _child: self.refresh(),
+        )
+        self.client_list.pack(fill='both', expand=True, padx=2, pady=2)
+        if items:
+            pick = selected if selected in items else items[0]
+            self.client_list.radio_var.set(pick)
+            for name, widget in self.client_list.radio_list.items():
+                if name == pick:
+                    widget.configure(font=(FONT, 13, 'bold'), text_color='#c4b5fd')
+
+    def _mount_product_list(self, items: list[str]):
+        selected = ''
+        if hasattr(self, 'product_list'):
+            try:
+                selected = self.product_list.radio_var.get()
+            except Exception:
+                selected = ''
+        self._clear_host(self.products_list_host)
+        self.product_list = ListBox(
+            self.products_list_host,
+            items,
+            child=True,
+            height=240,
+            border_width=0,
+            fg_color='transparent',
+            on_select=lambda _child: self.refresh(True),
+        )
+        self.product_list.pack(fill='both', expand=True, padx=2, pady=2)
+        if items:
+            pick = selected if selected in items else items[0]
+            self.product_list.radio_var.set(pick)
+            for name, widget in self.product_list.radio_list.items():
+                if name == pick:
+                    widget.configure(font=(FONT, 13, 'bold'), text_color='#c4b5fd')
+
+    def _apply_search_filter(self):
+        clients = self._filter_clients(self._search_query)
+        self._mount_client_list(clients)
+
+        if self.btn_edit:
+            self.btn_edit.destroy()
+            self.btn_duplicate.destroy()
+            self.btn_edit = None
+            self.btn_duplicate = None
+
+        if clients:
+            total_products = sum(
+                len(self._filter_products(c, self._search_query)) for c in clients
+            )
+            self._update_search_count(clients, total_products)
+            self.refresh()
+        else:
+            self._clear_host(self.products_list_host)
+            self.product_list = None
+            self._update_search_count([], 0)
+            self.delete_buttons()
 
     def save_database_location(self):
         folder = self.inpt_db_location.get()
@@ -449,33 +702,30 @@ class ConfigWindow(ctk.CTkToplevel):
         self.withdraw()
 
     def update_product_list(self, products):
-        self.product_list.destroy()
-        self.product_list = ListBox(
-            self, products, child=True, width=345, height=150, label_text=t('config.products'),
-            on_select=lambda _child: self.refresh(True),
-        )
-        self.product_list.grid(row=2, column=1, columnspan=1, padx=10, pady=10)
+        self._mount_product_list(products)
 
     def update_client_list(self):
-        clients = admin_service.list_client_names()
-        self.client_list.destroy()
-        self.client_list = ListBox(
-            self, clients, width=345, height=150, label_text=t('config.clients'),
-            on_select=lambda _child: self.refresh(),
-        )
-        self.client_list.grid(row=2, column=0, columnspan=1, padx=10, pady=10)
+        self._apply_search_filter()
 
     def show_edit_button(self):
         if self.btn_edit:
             self.btn_edit.destroy()
             self.btn_duplicate.destroy()
 
-        self.btn_duplicate = ctk.CTkButton(self, text=t('config.duplicate'), width=80,
-                                           command=self.duplicate_product_window)
-        self.btn_duplicate.grid(row=1, column=1, padx=100, sticky='E')
+        self.btn_duplicate = ctk.CTkButton(
+            self.actions_frame, text=t('config.duplicate'), width=90, height=30, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER,
+            command=self.duplicate_product_window,
+        )
+        self.btn_duplicate.pack(side='left', padx=(0, 6))
 
-        self.btn_edit = ctk.CTkButton(self, text=t('config.edit'), width=80, command=lambda: self.open_edit_window('edit'))
-        self.btn_edit.grid(row=1, column=1, padx=10, sticky='E')
+        self.btn_edit = ctk.CTkButton(
+            self.actions_frame, text=t('config.edit'), width=80, height=30, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            command=lambda: self.open_edit_window('edit'),
+        )
+        self.btn_edit.pack(side='left', padx=(0, 6))
 
     def duplicate_product_window(self):
         DuplicateProductWindow(self, t('config.duplicate_product_title'), self.client_list.radio_var.get(),
@@ -484,27 +734,44 @@ class ConfigWindow(ctk.CTkToplevel):
     def reset_all(self):
         self.delete_buttons()
         self.update_client_list()
-        self.update_product_list([])
 
     def refresh(self, child=False):
         if not child:
-            # We always need to destroy before create another one, because we will have more than one instance
             if self.btn_delete_client:
                 self.btn_delete_client.destroy()
+                self.btn_delete_client = None
             if self.btn_add_product:
                 self.btn_add_product.destroy()
+                self.btn_add_product = None
 
-            self.btn_delete_client = ctk.CTkButton(self, text=t('config.delete_client'), fg_color=BTN_RED,
-                                                   hover_color=BTN_HOVER_RED,
-                                                   command=self.confirm_delete)
-            self.btn_delete_client.grid(row=1, column=0, padx=10, sticky='E')
+            if hasattr(self, 'client_list') and self.client_list.radio_var.get():
+                self.btn_delete_client = ctk.CTkButton(
+                    self.actions_frame, text=t('config.delete_client'), width=110, height=30, corner_radius=8,
+                    fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
+                    command=self.confirm_delete,
+                )
+                self.btn_delete_client.pack(side='right')
 
-            self.btn_add_product = ctk.CTkButton(self, text=t('config.add_product'),
-                                                 command=lambda: self.open_edit_window('add'))
-            self.btn_add_product.grid(row=1, column=1, padx=10, sticky='W')
+                self.btn_add_product = ctk.CTkButton(
+                    self.actions_frame, text=f'+ {t("config.add_product")}', height=30, corner_radius=8,
+                    fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+                    border_width=1, border_color=THEME_CARD_BORDER,
+                    command=lambda: self.open_edit_window('add'),
+                )
+                self.btn_add_product.pack(side='left', padx=(0, 6))
 
-            client = self.client_list.radio_var.get()
-            self.update_product_list(admin_service.list_products(client))
+                client = self.client_list.radio_var.get()
+                products = self._filter_products(client, self._search_query)
+                self._mount_product_list(products)
+                total_products = sum(
+                    len(self._filter_products(c, self._search_query))
+                    for c in self._filter_clients(self._search_query)
+                )
+                self._update_search_count(self._filter_clients(self._search_query), total_products)
+            else:
+                self._clear_host(self.products_list_host)
+                self.product_list = None
+
             if self.btn_edit:
                 self.btn_edit.destroy()
                 self.btn_duplicate.destroy()

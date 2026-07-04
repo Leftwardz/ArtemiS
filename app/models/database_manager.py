@@ -58,7 +58,32 @@ class DataBase:
         self.migrate_drawing_scope()
         self.migrate_drawing_stack_order()
         self.migrate_drawing_duplex()
+        self.migrate_default_print_group()
         self.session.close()
+
+    def migrate_default_print_group(self):
+        """Garante grupo padrão no primeiro acesso e migra o legado AR."""
+        from app.services.print_group_service import DEFAULT_PRINT_GROUP_NAME, LEGACY_ROOT_GROUP_NAME
+
+        groups = self.session.query(PrintingGroup).all()
+        if not groups:
+            self.session.add(PrintingGroup(name=DEFAULT_PRINT_GROUP_NAME))
+            self.session.commit()
+            return
+
+        legacy = self.session.query(PrintingGroup).filter(
+            PrintingGroup.name == LEGACY_ROOT_GROUP_NAME,
+        ).first()
+        default = self.session.query(PrintingGroup).filter(
+            PrintingGroup.name == DEFAULT_PRINT_GROUP_NAME,
+        ).first()
+        if not legacy:
+            return
+        if default:
+            self.session.delete(legacy)
+        else:
+            legacy.name = DEFAULT_PRINT_GROUP_NAME
+        self.session.commit()
 
     @staticmethod
     def _printer_row_to_dict(row):

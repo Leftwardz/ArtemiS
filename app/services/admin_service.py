@@ -140,7 +140,11 @@ def list_print_groups():
 
 
 def insert_print_group(name):
+    from app.services.print_group_service import ensure_group_subdirectory
+    from app.services.settings_service import get_search_folder
+
     result = runtime.context.db.insert_print_group(name)
+    ensure_group_subdirectory(get_search_folder(), name)
     audit.log_cadastro('print_group_add', detail=name)
     return result
 
