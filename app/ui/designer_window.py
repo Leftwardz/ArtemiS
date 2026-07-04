@@ -71,6 +71,18 @@ from app.services.sheet_grouping import build_sheet_pages
 from app.utils.document_delivery import open_path
 
 
+def _flat_combo_kwargs(**overrides):
+    kwargs = {
+        'corner_radius': 0,
+        'fg_color': THEME_BG,
+        'border_color': THEME_CARD_BORDER,
+        'button_color': THEME_ACCENT,
+        'button_hover_color': THEME_ACCENT_HOVER,
+    }
+    kwargs.update(overrides)
+    return kwargs
+
+
 class EditWindow(ctk.CTkToplevel):
     _TOOL_LABELS = {
         'Selecionar': 'Seleção',
@@ -157,12 +169,7 @@ class EditWindow(ctk.CTkToplevel):
         self.focus_force()
 
     def _combo_kwargs(self):
-        return {
-            'fg_color': THEME_BG,
-            'border_color': THEME_CARD_BORDER,
-            'button_color': THEME_ACCENT,
-            'button_hover_color': THEME_ACCENT_HOVER,
-        }
+        return _flat_combo_kwargs()
 
     def _entry_kwargs(self):
         return {'fg_color': THEME_BG, 'border_color': THEME_CARD_BORDER}
@@ -502,23 +509,27 @@ class EditWindow(ctk.CTkToplevel):
 
         card_grid, body_grid = self._editor_card(self.frame_custom_layout, 'Grade')
         card_grid.pack(side='left', fill='y', padx=(0, 8))
-        row_grid_count = ctk.CTkFrame(body_grid, fg_color='transparent')
-        row_grid_count.pack(fill='x')
-        ctk.CTkLabel(row_grid_count, text='Cols', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=0, padx=(0, 4), sticky='w')
-        self.custom_cols = self._int_spin(row_grid_count, layout.columns, entry_width=52)
-        self.custom_cols.grid(row=0, column=1, padx=2, sticky='w')
-        ctk.CTkLabel(row_grid_count, text='×', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=2, padx=4)
-        ctk.CTkLabel(row_grid_count, text='Lin', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=3, padx=(0, 4), sticky='w')
-        self.custom_rows = self._int_spin(row_grid_count, layout.rows, entry_width=52)
-        self.custom_rows.grid(row=0, column=4, padx=2, sticky='w')
+        grid_grid = ctk.CTkFrame(body_grid, fg_color='transparent')
+        grid_grid.pack(fill='x')
+        grid_grid.grid_columnconfigure(0, weight=0)
+        grid_grid.grid_columnconfigure(1, weight=0, minsize=88)
+        grid_grid.grid_columnconfigure(2, weight=0, minsize=88)
 
-        row_grid_gap = ctk.CTkFrame(body_grid, fg_color='transparent')
-        row_grid_gap.pack(fill='x', pady=(6, 0))
-        ctk.CTkLabel(row_grid_gap, text='Espaço', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=0, padx=(0, 4), sticky='w')
-        self.custom_gap_x = self._mm_spin(row_grid_gap, layout.gap_x_mm, entry_width=56)
-        self.custom_gap_x.grid(row=0, column=1, padx=2, sticky='w')
-        self.custom_gap_y = self._mm_spin(row_grid_gap, layout.gap_y_mm, entry_width=56)
-        self.custom_gap_y.grid(row=0, column=2, padx=2, sticky='w')
+        ctk.CTkLabel(grid_grid, text='Cols×Lin', text_color=THEME_TEXT_SECONDARY).grid(
+            row=0, column=0, padx=(0, 8), sticky='w',
+        )
+        self.custom_cols = self._int_spin(grid_grid, layout.columns)
+        self.custom_cols.grid(row=0, column=1, padx=2, sticky='ew')
+        self.custom_rows = self._int_spin(grid_grid, layout.rows)
+        self.custom_rows.grid(row=0, column=2, padx=2, sticky='ew')
+
+        ctk.CTkLabel(grid_grid, text='Espaço', text_color=THEME_TEXT_SECONDARY).grid(
+            row=1, column=0, padx=(0, 8), pady=(6, 0), sticky='w',
+        )
+        self.custom_gap_x = self._mm_spin(grid_grid, layout.gap_x_mm)
+        self.custom_gap_x.grid(row=1, column=1, padx=2, pady=(6, 0), sticky='ew')
+        self.custom_gap_y = self._mm_spin(grid_grid, layout.gap_y_mm)
+        self.custom_gap_y.grid(row=1, column=2, padx=2, pady=(6, 0), sticky='ew')
 
         card_scope, body_scope = self._editor_card(self.frame_custom_layout, 'Escopo')
         card_scope.pack(side='left', fill='y', padx=(0, 8))
@@ -2086,8 +2097,10 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
         self.last_orientation = int(orientation)
 
         ctk.CTkLabel(self.frame, text='Orientação:').grid(row=3, column=0, padx=10, pady=10, sticky="W")
-        self.orientation = ctk.CTkComboBox(self.frame, values=['0', '90', '180', '270'], width=100,
-                                           command=self.update_item)
+        self.orientation = ctk.CTkComboBox(
+            self.frame, values=['0', '90', '180', '270'], width=100,
+            command=self.update_item, **_flat_combo_kwargs(),
+        )
         self.orientation.grid(row=3, column=1, pady=10, padx=10)
         self.orientation.set(orientation)
 
@@ -2099,8 +2112,10 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
             if self.barcode_obj.barcode_kind in ('barcode', 'barcode39'):
                 ctk.CTkLabel(self.frame, text='Largura:').grid(row=row, column=0, padx=10, pady=10, sticky="W")
                 barcode_widths = ['0.17', '0.18', '0.19', '0.20']
-                self.barcode_width = ctk.CTkComboBox(self.frame, width=100, values=barcode_widths,
-                                                     command=self.update_item)
+                self.barcode_width = ctk.CTkComboBox(
+                    self.frame, width=100, values=barcode_widths,
+                    command=self.update_item, **_flat_combo_kwargs(),
+                )
                 self.barcode_width.grid(row=row, column=1, pady=10, padx=10)
                 self.barcode_width.set(self.barcode_obj.barcode_width)
                 row += 1
@@ -2114,8 +2129,10 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
             # ------------------ Coluna (todos os tipos) ------------------------------------------------------
             ctk.CTkLabel(self.frame, text='Coluna:').grid(row=row, column=0, padx=10, pady=10, sticky="W")
             columns = [f'Coluna_{i}' for i in range(1, 100)]
-            self.barcode_column = ctk.CTkComboBox(self.frame, width=100, values=columns,
-                                                  command=self.update_item)
+            self.barcode_column = ctk.CTkComboBox(
+                self.frame, width=100, values=columns,
+                command=self.update_item, **_flat_combo_kwargs(),
+            )
             self.barcode_column.grid(row=row, column=1, pady=10, padx=10)
             self.barcode_column.set(f)
             row += 1
@@ -2210,16 +2227,20 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
         lbl_width = ctk.CTkLabel(self.frame, text='Espessura:')
         lbl_width.grid(row=0, column=0, padx=10, pady=10, sticky="W")
 
-        self.combobox_width = ctk.CTkComboBox(self.frame, width=100, values=list(map(str, range(1, 10))),
-                                              command=self.update_item)
+        self.combobox_width = ctk.CTkComboBox(
+            self.frame, width=100, values=list(map(str, range(1, 10))),
+            command=self.update_item, **_flat_combo_kwargs(),
+        )
         self.combobox_width.grid(row=0, column=1, padx=10, pady=10)
         self.combobox_width.set(line_width)
 
         lbl_dash = ctk.CTkLabel(self.frame, text='Traçejado:')
         lbl_dash.grid(row=1, column=0, padx=10, pady=10, sticky="W")
 
-        self.combobox_dash = ctk.CTkComboBox(self.frame, width=100, values=list(dash_values.values()),
-                                             command=self.update_item)
+        self.combobox_dash = ctk.CTkComboBox(
+            self.frame, width=100, values=list(dash_values.values()),
+            command=self.update_item, **_flat_combo_kwargs(),
+        )
         self.combobox_dash.grid(row=1, column=1, padx=10, pady=10)
         self.combobox_dash.set(dash_values[dash])
 
@@ -2288,25 +2309,33 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
             x, y = self.master.canvas.coords(selected_object)
 
         ctk.CTkLabel(self.frame, text='Fonte:').grid(row=0, column=0, padx=10, pady=10, sticky="W")
-        self.font_family_combobox = ctk.CTkComboBox(self.frame, values=FONT_LIST, width=100, command=self.update_item)
+        self.font_family_combobox = ctk.CTkComboBox(
+            self.frame, values=FONT_LIST, width=100, command=self.update_item, **_flat_combo_kwargs(),
+        )
         self.font_family_combobox.grid(row=0, column=1, pady=10, padx=10)
         self.font_family_combobox.set(font_family)
 
         ctk.CTkLabel(self.frame, text='Tamanho:').grid(row=1, column=0, padx=10, pady=10, sticky="W")
-        self.font_size_combobox = ctk.CTkComboBox(self.frame, width=100, values=list(map(str, range(6, 28))),
-                                                  command=self.update_item)
+        self.font_size_combobox = ctk.CTkComboBox(
+            self.frame, width=100, values=list(map(str, range(6, 28))),
+            command=self.update_item, **_flat_combo_kwargs(),
+        )
         self.font_size_combobox.grid(row=1, column=1, pady=10, padx=10)
         self.font_size_combobox.set(font_size)
 
         ctk.CTkLabel(self.frame, text='Estilo:').grid(row=2, column=0, padx=10, pady=10, sticky="W")
-        self.font_style_combobox = ctk.CTkComboBox(self.frame, values=['Bold', 'Normal'], width=100,
-                                                   command=self.update_item)
+        self.font_style_combobox = ctk.CTkComboBox(
+            self.frame, values=['Bold', 'Normal'], width=100,
+            command=self.update_item, **_flat_combo_kwargs(),
+        )
         self.font_style_combobox.grid(row=2, column=1, pady=10, padx=10)
         self.font_style_combobox.set(font_style.capitalize())
 
         ctk.CTkLabel(self.frame, text='Orientação:').grid(row=3, column=0, padx=10, pady=10, sticky="W")
-        self.orientation = ctk.CTkComboBox(self.frame, values=['0', '90', '180', '270'], width=100,
-                                           command=self.update_item)
+        self.orientation = ctk.CTkComboBox(
+            self.frame, values=['0', '90', '180', '270'], width=100,
+            command=self.update_item, **_flat_combo_kwargs(),
+        )
         self.orientation.grid(row=3, column=1, pady=10, padx=10)
         self.orientation.set(orientacao)
         if self.is_segment and self.segment_obj:
@@ -2936,16 +2965,16 @@ class GetTextWindow(ctk.CTkToplevel):
         self.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(self, text='Fonte:').grid(row=0, column=0, pady=10, padx=10)
-        self.font_list = ctk.CTkComboBox(self, values=FONT_LIST)
+        self.font_list = ctk.CTkComboBox(self, values=FONT_LIST, **_flat_combo_kwargs())
         self.font_list.grid(row=0, column=1, pady=10, padx=10, sticky='W')
 
         ctk.CTkLabel(self, text='Tamanho:').grid(row=1, column=0, pady=10, padx=10)
-        self.fontsize = ctk.CTkComboBox(self, values=list(map(str, range(6, 28))))
+        self.fontsize = ctk.CTkComboBox(self, values=list(map(str, range(6, 28))), **_flat_combo_kwargs())
         self.fontsize.set('10')
         self.fontsize.grid(row=1, column=1, pady=10, padx=10, sticky='W')
 
         ctk.CTkLabel(self, text='Orientação:').grid(row=2, column=0, pady=10, padx=10)
-        self.orientation = ctk.CTkComboBox(self, values=['0', '90', '180', '270'])
+        self.orientation = ctk.CTkComboBox(self, values=['0', '90', '180', '270'], **_flat_combo_kwargs())
         self.orientation.grid(row=2, column=1, pady=10, padx=10, sticky='W')
 
         self.counter_var = ctk.IntVar()
@@ -3022,13 +3051,16 @@ class GetBarcodeWindow(ctk.CTkToplevel):
         ctk.CTkLabel(self, text='Modelo:').grid(row=0, column=0, padx=10, pady=10, sticky='E')
 
         barcode_models = ['Barcode 128', 'Barcode 39', 'QRCode', 'Matrix']
-        self.entry_model = ctk.CTkComboBox(self, values=barcode_models, width=120, command=self.enable_disable_config)
+        self.entry_model = ctk.CTkComboBox(
+            self, values=barcode_models, width=120, command=self.enable_disable_config,
+            **_flat_combo_kwargs(),
+        )
         self.entry_model.grid(row=0, column=1, padx=10, pady=10, sticky='W')
 
         ctk.CTkLabel(self, text='Espessura:').grid(row=1, column=0, padx=10, pady=10, sticky='E')
 
         barcode_widths = ['0.17', '0.18', '0.19', '0.20']
-        self.entry_width = ctk.CTkComboBox(self, values=barcode_widths, width=120)
+        self.entry_width = ctk.CTkComboBox(self, values=barcode_widths, width=120, **_flat_combo_kwargs())
         self.entry_width.grid(row=1, column=1, padx=10, pady=10, sticky='W')
 
         ctk.CTkLabel(self, text='Altura:').grid(row=2, column=0, padx=10, pady=10, sticky='E')
@@ -3037,7 +3069,7 @@ class GetBarcodeWindow(ctk.CTkToplevel):
                            '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8',
                            '2.9']
 
-        self.entry_height = ctk.CTkComboBox(self, values=barcode_heights, width=120)
+        self.entry_height = ctk.CTkComboBox(self, values=barcode_heights, width=120, **_flat_combo_kwargs())
         self.entry_height.set('5')
         self.entry_height.grid(row=2, column=1, padx=10, pady=10, sticky='W')
 
