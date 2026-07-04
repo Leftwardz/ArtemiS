@@ -42,11 +42,19 @@ from app.ui.constants import (
     BTN_HOVER_RED,
     BTN_RED,
     DUPLEX_CANVAS_COLOR,
+    FONT,
     FONT_LIST,
     ICON,
     PAPER_COLOR_LIST,
     FIXED_TEXT_PAGE_TIP,
     PAPER_SIZE_TIP,
+    THEME_ACCENT,
+    THEME_ACCENT_HOVER,
+    THEME_BG,
+    THEME_CARD,
+    THEME_CARD_BORDER,
+    THEME_NAV_ACTIVE,
+    THEME_TEXT_SECONDARY,
 )
 from app.utils.barcode_generator import (
     change_proportion,
@@ -65,17 +73,32 @@ from app.utils.document_delivery import open_path
 
 
 class EditWindow(ctk.CTkToplevel):
+    _TOOL_LABELS = {
+        'Selecionar': 'Seleção',
+        'Mover': 'Mover',
+        'Linha': 'Linha',
+        'Quadrado': 'Retâng.',
+        'Texto Fixo': 'Texto',
+        'Segmento': 'Segmento',
+        'Código Barras': 'Barras',
+        'Imagem': 'Imagem',
+        'Medir': 'Medir',
+    }
+    _TOOL_VALUES = list(_TOOL_LABELS.keys())
+
     def __init__(self, master, mode, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.mode = mode
         self.iconbitmap(ICON)
         ctk.deactivate_automatic_dpi_awareness()
+        self.configure(fg_color=THEME_BG)
 
         self.minsize(900, 600)
         self.resizable(True, True)
         self.master = master
         self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=0, minsize=300)
+        self.grid_columnconfigure(1, weight=0, minsize=320)
+        self.grid_rowconfigure(3, weight=1)
         self.client = master.client_list.radio_var.get()
         self.id_selected_item = None
         self.copied_item = None
@@ -86,81 +109,6 @@ class EditWindow(ctk.CTkToplevel):
             self.product_name = master.product_list.radio_var.get()
 
         self.history = []
-
-        # ------------------------ Name Frame ------------------------------------------------
-        self.name_frame = ctk.CTkFrame(self, fg_color='transparent', width=500, height=100)
-        self.name_frame.grid(row=0, column=0, pady=10, sticky='ew')
-
-        ctk.CTkLabel(self.name_frame, text='Nome do produto:').grid(row=0, column=0, padx=10)
-
-        self.entry_name_value = ctk.StringVar(value=self.product_name)
-        self.entry_name = ctk.CTkEntry(self.name_frame, width=250, textvariable=self.entry_name_value)
-        self.entry_name.grid(row=0, column=1, padx=10)
-
-        self.btn_save = ctk.CTkButton(self.name_frame, text='Salvar', state='disabled', width=100,
-                                      command=self.save_changes)
-        self.btn_save.grid(row=0, column=2, padx=10)
-
-        self.btn_delete = ctk.CTkButton(self.name_frame, text='Deletar', width=100,
-                                        fg_color=BTN_RED,
-                                        hover_color=BTN_HOVER_RED,
-                                        command=self.confirm_delete)
-        self.btn_delete.grid(row=0, column=3, padx=10)
-        self.btn_visualize = ctk.CTkButton(self.name_frame, text='Visualizar', width=100,
-                                           command=self.show_pdf, fg_color='#3F644B', hover_color='#688A76')
-        self.btn_visualize.grid(row=0, column=4, padx=10)
-
-        self.preview_frame = ctk.CTkFrame(self.name_frame, fg_color='transparent')
-        self.preview_frame.grid(row=0, column=5, padx=(4, 10))
-        self.btn_preview_file = ctk.CTkButton(
-            self.preview_frame, text='Arquivo preview', width=110, command=self.load_preview_file,
-        )
-        self.btn_preview_file.pack(side='left', padx=(0, 4))
-        ctk.CTkLabel(self.preview_frame, text='Linha:').pack(side='left', padx=(0, 2))
-        self.preview_line_spin = SpinBox(self.preview_frame, step=1, func=self._on_preview_line_change, entry_width=42)
-        self.preview_line_spin.set(1)
-        self.preview_line_spin.entry.bind('<Return>', self._on_preview_line_change)
-        self.preview_line_spin.pack(side='left', padx=(0, 4))
-        self.btn_clear_preview = ctk.CTkButton(
-            self.preview_frame, text='×', width=28, fg_color=BTN_RED,
-            hover_color=BTN_HOVER_RED, command=self.clear_preview_file, state='disabled',
-        )
-        self.btn_clear_preview.pack(side='left')
-        self.lbl_preview_file = ctk.CTkLabel(
-            self.preview_frame, text='', font=(FONT_LIST[0], 10), text_color='gray', width=120,
-        )
-        self.lbl_preview_file.pack(side='left', padx=(6, 0))
-        self.preview_file = None
-        self.preview_file_path = ''
-        self.preview_line_idx = 0
-
-        self.zoom_frame = ctk.CTkFrame(self.name_frame, fg_color='transparent')
-        self.zoom_frame.grid(row=0, column=6, padx=10)
-        ctk.CTkButton(self.zoom_frame, text='−', width=28, command=self.zoom_out).grid(row=0, column=0, padx=2)
-        self.zoom_label = ctk.CTkLabel(self.zoom_frame, text='100%', width=46)
-        self.zoom_label.grid(row=0, column=1, padx=2)
-        ctk.CTkButton(self.zoom_frame, text='+', width=28, command=self.zoom_in).grid(row=0, column=2, padx=2)
-        self.btn_zoom_reset = ctk.CTkButton(self.zoom_frame, text='100%', width=56, command=self.zoom_reset)
-        self.btn_zoom_reset.grid(row=0, column=3, padx=(6, 2))
-
-        self.lbl_id = ctk.CTkLabel(self, text=f'ID: {self.client} - {self.product_name}', font=('arial', 13, 'bold'))
-        self.lbl_id.grid(row=1, column=0, padx=10, sticky='w')
-
-        # ------------------------ Buttons ------------------------------------------------
-
-        self.btn_tools = ctk.CTkSegmentedButton(self,
-                                                values=['Selecionar', 'Mover', 'Linha', 'Quadrado',
-                                                        'Texto Fixo', 'Segmento', 'Código Barras', 'Imagem',
-                                                        'Medir'],
-                                                command=self.reset_all
-                                                )
-        self.btn_tools.grid(row=2, column=0, padx=0, pady=(0, 4), sticky='ew')
-        self.btn_tools.set(value='Selecionar')
-
-
-        # ------------------------ Paper Color --------------------------------------------
-        self.frame_paper_color = ctk.CTkFrame(self, fg_color='transparent')
-        self.frame_paper_color.grid(row=3, column=0, padx=30, sticky='e')
 
         product = admin_service.get_db().search_product(self.client, self.product_name)
         if product:
@@ -174,108 +122,19 @@ class EditWindow(ctk.CTkToplevel):
             product_paper_size = '9'
             self.sheet_layout = SheetLayout.default()
 
-        ctk.CTkLabel(self.frame_paper_color, text='Cor do Papel: ').grid(row=0, column=0, padx=2)
-        self.paper_color_list = ctk.CTkComboBox(self.frame_paper_color, values=list(PAPER_COLOR_LIST.keys()),
-                                                command=self.change_color)
-        self.paper_color_list.grid(column=1, row=0)
-        self.paper_color_list.set(product_color)
-
-        self.color = ctk.CTkFrame(self.frame_paper_color, fg_color=PAPER_COLOR_LIST[product_color], width=30, height=30,
-                                  corner_radius=0)
-        self.color.grid(column=2, row=0, padx=5)
-
-        # ------------------------ Paper Size --------------------------------------------
-        self.frame_paper_size = ctk.CTkFrame(self, fg_color='transparent')
-        self.frame_paper_size.grid(row=1, column=0, padx=10, sticky='e')
-
-        lbl_paper_size = ctk.CTkLabel(self.frame_paper_size, text='Tamanho Papel: ')
-        lbl_paper_size.grid(row=0, column=0, padx=2)
-        self.paper_size_list = ctk.CTkComboBox(self.frame_paper_size, values=[str(i) for i in range(21)],
-                                               command=self.update_save_button)
-        self.paper_size_list.grid(column=1, row=0)
-        self.paper_size_list.set(product_paper_size)
-
-        tooltip = Tooltip(lbl_paper_size, PAPER_SIZE_TIP)
-
-        # ------------------------ Frame Choose Type Orientation --------------------------------------
-        self.frame_type = ctk.CTkFrame(self, fg_color='transparent')
-        self.frame_type.grid(row=3, column=0, padx=30, sticky='W')
-
-        ctk.CTkLabel(self.frame_type, text='Orientação:').grid(row=0, column=0, padx=10)
-
-        self.orient_values = ORIENTATION_LABELS
-
-        self.combobox_type = ctk.CTkComboBox(self.frame_type, values=self.orient_values, width=180,
-                                             command=self.change_orientation)
-        self.combobox_type.grid(row=0, column=1)
-        orient_idx = int(product_orientation) if str(product_orientation).isdigit() else 0
-        if orient_idx >= len(self.orient_values):
-            orient_idx = 0
-        self.combobox_type.set(self.orient_values[orient_idx])
-        product_orientation = str(orient_idx)
-
+        self._build_header()
+        self._build_product_settings(product_color, product_paper_size, product_orientation)
         self._build_custom_layout_panel()
-        # ----------------------------- Canvas -------------------------------------------
-        self.grid_rowconfigure(5, weight=1)
+        self._build_workspace(product_orientation)
+        self._build_hidden_tools()
 
-        # Resolution changes according to the orientation values from the product # see self.orient_values
-        self.resolution = {
-            '0': {'width': 1180, 'height': 560},  # 3 ARs Vertical -> Default
-            '1': {'width': 590, 'height': 1680},  # 2 ARs Horizontal
-            '2': {'width': 1180, 'height': 1680}, # Full A4 AR
-            '3': {'width': 1180, 'height': 840}  # 2 ARs folha - Vertical
-        }
-        if product_orientation == str(CUSTOM_ORIENTATION_INDEX):
-            canvas_width, canvas_height = self.sheet_layout.label_canvas_size()
-        else:
-            canvas_width = self.resolution[product_orientation]['width']
-            canvas_height = self.resolution[product_orientation]['height']
-
-        canvas_container = ctk.CTkFrame(self)
-        canvas_container.grid(row=5, column=0, padx=5, pady=(4, 10), sticky='nswe')
-        canvas_container.grid_rowconfigure(0, weight=1)
-        canvas_container.grid_columnconfigure(0, weight=1)
-
-        mode = ctk.get_appearance_mode()
-        frame_fg = ctk.ThemeManager.theme["CTkFrame"]["fg_color"]
-        self.canvas_bg = frame_fg[0] if mode == 'Light' else frame_fg[1]
-
-        self.canvas = Canvas(canvas_container, width=canvas_width, height=canvas_height,
-                             bg=self.canvas_bg, highlightthickness=0,
-                             scrollregion=(0, 0, canvas_width, canvas_height))
-        self.canvas.grid(row=0, column=0, sticky="nswe")
-
-        self.canvas_vbar = ctk.CTkScrollbar(canvas_container, orientation="vertical", command=self.canvas.yview)
-        self.canvas_vbar.grid(row=0, column=1, sticky="ns")
-        self.canvas_hbar = ctk.CTkScrollbar(canvas_container, orientation="horizontal", command=self.canvas.xview)
-        self.canvas_hbar.grid(row=1, column=0, sticky="ew")
-        self.canvas.configure(yscrollcommand=self.canvas_vbar.set, xscrollcommand=self.canvas_hbar.set)
-        self.canvas.bind("<Configure>", self._update_view)
-
-        self.canvas_images = []
-        self.canvas_dict_images = {}
-        self.drawing_store = DrawingStore()
-        self.selected_items = []
-        self.rubber_band = None
-        self._rubber_add = False
-        self._measure_line = None
-        self._measure_label = None
-        self.base_canvas_width = canvas_width
-        self.base_canvas_height = canvas_height
-        self.zoom = 1.0
-        self._zoom_by_scope = {SCOPE_SLOT: 1.0, SCOPE_SHEET: None}
-        self.canvas_db_saved_items = self.consult_drawings_from_db()
-        self.history.append(self.canvas_db_saved_items)
-        self.lbl_testes = ctk.CTkLabel(self, text='X: , Y:', width=150)
-        self.lbl_testes.grid(row=6, column=0, padx=10, sticky='se')
-        # --------------------- Painel de propriedades (barra lateral) -----------------
         self.properties_window = ListOfPropertiesWindow(self)
-        self.properties_window.grid(row=0, column=1, rowspan=7, padx=(0, 8), pady=8, sticky='nswe')
+        self.properties_window.grid(row=3, column=1, rowspan=2, padx=(0, 12), pady=(0, 12), sticky='nswe')
+
         self.start_x = None
         self.start_y = None
         self.draw_object = None
         self.ctrl_z = None
-        # ------------------------------- Events ----------------------------------------
         self.canvas.bind("<Button-1>", self.click_mouse_m1)
         self.canvas.bind("<B1-Motion>", self.move_mouse_m1)
         self.canvas.bind("<Motion>", self.canvas_mouse_motion)
@@ -292,7 +151,6 @@ class EditWindow(ctk.CTkToplevel):
         self.bind("<F4>", self.testes)
         self.protocol("WM_DELETE_WINDOW", self.confirm_exit)
 
-        # Any Event That Occurs
         self.entry_name.bind('<KeyRelease>', self.update_save_button)
         self.canvas.bind('<Button>', self.update_save_button)
 
@@ -300,6 +158,271 @@ class EditWindow(ctk.CTkToplevel):
         self._toggle_custom_layout_panel()
         self.after(50, self._try_maximize)
         self.focus_force()
+
+    def _combo_kwargs(self):
+        return {
+            'fg_color': THEME_BG,
+            'border_color': THEME_CARD_BORDER,
+            'button_color': THEME_ACCENT,
+            'button_hover_color': THEME_ACCENT_HOVER,
+        }
+
+    def _entry_kwargs(self):
+        return {'fg_color': THEME_BG, 'border_color': THEME_CARD_BORDER}
+
+    def _editor_card(self, parent, title):
+        card = ctk.CTkFrame(
+            parent, fg_color=THEME_CARD, corner_radius=12,
+            border_width=1, border_color=THEME_CARD_BORDER,
+        )
+        ctk.CTkLabel(
+            card, text=title, font=(FONT, 13, 'bold'), text_color='white', anchor='w',
+        ).pack(fill='x', padx=12, pady=(10, 6))
+        body = ctk.CTkFrame(card, fg_color='transparent')
+        body.pack(fill='both', expand=True, padx=12, pady=(0, 10))
+        return card, body
+
+    def _build_header(self):
+        header = ctk.CTkFrame(self, fg_color=THEME_CARD, corner_radius=0, height=56)
+        header.grid(row=0, column=0, columnspan=2, sticky='ew')
+        header.grid_columnconfigure(1, weight=1)
+
+        left = ctk.CTkFrame(header, fg_color='transparent')
+        left.grid(row=0, column=0, sticky='w', padx=12, pady=10)
+        ctk.CTkLabel(left, text='Nome do produto:', text_color=THEME_TEXT_SECONDARY).pack(side='left', padx=(0, 8))
+        self.entry_name_value = ctk.StringVar(value=self.product_name)
+        self.entry_name = ctk.CTkEntry(left, width=220, textvariable=self.entry_name_value, **self._entry_kwargs())
+        self.entry_name.pack(side='left')
+
+        actions = ctk.CTkFrame(header, fg_color='transparent')
+        actions.grid(row=0, column=1, sticky='e', padx=12, pady=10)
+        self.btn_save = ctk.CTkButton(
+            actions, text='Salvar', state='disabled', width=88, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER, command=self.save_changes,
+        )
+        self.btn_save.pack(side='left', padx=(0, 6))
+        self.btn_delete = ctk.CTkButton(
+            actions, text='Deletar', width=88, height=32, corner_radius=8,
+            fg_color=BTN_RED, hover_color=BTN_HOVER_RED, command=self.confirm_delete,
+        )
+        self.btn_delete.pack(side='left', padx=(0, 6))
+        self.btn_visualize = ctk.CTkButton(
+            actions, text='Visualizar', width=96, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER, command=self.show_pdf,
+        )
+        self.btn_visualize.pack(side='left', padx=(0, 10))
+
+        self.preview_frame = ctk.CTkFrame(actions, fg_color='transparent')
+        self.preview_frame.pack(side='left', padx=(0, 10))
+        self.btn_preview_file = ctk.CTkButton(
+            self.preview_frame, text='Preview', width=80, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER, command=self.load_preview_file,
+        )
+        self.btn_preview_file.pack(side='left', padx=(0, 4))
+        ctk.CTkLabel(self.preview_frame, text='Linha:', text_color=THEME_TEXT_SECONDARY).pack(side='left', padx=(0, 2))
+        self.preview_line_spin = SpinBox(self.preview_frame, step=1, func=self._on_preview_line_change, entry_width=42)
+        self.preview_line_spin.set(1)
+        self.preview_line_spin.entry.bind('<Return>', self._on_preview_line_change)
+        self.preview_line_spin.pack(side='left', padx=(0, 4))
+        self.btn_clear_preview = ctk.CTkButton(
+            self.preview_frame, text='×', width=28, height=32, corner_radius=8,
+            fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
+            command=self.clear_preview_file, state='disabled',
+        )
+        self.btn_clear_preview.pack(side='left')
+        self.lbl_preview_file = ctk.CTkLabel(
+            self.preview_frame, text='', font=(FONT, 10), text_color=THEME_TEXT_SECONDARY, width=100,
+        )
+        self.lbl_preview_file.pack(side='left', padx=(6, 0))
+        self.preview_file = None
+        self.preview_file_path = ''
+        self.preview_line_idx = 0
+
+        self.zoom_frame = ctk.CTkFrame(actions, fg_color='transparent')
+        self.zoom_frame.pack(side='left')
+        ctk.CTkButton(
+            self.zoom_frame, text='−', width=28, height=28, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER, command=self.zoom_out,
+        ).grid(row=0, column=0, padx=2)
+        self.zoom_label = ctk.CTkLabel(self.zoom_frame, text='100%', width=46, text_color=THEME_TEXT_SECONDARY)
+        self.zoom_label.grid(row=0, column=1, padx=2)
+        ctk.CTkButton(
+            self.zoom_frame, text='+', width=28, height=28, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER, command=self.zoom_in,
+        ).grid(row=0, column=2, padx=2)
+        self.btn_zoom_reset = ctk.CTkButton(
+            self.zoom_frame, text='Ajustar', width=64, height=28, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER, command=self.zoom_reset,
+        )
+        self.btn_zoom_reset.grid(row=0, column=3, padx=(6, 2))
+
+        self.lbl_id = ctk.CTkLabel(
+            header, text=f'ID: {self.client} - {self.product_name}',
+            font=(FONT, 11, 'bold'), text_color='white',
+        )
+        self.lbl_id.grid(row=0, column=2, sticky='w', padx=(0, 16))
+
+    def _build_product_settings(self, product_color, product_paper_size, product_orientation):
+        strip = ctk.CTkFrame(self, fg_color='transparent')
+        strip.grid(row=1, column=0, columnspan=2, sticky='ew', padx=12, pady=(10, 0))
+
+        card_color, body_color = self._editor_card(strip, 'Papel')
+        card_color.pack(side='left', fill='y', padx=(0, 8))
+        row_c = ctk.CTkFrame(body_color, fg_color='transparent')
+        row_c.pack(fill='x')
+        ctk.CTkLabel(row_c, text='Cor', text_color=THEME_TEXT_SECONDARY).pack(side='left', padx=(0, 6))
+        self.paper_color_list = ctk.CTkComboBox(
+            row_c, values=list(PAPER_COLOR_LIST.keys()), width=120,
+            command=self.change_color, **self._combo_kwargs(),
+        )
+        self.paper_color_list.pack(side='left')
+        self.paper_color_list.set(product_color)
+        self.color = ctk.CTkFrame(row_c, fg_color=PAPER_COLOR_LIST[product_color], width=24, height=24, corner_radius=4)
+        self.color.pack(side='left', padx=(8, 0))
+
+        card_size, body_size = self._editor_card(strip, 'Tamanho')
+        card_size.pack(side='left', fill='y', padx=(0, 8))
+        row_s = ctk.CTkFrame(body_size, fg_color='transparent')
+        row_s.pack(fill='x')
+        lbl_paper_size = ctk.CTkLabel(row_s, text='Código', text_color=THEME_TEXT_SECONDARY)
+        lbl_paper_size.pack(side='left', padx=(0, 6))
+        self.paper_size_list = ctk.CTkComboBox(
+            row_s, values=[str(i) for i in range(21)], width=72,
+            command=self.update_save_button, **self._combo_kwargs(),
+        )
+        self.paper_size_list.pack(side='left')
+        self.paper_size_list.set(product_paper_size)
+        Tooltip(lbl_paper_size, PAPER_SIZE_TIP)
+
+        card_orient, body_orient = self._editor_card(strip, 'Orientação')
+        card_orient.pack(side='left', fill='y')
+        self.orient_values = ORIENTATION_LABELS
+        self.combobox_type = ctk.CTkComboBox(
+            body_orient, values=self.orient_values, width=200,
+            command=self.change_orientation, **self._combo_kwargs(),
+        )
+        self.combobox_type.pack(anchor='w')
+        orient_idx = int(product_orientation) if str(product_orientation).isdigit() else 0
+        if orient_idx >= len(self.orient_values):
+            orient_idx = 0
+        self.combobox_type.set(self.orient_values[orient_idx])
+
+    def _build_workspace(self, product_orientation):
+        product_orientation = str(int(product_orientation) if str(product_orientation).isdigit() else 0)
+        if int(product_orientation) >= len(self.orient_values):
+            product_orientation = '0'
+
+        workspace = ctk.CTkFrame(
+            self, fg_color=THEME_CARD, corner_radius=12,
+            border_width=1, border_color=THEME_CARD_BORDER,
+        )
+        workspace.grid(row=3, column=0, padx=(12, 8), pady=(10, 4), sticky='nswe')
+        workspace.grid_columnconfigure(1, weight=1)
+        workspace.grid_rowconfigure(0, weight=1)
+
+        tools_col = ctk.CTkFrame(workspace, fg_color='transparent', width=84)
+        tools_col.grid(row=0, column=0, sticky='ns', padx=(8, 4), pady=8)
+        tools_col.grid_propagate(False)
+        ctk.CTkLabel(
+            tools_col, text='Ferramentas', font=(FONT, 10, 'bold'),
+            text_color=THEME_TEXT_SECONDARY, anchor='w',
+        ).pack(fill='x', pady=(0, 6))
+        self._tool_btn_widgets = {}
+        for tool in self._TOOL_VALUES:
+            btn = ctk.CTkButton(
+                tools_col,
+                text=self._TOOL_LABELS[tool],
+                width=78, height=28, corner_radius=8,
+                fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+                border_width=1, border_color=THEME_CARD_BORDER,
+                font=(FONT, 10),
+                command=lambda t=tool: self._select_tool(t),
+            )
+            btn.pack(pady=2)
+            self._tool_btn_widgets[tool] = btn
+        self._highlight_tool('Selecionar')
+
+        self.resolution = {
+            '0': {'width': 1180, 'height': 560},
+            '1': {'width': 590, 'height': 1680},
+            '2': {'width': 1180, 'height': 1680},
+            '3': {'width': 1180, 'height': 840},
+        }
+        if product_orientation == str(CUSTOM_ORIENTATION_INDEX):
+            canvas_width, canvas_height = self.sheet_layout.label_canvas_size()
+        else:
+            canvas_width = self.resolution[product_orientation]['width']
+            canvas_height = self.resolution[product_orientation]['height']
+
+        canvas_outer = ctk.CTkFrame(workspace, fg_color=THEME_BG, corner_radius=8)
+        canvas_outer.grid(row=0, column=1, sticky='nswe', padx=(0, 8), pady=8)
+        canvas_outer.grid_rowconfigure(0, weight=1)
+        canvas_outer.grid_columnconfigure(0, weight=1)
+
+        self.canvas_bg = '#2a3142'
+        self.canvas = Canvas(
+            canvas_outer, width=canvas_width, height=canvas_height,
+            bg=self.canvas_bg, highlightthickness=0,
+            scrollregion=(0, 0, canvas_width, canvas_height),
+        )
+        self.canvas.grid(row=0, column=0, sticky='nswe')
+
+        self.canvas_vbar = ctk.CTkScrollbar(canvas_outer, orientation='vertical', command=self.canvas.yview)
+        self.canvas_vbar.grid(row=0, column=1, sticky='ns')
+        self.canvas_hbar = ctk.CTkScrollbar(canvas_outer, orientation='horizontal', command=self.canvas.xview)
+        self.canvas_hbar.grid(row=1, column=0, sticky='ew')
+        self.canvas.configure(yscrollcommand=self.canvas_vbar.set, xscrollcommand=self.canvas_hbar.set)
+        self.canvas.bind('<Configure>', self._update_view)
+
+        self.canvas_images = []
+        self.canvas_dict_images = {}
+        self.drawing_store = DrawingStore()
+        self.selected_items = []
+        self.rubber_band = None
+        self._rubber_add = False
+        self._measure_line = None
+        self._measure_label = None
+        self.base_canvas_width = canvas_width
+        self.base_canvas_height = canvas_height
+        self.zoom = 1.0
+        self._zoom_by_scope = {SCOPE_SLOT: 1.0, SCOPE_SHEET: None}
+        self.canvas_db_saved_items = self.consult_drawings_from_db()
+        self.history.append(self.canvas_db_saved_items)
+
+        self.lbl_testes = ctk.CTkLabel(
+            self, text='X: , Y:', width=150, text_color=THEME_TEXT_SECONDARY, font=(FONT, 10),
+        )
+        self.lbl_testes.grid(row=4, column=0, padx=20, sticky='w')
+
+    def _build_hidden_tools(self):
+        self.btn_tools = ctk.CTkSegmentedButton(
+            self, values=self._TOOL_VALUES, command=self.reset_all,
+        )
+        self.btn_tools.set('Selecionar')
+
+    def _select_tool(self, tool):
+        self.btn_tools.set(tool)
+        self._highlight_tool(tool)
+        self.reset_all(tool)
+
+    def _highlight_tool(self, active):
+        for name, btn in self._tool_btn_widgets.items():
+            if name == active:
+                btn.configure(fg_color=THEME_ACCENT, border_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER)
+            else:
+                btn.configure(
+                    fg_color=THEME_NAV_ACTIVE, border_color=THEME_CARD_BORDER,
+                    hover_color=THEME_CARD_BORDER,
+                )
+
+    def _set_active_tool(self, tool):
+        self.btn_tools.set(tool)
+        self._highlight_tool(tool)
 
     def _try_maximize(self):
         """Abre o editor maximizado (Windows: zoomed)."""
@@ -342,71 +465,86 @@ class EditWindow(ctk.CTkToplevel):
     def _build_custom_layout_panel(self):
         layout = self.sheet_layout
         self.frame_custom_layout = ctk.CTkFrame(self, fg_color='transparent')
-        self.frame_custom_layout.grid(row=4, column=0, padx=16, sticky='EW', pady=(0, 2))
+        self.frame_custom_layout.grid(row=2, column=0, columnspan=2, padx=12, sticky='ew', pady=(8, 0))
 
-        ctk.CTkLabel(self.frame_custom_layout, text='Folha:').grid(row=0, column=0, padx=(2, 4), sticky='E')
+        card_sheet, body_sheet = self._editor_card(self.frame_custom_layout, 'Folha')
+        card_sheet.pack(side='left', fill='y', padx=(0, 8))
+        row0 = ctk.CTkFrame(body_sheet, fg_color='transparent')
+        row0.pack(fill='x')
+        ctk.CTkLabel(row0, text='Preset', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=0, padx=(0, 4))
         self.custom_page_preset = ctk.CTkComboBox(
-            self.frame_custom_layout, values=PAGE_PRESET_LABELS, width=100,
-            command=self._on_custom_page_preset,
+            row0, values=PAGE_PRESET_LABELS, width=96,
+            command=self._on_custom_page_preset, **self._combo_kwargs(),
         )
-        self.custom_page_preset.grid(row=0, column=1, padx=2, sticky='W')
+        self.custom_page_preset.grid(row=0, column=1, padx=2)
         self.custom_page_preset.set(layout.page_preset)
-
-        ctk.CTkLabel(self.frame_custom_layout, text='L×A (mm):').grid(row=0, column=2, padx=(8, 4), sticky='E')
-        self.custom_page_w = self._mm_spin(self.frame_custom_layout, layout.page_width_mm)
+        ctk.CTkLabel(row0, text='L×A', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=2, padx=(8, 4))
+        self.custom_page_w = self._mm_spin(row0, layout.page_width_mm, entry_width=64)
         self.custom_page_w.grid(row=0, column=3, padx=2)
-        self.custom_page_h = self._mm_spin(self.frame_custom_layout, layout.page_height_mm)
+        self.custom_page_h = self._mm_spin(row0, layout.page_height_mm, entry_width=64)
         self.custom_page_h.grid(row=0, column=4, padx=2)
-
-        ctk.CTkLabel(self.frame_custom_layout, text='Ordem:').grid(row=0, column=5, padx=(8, 4), sticky='E')
+        ctk.CTkLabel(row0, text='Ordem', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=5, padx=(8, 4))
         self.custom_packing = ctk.CTkComboBox(
-            self.frame_custom_layout,
-            values=list(PACKING_UI_LABELS.keys()),
-            width=118,
-            command=self._on_custom_layout_change,
+            row0, values=list(PACKING_UI_LABELS.keys()), width=110,
+            command=self._on_custom_layout_change, **self._combo_kwargs(),
         )
-        self.custom_packing.grid(row=0, column=6, padx=2, sticky='W')
+        self.custom_packing.grid(row=0, column=6, padx=2)
         self.custom_packing.set(PACKING_VALUE_TO_LABEL.get(layout.packing, 'Linha a linha'))
 
-        ctk.CTkLabel(self.frame_custom_layout, text='Etiqueta:').grid(row=1, column=0, padx=(2, 4), sticky='E')
-        self.custom_label_w = self._mm_spin(self.frame_custom_layout, layout.label_width_mm)
-        self.custom_label_w.grid(row=1, column=1, padx=2, sticky='W')
-        self.custom_label_h = self._mm_spin(self.frame_custom_layout, layout.label_height_mm)
-        self.custom_label_h.grid(row=1, column=2, padx=2, sticky='W')
+        card_label, body_label = self._editor_card(self.frame_custom_layout, 'Etiqueta')
+        card_label.pack(side='left', fill='y', padx=(0, 8))
+        row1 = ctk.CTkFrame(body_label, fg_color='transparent')
+        row1.pack(fill='x')
+        ctk.CTkLabel(row1, text='L×A', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=0, padx=(0, 4))
+        self.custom_label_w = self._mm_spin(row1, layout.label_width_mm, entry_width=64)
+        self.custom_label_w.grid(row=0, column=1, padx=2)
+        self.custom_label_h = self._mm_spin(row1, layout.label_height_mm, entry_width=64)
+        self.custom_label_h.grid(row=0, column=2, padx=2)
+        ctk.CTkLabel(row1, text='Margem L/T', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=3, padx=(8, 4))
+        self.custom_margin_l = self._mm_spin(row1, layout.margin_left_mm, entry_width=56)
+        self.custom_margin_l.grid(row=0, column=4, padx=2)
+        self.custom_margin_t = self._mm_spin(row1, layout.margin_top_mm, entry_width=56)
+        self.custom_margin_t.grid(row=0, column=5, padx=2)
 
-        ctk.CTkLabel(self.frame_custom_layout, text='Margem L/T:').grid(row=1, column=3, padx=(8, 4), sticky='E')
-        self.custom_margin_l = self._mm_spin(self.frame_custom_layout, layout.margin_left_mm)
-        self.custom_margin_l.grid(row=1, column=4, padx=2)
-        self.custom_margin_t = self._mm_spin(self.frame_custom_layout, layout.margin_top_mm)
-        self.custom_margin_t.grid(row=1, column=5, padx=2)
+        card_grid, body_grid = self._editor_card(self.frame_custom_layout, 'Grade')
+        card_grid.pack(side='left', fill='y', padx=(0, 8))
+        row2 = ctk.CTkFrame(body_grid, fg_color='transparent')
+        row2.pack(fill='x')
+        ctk.CTkLabel(row2, text='Cols×Lin', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=0, padx=(0, 4))
+        self.custom_cols = self._int_spin(row2, layout.columns, entry_width=48)
+        self.custom_cols.grid(row=0, column=1, padx=2)
+        ctk.CTkLabel(row2, text='×', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=2)
+        self.custom_rows = self._int_spin(row2, layout.rows, entry_width=48)
+        self.custom_rows.grid(row=0, column=3, padx=2)
+        ctk.CTkLabel(row2, text='Espaço', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=4, padx=(8, 4))
+        self.custom_gap_x = self._mm_spin(row2, layout.gap_x_mm, entry_width=56)
+        self.custom_gap_x.grid(row=0, column=5, padx=2)
+        self.custom_gap_y = self._mm_spin(row2, layout.gap_y_mm, entry_width=56)
+        self.custom_gap_y.grid(row=0, column=6, padx=2)
 
-        ctk.CTkLabel(self.frame_custom_layout, text='Grade:').grid(row=1, column=6, padx=(8, 4), sticky='E')
-        self.custom_cols = self._int_spin(self.frame_custom_layout, layout.columns)
-        self.custom_cols.grid(row=1, column=7, padx=2)
-        ctk.CTkLabel(self.frame_custom_layout, text='×').grid(row=1, column=8)
-        self.custom_rows = self._int_spin(self.frame_custom_layout, layout.rows)
-        self.custom_rows.grid(row=1, column=9, padx=2)
-
-        ctk.CTkLabel(self.frame_custom_layout, text='Espaço:').grid(row=1, column=10, padx=(8, 4), sticky='E')
-        self.custom_gap_x = self._mm_spin(self.frame_custom_layout, layout.gap_x_mm)
-        self.custom_gap_x.grid(row=1, column=11, padx=2)
-        self.custom_gap_y = self._mm_spin(self.frame_custom_layout, layout.gap_y_mm)
-        self.custom_gap_y.grid(row=1, column=12, padx=2)
-
-        self.frame_editor_scope = ctk.CTkFrame(self.frame_custom_layout, fg_color='transparent')
-        self.frame_editor_scope.grid(row=1, column=13, padx=(12, 2), sticky='W')
-        ctk.CTkLabel(self.frame_editor_scope, text='Editar:').grid(row=0, column=0, padx=(0, 4))
+        card_scope, body_scope = self._editor_card(self.frame_custom_layout, 'Escopo')
+        card_scope.pack(side='left', fill='y', padx=(0, 8))
+        self.frame_editor_scope = ctk.CTkFrame(body_scope, fg_color='transparent')
+        self.frame_editor_scope.pack(fill='x')
+        ctk.CTkLabel(self.frame_editor_scope, text='Editar', text_color=THEME_TEXT_SECONDARY).pack(anchor='w', pady=(0, 4))
         self.btn_editor_scope = ctk.CTkSegmentedButton(
             self.frame_editor_scope,
             values=['Etiqueta', 'Cabeçalho'],
             command=self._on_editor_scope_button,
+            fg_color=THEME_BG,
+            selected_color=THEME_ACCENT,
+            selected_hover_color=THEME_ACCENT_HOVER,
+            unselected_color=THEME_NAV_ACTIVE,
+            unselected_hover_color=THEME_CARD_BORDER,
         )
-        self.btn_editor_scope.grid(row=0, column=1)
+        self.btn_editor_scope.pack(anchor='w')
         self.btn_editor_scope.set('Etiqueta')
         self.editor_scope = SCOPE_SLOT
 
-        self.custom_layout_status = ctk.CTkLabel(self.frame_custom_layout, text='', text_color='#c0392b')
-        self.custom_layout_status.grid(row=1, column=14, padx=(8, 2), sticky='W')
+        self.custom_layout_status = ctk.CTkLabel(
+            self.frame_custom_layout, text='', text_color='#f87171', font=(FONT, 10),
+        )
+        self.custom_layout_status.pack(side='left', padx=(4, 0), pady=12)
 
     def _is_custom_orientation(self):
         return self.combobox_type.get() == ORIENTATION_LABELS[CUSTOM_ORIENTATION_INDEX]
@@ -1602,21 +1740,21 @@ class EditWindow(ctk.CTkToplevel):
 
         elif self.btn_tools.get() == 'Código Barras':
             GetBarcodeWindow(self, self.start_x, self.start_y)
-            self.btn_tools.set(value='Mover')
+            self._set_active_tool('Mover')
 
         elif self.btn_tools.get() == 'Texto Fixo':
             GetTextWindow(self, self.start_x, self.start_y)
             self.refresh()
             self.properties_window.refresh()
-            self.btn_tools.set(value='Mover')
+            self._set_active_tool('Mover')
 
         elif self.btn_tools.get() == 'Imagem':
             GetImageWindow(self, self.start_x, self.start_y)
-            self.btn_tools.set(value='Mover')
+            self._set_active_tool('Mover')
 
         elif self.btn_tools.get() == 'Segmento':
             GetSegmentWindow(self, int(round(self._zl(self.start_x))), int(round(self._zl(self.start_y))))
-            self.btn_tools.set(value='Mover')
+            self._set_active_tool('Mover')
 
         elif self.btn_tools.get() == 'Medir':
             self._clear_measure_preview()
@@ -1698,7 +1836,7 @@ class EditWindow(ctk.CTkToplevel):
                     rect = make_rectangle_object(*coords, 1)
                     self.register_new_canvas_item(self.draw_object, rect)
                 self.select_single(self.draw_object)
-            self.btn_tools.set(value='Mover')
+            self._set_active_tool('Mover')
 
         elif self.rubber_band is not None:
             x1, y1, x2, y2 = self.canvas.coords(self.rubber_band)
@@ -1796,14 +1934,22 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
         self.last_id = master.id_selected_item
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+
+        shell = ctk.CTkFrame(
+            self, fg_color=THEME_CARD, corner_radius=12,
+            border_width=1, border_color=THEME_CARD_BORDER,
+        )
+        shell.grid(row=0, column=0, sticky='nsew')
+        shell.grid_columnconfigure(0, weight=1)
+        shell.grid_rowconfigure(1, weight=1)
 
         ctk.CTkLabel(
-            self, text='Propriedades', font=('Arial', 14, 'bold'),
-        ).grid(row=0, column=0, padx=12, pady=(8, 4), sticky='w')
+            shell, text='Propriedades', font=(FONT, 15, 'bold'), text_color='white',
+        ).grid(row=0, column=0, padx=16, pady=(12, 8), sticky='w')
 
-        self._body = ctk.CTkScrollableFrame(self, fg_color='transparent', width=self.PANEL_WIDTH - 16)
-        self._body.grid(row=1, column=0, padx=4, pady=(0, 8), sticky='nsew')
+        self._body = ctk.CTkScrollableFrame(shell, fg_color='transparent', width=self.PANEL_WIDTH - 16)
+        self._body.grid(row=1, column=0, padx=8, pady=(0, 12), sticky='nsew')
         self._body.grid_columnconfigure(0, weight=1)
         self._body.grid_rowconfigure(0, weight=1)
 
