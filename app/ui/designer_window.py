@@ -126,7 +126,7 @@ class EditWindow(ctk.CTkToplevel):
         self._build_hidden_tools()
 
         self.properties_window = ListOfPropertiesWindow(self)
-        self.properties_window.grid(row=3, column=1, rowspan=2, padx=(0, 12), pady=(0, 12), sticky='nswe')
+        self.properties_window.grid(row=3, column=1, padx=(0, 12), pady=(10, 4), sticky='nswe')
 
         self.start_x = None
         self.start_y = None
@@ -1939,6 +1939,14 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
         self._body.grid_columnconfigure(0, weight=1)
         self._body.grid_rowconfigure(0, weight=1)
 
+        self._empty_center = ctk.CTkFrame(shell, fg_color='transparent')
+        self._empty_center.grid_columnconfigure(0, weight=1)
+        self._empty_center.grid_rowconfigure(0, weight=1)
+        ctk.CTkLabel(
+            self._empty_center, text='Nenhum item selecionado',
+            font=(FONT, 14), text_color=THEME_TEXT_SECONDARY,
+        ).grid(row=0, column=0)
+
         self.validation = self.register(self.is_valid_input)
         self.frame = None
         self.panels = {}
@@ -1987,6 +1995,14 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
         self.duplex_checkbox = None
 
         self.refresh()
+
+    def _show_empty_state(self):
+        self._body.grid_remove()
+        self._empty_center.grid(row=1, column=0, sticky='nsew', padx=8, pady=(0, 12))
+
+    def _show_properties_content(self):
+        self._empty_center.grid_remove()
+        self._body.grid(row=1, column=0, padx=8, pady=(0, 12), sticky='nsew')
 
     @staticmethod
     def is_valid_input(input_str):
@@ -2463,6 +2479,7 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
 
     def _show_panel(self, sig):
         """Mostra o painel da assinatura, reaproveitando do cache ou construindo na primeira vez."""
+        self._show_properties_content()
         self._hide_current_frame()
         self.panel_signature = sig
         cached = self.panels.get(sig)
@@ -2509,6 +2526,7 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
         self._multi_spacing_label.configure(text='\n'.join(lines))
 
     def _activate_multi_panel(self):
+        self._show_properties_content()
         self.last_id = ('multi', tuple(self.master.selected_items))
         text = f'{len(self.master.selected_items)} itens selecionados'
         if self.panel_signature == ('multi',) and self._frame_alive(self.frame):
@@ -2596,23 +2614,15 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
 
     def _activate_none_panel(self):
         self.last_id = None
-        if self.panel_signature == ('none',) and self._frame_alive(self.frame):
+        if self.panel_signature == ('none',):
+            self._show_empty_state()
             return
         self._hide_current_frame()
         self.panel_signature = ('none',)
         self._reset_panel_refs()
-        cached = self.panels.get(('none',))
-        if self._frame_alive(cached):
-            self.frame = cached
-            self.frame.grid(row=0, column=0, padx=10, pady=10)
-            return
-        frame = ctk.CTkFrame(self._body, fg_color='transparent')
-        frame.grid(row=0, column=0, padx=10, pady=10, sticky='nsew')
-        frame.rowconfigure(0, weight=1)
-        self.frame = frame
-        ctk.CTkLabel(frame, text='Nenhum item selecionado', font=('Lato', 16, 'bold')).grid(
-            row=0, column=0, padx=30, sticky='NSWE')
-        self.panels[('none',)] = frame
+        self.frame = None
+        self._show_empty_state()
+        self.panels[('none',)] = True
 
     def refresh(self):
         if len(self.master.selected_items) > 1:

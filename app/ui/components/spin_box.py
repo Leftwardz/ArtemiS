@@ -5,7 +5,6 @@ from app.ui.constants import (
     THEME_ACCENT_HOVER,
     THEME_BG,
     THEME_CARD_BORDER,
-    THEME_NAV_ACTIVE,
 )
 
 
@@ -32,14 +31,14 @@ class SpinBox(ctk.CTkFrame):
         btn_font = ('Segoe UI', 7 if entry_height >= 30 else 6)
         self.btn_up = ctk.CTkButton(
             self, text='▲', font=btn_font, width=btn_width, height=btn_height,
-            corner_radius=4, fg_color=THEME_NAV_ACTIVE, hover_color=THEME_ACCENT,
+            corner_radius=4, fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
             border_width=0, command=self.increase,
         )
         self.btn_up.grid(row=0, column=1, padx=(2, 4), pady=(3, 1), sticky='e')
 
         self.btn_down = ctk.CTkButton(
             self, text='▼', font=btn_font, width=btn_width, height=btn_height,
-            corner_radius=4, fg_color=THEME_NAV_ACTIVE, hover_color=THEME_ACCENT,
+            corner_radius=4, fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
             border_width=0, command=self.decrease,
         )
         self.btn_down.grid(row=1, column=1, padx=(2, 4), pady=(1, 3), sticky='e')
