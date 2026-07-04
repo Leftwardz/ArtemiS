@@ -454,56 +454,69 @@ class EditWindow(ctk.CTkToplevel):
         card_sheet.pack(side='left', fill='y', padx=(0, 8))
         row0 = ctk.CTkFrame(body_sheet, fg_color='transparent')
         row0.pack(fill='x')
-        ctk.CTkLabel(row0, text='Preset', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=0, padx=(0, 4))
+        ctk.CTkLabel(row0, text='Preset', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=0, padx=(0, 4), sticky='w')
         self.custom_page_preset = ctk.CTkComboBox(
             row0, values=PAGE_PRESET_LABELS, width=96,
             command=self._on_custom_page_preset, **self._combo_kwargs(),
         )
-        self.custom_page_preset.grid(row=0, column=1, padx=2)
+        self.custom_page_preset.grid(row=0, column=1, padx=2, sticky='w')
         self.custom_page_preset.set(layout.page_preset)
-        ctk.CTkLabel(row0, text='L×A', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=2, padx=(8, 4))
-        self.custom_page_w = self._mm_spin(row0, layout.page_width_mm, entry_width=64)
-        self.custom_page_w.grid(row=0, column=3, padx=2)
-        self.custom_page_h = self._mm_spin(row0, layout.page_height_mm, entry_width=64)
-        self.custom_page_h.grid(row=0, column=4, padx=2)
-        ctk.CTkLabel(row0, text='Ordem', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=5, padx=(8, 4))
+        ctk.CTkLabel(row0, text='Ordem', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=2, padx=(12, 4), sticky='w')
         self.custom_packing = ctk.CTkComboBox(
             row0, values=list(PACKING_UI_LABELS.keys()), width=110,
             command=self._on_custom_layout_change, **self._combo_kwargs(),
         )
-        self.custom_packing.grid(row=0, column=6, padx=2)
+        self.custom_packing.grid(row=0, column=3, padx=2, sticky='w')
         self.custom_packing.set(PACKING_VALUE_TO_LABEL.get(layout.packing, 'Linha a linha'))
+
+        self._sheet_size_row = ctk.CTkFrame(body_sheet, fg_color='transparent')
+        ctk.CTkLabel(self._sheet_size_row, text='L×A (mm)', text_color=THEME_TEXT_SECONDARY).grid(
+            row=0, column=0, padx=(0, 4), sticky='w',
+        )
+        self.custom_page_w = self._mm_spin(self._sheet_size_row, layout.page_width_mm, entry_width=64)
+        self.custom_page_w.grid(row=0, column=1, padx=2, sticky='w')
+        self.custom_page_h = self._mm_spin(self._sheet_size_row, layout.page_height_mm, entry_width=64)
+        self.custom_page_h.grid(row=0, column=2, padx=2, sticky='w')
 
         card_label, body_label = self._editor_card(self.frame_custom_layout, 'Etiqueta')
         card_label.pack(side='left', fill='y', padx=(0, 8))
-        row1 = ctk.CTkFrame(body_label, fg_color='transparent')
-        row1.pack(fill='x')
-        ctk.CTkLabel(row1, text='L×A', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=0, padx=(0, 4))
-        self.custom_label_w = self._mm_spin(row1, layout.label_width_mm, entry_width=64)
-        self.custom_label_w.grid(row=0, column=1, padx=2)
-        self.custom_label_h = self._mm_spin(row1, layout.label_height_mm, entry_width=64)
-        self.custom_label_h.grid(row=0, column=2, padx=2)
-        ctk.CTkLabel(row1, text='Margem L/T', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=3, padx=(8, 4))
-        self.custom_margin_l = self._mm_spin(row1, layout.margin_left_mm, entry_width=56)
-        self.custom_margin_l.grid(row=0, column=4, padx=2)
-        self.custom_margin_t = self._mm_spin(row1, layout.margin_top_mm, entry_width=56)
-        self.custom_margin_t.grid(row=0, column=5, padx=2)
+        row_label_size = ctk.CTkFrame(body_label, fg_color='transparent')
+        row_label_size.pack(fill='x')
+        ctk.CTkLabel(row_label_size, text='L×A (mm)', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=0, padx=(0, 4), sticky='w')
+        self.custom_label_w = self._mm_spin(row_label_size, layout.label_width_mm, entry_width=64)
+        self.custom_label_w.grid(row=0, column=1, padx=2, sticky='w')
+        self.custom_label_h = self._mm_spin(row_label_size, layout.label_height_mm, entry_width=64)
+        self.custom_label_h.grid(row=0, column=2, padx=2, sticky='w')
+
+        row_label_margin = ctk.CTkFrame(body_label, fg_color='transparent')
+        row_label_margin.pack(fill='x', pady=(6, 0))
+        ctk.CTkLabel(row_label_margin, text='Margem L/T', text_color=THEME_TEXT_SECONDARY).grid(
+            row=0, column=0, padx=(0, 4), sticky='w',
+        )
+        self.custom_margin_l = self._mm_spin(row_label_margin, layout.margin_left_mm, entry_width=56)
+        self.custom_margin_l.grid(row=0, column=1, padx=2, sticky='w')
+        self.custom_margin_t = self._mm_spin(row_label_margin, layout.margin_top_mm, entry_width=56)
+        self.custom_margin_t.grid(row=0, column=2, padx=2, sticky='w')
 
         card_grid, body_grid = self._editor_card(self.frame_custom_layout, 'Grade')
         card_grid.pack(side='left', fill='y', padx=(0, 8))
-        row2 = ctk.CTkFrame(body_grid, fg_color='transparent')
-        row2.pack(fill='x')
-        ctk.CTkLabel(row2, text='Cols×Lin', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=0, padx=(0, 4))
-        self.custom_cols = self._int_spin(row2, layout.columns, entry_width=48)
-        self.custom_cols.grid(row=0, column=1, padx=2)
-        ctk.CTkLabel(row2, text='×', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=2)
-        self.custom_rows = self._int_spin(row2, layout.rows, entry_width=48)
-        self.custom_rows.grid(row=0, column=3, padx=2)
-        ctk.CTkLabel(row2, text='Espaço', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=4, padx=(8, 4))
-        self.custom_gap_x = self._mm_spin(row2, layout.gap_x_mm, entry_width=56)
-        self.custom_gap_x.grid(row=0, column=5, padx=2)
-        self.custom_gap_y = self._mm_spin(row2, layout.gap_y_mm, entry_width=56)
-        self.custom_gap_y.grid(row=0, column=6, padx=2)
+        row_grid_count = ctk.CTkFrame(body_grid, fg_color='transparent')
+        row_grid_count.pack(fill='x')
+        ctk.CTkLabel(row_grid_count, text='Cols', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=0, padx=(0, 4), sticky='w')
+        self.custom_cols = self._int_spin(row_grid_count, layout.columns, entry_width=52)
+        self.custom_cols.grid(row=0, column=1, padx=2, sticky='w')
+        ctk.CTkLabel(row_grid_count, text='×', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=2, padx=4)
+        ctk.CTkLabel(row_grid_count, text='Lin', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=3, padx=(0, 4), sticky='w')
+        self.custom_rows = self._int_spin(row_grid_count, layout.rows, entry_width=52)
+        self.custom_rows.grid(row=0, column=4, padx=2, sticky='w')
+
+        row_grid_gap = ctk.CTkFrame(body_grid, fg_color='transparent')
+        row_grid_gap.pack(fill='x', pady=(6, 0))
+        ctk.CTkLabel(row_grid_gap, text='Espaço', text_color=THEME_TEXT_SECONDARY).grid(row=0, column=0, padx=(0, 4), sticky='w')
+        self.custom_gap_x = self._mm_spin(row_grid_gap, layout.gap_x_mm, entry_width=56)
+        self.custom_gap_x.grid(row=0, column=1, padx=2, sticky='w')
+        self.custom_gap_y = self._mm_spin(row_grid_gap, layout.gap_y_mm, entry_width=56)
+        self.custom_gap_y.grid(row=0, column=2, padx=2, sticky='w')
 
         card_scope, body_scope = self._editor_card(self.frame_custom_layout, 'Escopo')
         card_scope.pack(side='left', fill='y', padx=(0, 8))
@@ -528,6 +541,13 @@ class EditWindow(ctk.CTkToplevel):
             self.frame_custom_layout, text='', text_color='#f87171', font=(FONT, 10),
         )
         self.custom_layout_status.pack(side='left', padx=(4, 0), pady=12)
+        self._toggle_custom_page_size_row()
+
+    def _toggle_custom_page_size_row(self):
+        if self.custom_page_preset.get() == 'Personalizado':
+            self._sheet_size_row.pack(fill='x', pady=(6, 0))
+        else:
+            self._sheet_size_row.pack_forget()
 
     def _is_custom_orientation(self):
         return self.combobox_type.get() == ORIENTATION_LABELS[CUSTOM_ORIENTATION_INDEX]
@@ -692,6 +712,7 @@ class EditWindow(ctk.CTkToplevel):
             w, h = PAGE_PRESETS[preset]
             self.custom_page_w.set(w)
             self.custom_page_h.set(h)
+        self._toggle_custom_page_size_row()
         self._on_custom_layout_change()
 
     def _current_layout_config_json(self):

@@ -16,6 +16,7 @@ class SpinBox(ctk.CTkFrame):
             border_width=1, border_color=THEME_CARD_BORDER, *args, **kwargs,
         )
 
+        self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
         self.func = func
@@ -26,7 +27,6 @@ class SpinBox(ctk.CTkFrame):
             border_width=0, corner_radius=6, fg_color=THEME_BG,
         )
         self.entry.grid(row=0, column=0, rowspan=2, padx=(4, 0), pady=2, sticky='ew')
-        self.entry.insert(1, 1)
 
         btn_font = ('Segoe UI', 7 if entry_height >= 30 else 6)
         self.btn_up = ctk.CTkButton(
