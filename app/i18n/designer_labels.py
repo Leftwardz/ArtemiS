@@ -7,7 +7,9 @@ from app.models.sheet_layout import PACKING_COLUMN_DEPTH, PACKING_SEQUENTIAL
 from app.ui.constants import PAPER_COLOR_LIST
 
 ORIENTATION_COUNT = 5
-PAGE_PRESET_KEYS = ('A4', 'A3', 'Carta', 'Personalizado')
+PAGE_PRESET_KEYS = (
+    'A4', 'A4_landscape', 'A3', 'A3_landscape', 'Carta', 'Carta_landscape', 'Personalizado',
+)
 DASH_CANVAS_KEYS = ('0', '4', '40')
 DASH_I18N_KEYS = ('normal', 'small', 'large')
 TOOL_INTERNAL_KEYS = (

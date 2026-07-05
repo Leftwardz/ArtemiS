@@ -45,7 +45,7 @@ from app.models.sheet_layout import (
     CUSTOM_ORIENTATION_INDEX, PACKING_SEQUENTIAL,
     SCOPE_SHEET, SCOPE_SLOT, SheetLayout,
 )
-from app.services.layout_service import build_grid_layout, resolve_product_paper_size
+from app.services.layout_service import build_grid_layout, infer_page_preset, resolve_product_paper_size
 from app.models.drawing_items import (
     BarcodeObject, BarcodeTextObject, CounterObject, ImageObject, LineObject,
     RectangleObject, SegmentLine, SegmentObject, TextObject, new_object_id,
@@ -142,6 +142,7 @@ class EditWindow(ctk.CTkToplevel):
             product_color = product.paper_color
             product_orientation = product.orientation
             self.sheet_layout = SheetLayout.from_json(getattr(product, 'layout_config', None))
+            self.sheet_layout.page_preset = infer_page_preset(self.sheet_layout)
         else:
             product_orientation = '0'
             product_color = 'Branco'
@@ -542,7 +543,7 @@ class EditWindow(ctk.CTkToplevel):
         self.lbl_sheet_preset = ctk.CTkLabel(row0, text=t('designer.preset'), text_color=THEME_TEXT_SECONDARY)
         self.lbl_sheet_preset.grid(row=0, column=0, padx=(0, 4), sticky='w')
         self.custom_page_preset = ctk.CTkComboBox(
-            row0, values=page_preset_labels(), width=96,
+            row0, values=page_preset_labels(), width=128,
             command=self._on_custom_page_preset, **self._combo_kwargs(),
         )
         self.custom_page_preset.grid(row=0, column=1, padx=2, sticky='w')

@@ -14,8 +14,11 @@ from app.utils.printing.base import ORIENTATION_LANDSCAPE, ORIENTATION_PORTRAIT
 
 PAGE_PRESETS: dict[str, tuple[float, float]] = {
     'A4': (210.0, 297.0),
+    'A4_landscape': (297.0, 210.0),
     'A3': (297.0, 420.0),
+    'A3_landscape': (420.0, 297.0),
     'Carta': (215.9, 279.4),
+    'Carta_landscape': (279.4, 215.9),
     'Personalizado': (210.0, 297.0),
 }
 
@@ -24,8 +27,11 @@ PAGE_PRESET_LABELS = list(PAGE_PRESETS.keys())
 # Windows DMPAPER code for printer validation — see PAPER_SIZE_TIP in constants.py
 PAGE_PRESET_TO_PAPER_SIZE: dict[str, str] = {
     'A4': '9',
+    'A4_landscape': '9',
     'A3': '8',
+    'A3_landscape': '8',
     'Carta': '1',
+    'Carta_landscape': '1',
 }
 
 # Legacy modes (3/2/1 AR per sheet) always print on physical A4
@@ -39,6 +45,18 @@ def apply_page_preset(layout: SheetLayout, preset: str) -> SheetLayout:
         layout.page_height_mm = h
     layout.page_preset = preset
     return layout
+
+
+def infer_page_preset(layout: SheetLayout) -> str:
+    """Match stored dimensions to a known preset (portrait or landscape)."""
+    w = float(layout.page_width_mm)
+    h = float(layout.page_height_mm)
+    for key, (pw, ph) in PAGE_PRESETS.items():
+        if key == 'Personalizado':
+            continue
+        if abs(w - pw) < 0.5 and abs(h - ph) < 0.5:
+            return key
+    return 'Personalizado'
 
 
 def build_grid_layout(

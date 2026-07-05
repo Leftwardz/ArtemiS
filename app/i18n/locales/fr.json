@@ -408,8 +408,11 @@
     },
     "page_preset": {
       "A4": "A4",
+      "A4_landscape": "A4 paysage",
       "A3": "A3",
+      "A3_landscape": "A3 paysage",
       "Carta": "Lettre",
+      "Carta_landscape": "Lettre paysage",
       "Personalizado": "Personnalisé"
     },
     "scope": {
