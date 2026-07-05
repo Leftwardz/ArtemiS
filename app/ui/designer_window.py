@@ -74,6 +74,7 @@ from app.ui.constants import (
     THEME_ACCENT,
     THEME_ACCENT_HOVER,
     THEME_BG,
+    THEME_CANVAS_BG,
     THEME_CARD,
     THEME_CARD_BORDER,
     THEME_NAV_ACTIVE,
@@ -431,7 +432,7 @@ class EditWindow(ctk.CTkToplevel):
         canvas_outer.grid_rowconfigure(0, weight=1)
         canvas_outer.grid_columnconfigure(0, weight=1)
 
-        self.canvas_bg = '#2a3142'
+        self.canvas_bg = THEME_CANVAS_BG
         self.canvas = Canvas(
             canvas_outer, width=canvas_width, height=canvas_height,
             bg=self.canvas_bg, highlightthickness=0,

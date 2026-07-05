@@ -22,7 +22,7 @@ ctk.CTkToplevel.iconbitmap = lambda self, *args, **kwargs: None
 from app import runtime
 from app.i18n import init_i18n, t
 from app.models.database_manager import DataBase
-from app.ui.components.popup import ConfirmWindow, PopUpWindow
+from app.ui.theme import init_theme_from_config
 
 
 class _MockMaster(ctk.CTk):
@@ -34,8 +34,11 @@ class _MockMaster(ctk.CTk):
 def main():
     with open('config.json', encoding='utf-8') as f:
         config = json.load(f)
+    init_theme_from_config(config)
     runtime.init(config, DataBase(config['database_location']))
     init_i18n(config)
+
+    from app.ui.components.popup import ConfirmWindow, PopUpWindow
 
     ctk.set_appearance_mode('dark')
     master = _MockMaster()

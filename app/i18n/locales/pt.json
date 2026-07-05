@@ -127,6 +127,10 @@
     "available_locales": "Disponíveis: {list}",
     "language_saved": "Idioma salvo!\nA tela principal será atualizada.",
     "locales_folder_saved": "Pasta de idiomas salva!\nIdiomas recarregados.",
+    "theme_section": "Aparência",
+    "theme_label": "Tema de cores:",
+    "theme_hint": "A alteração é aplicada na próxima inicialização do programa.",
+    "theme_saved_restart": "Tema salvo!\nReinicie o ArtemiS para aplicar as novas cores.",
     "edit": "Editar",
     "duplicate": "Duplicar",
     "delete_client": "Deletar Cliente",
@@ -337,6 +341,15 @@
       "win32_devmode": "Win32 DEVMODE (experimental)",
       "win32_advanced": "Win32 Print API avançada (experimental)",
       "xps": "XPS Print API (experimental)"
+    }
+  },
+  "theme": {
+    "preset": {
+      "purple": "Roxo (padrão)",
+      "ocean": "Oceano",
+      "emerald": "Esmeralda",
+      "amber": "Âmbar",
+      "slate": "Ardósia"
     }
   },
   "printer_paper": {

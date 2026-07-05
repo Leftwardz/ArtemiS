@@ -17,12 +17,14 @@ from app.services.settings_service import (
     get_locales_folder,
     get_print_backend_label,
     get_search_folder,
+    get_ui_theme,
     save_audit_central_location,
     save_database_location,
     save_language,
     save_locales_folder,
     save_print_backend,
     save_search_folder,
+    save_ui_theme,
     PRINT_BACKEND_LABELS,
 )
 from app.services.designer_service import (
@@ -47,10 +49,15 @@ from app.ui.constants import (
     THEME_BG,
     THEME_CARD,
     THEME_CARD_BORDER,
+    THEME_ICON,
     THEME_NAV_ACTIVE,
+    THEME_NAV_TEXT_ACCENT,
+    THEME_TABLE_ROW_A,
+    THEME_TABLE_ROW_B,
     THEME_TEXT_SECONDARY,
 )
 from app.ui.designer_window import EditWindow
+from app.ui.theme import available_theme_ids
 from app.ui.theme_assets import IconCache
 from app.utils.window_geometry import calculate_center_screen_with_monitor, get_monitor
 
@@ -179,7 +186,7 @@ class ConfigWindow(ctk.CTkToplevel):
 
         title_row = ctk.CTkFrame(header, fg_color='transparent')
         title_row.pack(side='left', padx=20, pady=12)
-        gear = self._icons.get('settings', 20, '#a78bfa')
+        gear = self._icons.get('settings', 20, THEME_ICON)
         ctk.CTkLabel(title_row, image=gear, text='').pack(side='left')
         ctk.CTkLabel(
             title_row, text=t('config.title'), font=(FONT, 20, 'bold'), text_color='white',
@@ -514,6 +521,54 @@ class ConfigWindow(ctk.CTkToplevel):
         )
         self.lbl_available_locales.pack(fill='x')
 
+        card_theme, body_theme = self._settings_card(scroll, t('config.theme_section'))
+        card_theme.pack(fill='x', pady=(12, 0))
+
+        ctk.CTkLabel(
+            body_theme, text=t('config.theme_label'), anchor='w', text_color=THEME_TEXT_SECONDARY,
+        ).pack(fill='x')
+        self._theme_labels = self._theme_label_map()
+        self.combo_ui_theme = ctk.CTkComboBox(
+            body_theme, width=280,
+            values=list(self._theme_labels.keys()),
+            command=self._on_ui_theme_pick, **_combo_kwargs(),
+        )
+        self.combo_ui_theme.pack(anchor='w', pady=(4, 8))
+        self.combo_ui_theme.set(self._theme_combo_label(get_ui_theme()))
+
+        ctk.CTkLabel(
+            body_theme, text=t('config.theme_hint'), font=(FONT, 10),
+            text_color=THEME_TEXT_SECONDARY, justify='left', anchor='w',
+        ).pack(fill='x')
+
+    @staticmethod
+    def _theme_combo_label(theme_id: str) -> str:
+        key = f'theme.preset.{theme_id}'
+        label = t(key)
+        return label if label != key else theme_id
+
+    def _theme_label_map(self) -> dict[str, str]:
+        return {self._theme_combo_label(tid): tid for tid in available_theme_ids()}
+
+    def _refresh_theme_combo(self):
+        current_id = self._theme_labels.get(self.combo_ui_theme.get(), get_ui_theme())
+        self._theme_labels = self._theme_label_map()
+        self.combo_ui_theme.configure(values=list(self._theme_labels.keys()))
+        self.combo_ui_theme.set(self._theme_combo_label(current_id))
+
+    def _on_ui_theme_pick(self, label: str):
+        theme_id = self._theme_labels.get(label)
+        if not theme_id:
+            return
+        result = save_ui_theme(theme_id)
+        if not result.ok:
+            PopUpWindow(self, t('popup.error'), result.error)
+            self.combo_ui_theme.set(self._theme_combo_label(get_ui_theme()))
+            return
+        self.combo_ui_theme.set(self._theme_combo_label(theme_id))
+        if result.message:
+            PopUpWindow(self, t('popup.ok'), result.message)
+
     def _on_search_changed(self, *_args):
         self._search_query = self.entry_search.get().strip().lower()
         self._apply_search_filter()
@@ -575,7 +630,7 @@ class ConfigWindow(ctk.CTkToplevel):
             self.client_list.radio_var.set(pick)
             for name, widget in self.client_list.radio_list.items():
                 if name == pick:
-                    widget.configure(font=(FONT, 13, 'bold'), text_color='#c4b5fd')
+                    widget.configure(font=(FONT, 13, 'bold'), text_color=THEME_NAV_TEXT_ACCENT)
 
     def _mount_product_list(self, items: list[str]):
         selected = ''
@@ -600,7 +655,7 @@ class ConfigWindow(ctk.CTkToplevel):
             self.product_list.radio_var.set(pick)
             for name, widget in self.product_list.radio_list.items():
                 if name == pick:
-                    widget.configure(font=(FONT, 13, 'bold'), text_color='#c4b5fd')
+                    widget.configure(font=(FONT, 13, 'bold'), text_color=THEME_NAV_TEXT_ACCENT)
 
     def _apply_search_filter(self):
         clients = self._filter_clients(self._search_query)
@@ -687,6 +742,7 @@ class ConfigWindow(ctk.CTkToplevel):
         self.combo_default_language.configure(values=[lbl for _, lbl in available_languages()])
         self.combo_default_language.set(get_i18n().language_label(code))
         self.lbl_available_locales.configure(text=self._available_locales_text())
+        self._refresh_theme_combo()
         if result.message:
             PopUpWindow(self, t('popup.ok'), result.message)
 
@@ -699,6 +755,7 @@ class ConfigWindow(ctk.CTkToplevel):
         self._lang_labels = {lbl: c for c, lbl in available_languages()}
         self.combo_default_language.configure(values=[lbl for _, lbl in available_languages()])
         self.lbl_available_locales.configure(text=self._available_locales_text())
+        self._refresh_theme_combo()
         if result.message:
             PopUpWindow(self, t('popup.ok'), result.message)
 
@@ -714,6 +771,7 @@ class ConfigWindow(ctk.CTkToplevel):
         self.combo_default_language.configure(values=[lbl for _, lbl in available_languages()])
         self.combo_default_language.set(get_i18n().language_label())
         self.lbl_available_locales.configure(text=self._available_locales_text())
+        self._refresh_theme_combo()
         if hasattr(self.master, 'apply_language'):
             self.master.apply_language()
         if hasattr(self, 'edit_window'):
@@ -1913,8 +1971,8 @@ class AuditWindow(ctk.CTkToplevel):
         for i, width in enumerate(self._WIDTHS, start=1):
             anchor = 'w' if i in (3, 5, 8) else 'center'
             self.table.column(f'#{i}', width=width, anchor=anchor)
-        self.table.tag_configure('rec_a', background='#1a1d28')
-        self.table.tag_configure('rec_b', background='#12151f')
+        self.table.tag_configure('rec_a', background=THEME_TABLE_ROW_A)
+        self.table.tag_configure('rec_b', background=THEME_TABLE_ROW_B)
         self.table.bind('<Control-c>', lambda _e: self.copy_selected())
         self.table.bind('<Control-C>', lambda _e: self.copy_selected())
         self.table.grid(row=0, column=0, sticky='nsew', padx=4, pady=4)

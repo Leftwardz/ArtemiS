@@ -8,6 +8,7 @@ from app.ui.constants import (
     THEME_BG,
     THEME_CARD,
     THEME_CARD_BORDER,
+    THEME_NAV_TEXT_ACCENT,
     THEME_TEXT_SECONDARY,
 )
 
@@ -55,7 +56,7 @@ class ListBox(ctk.CTkScrollableFrame):
             if name != selected:
                 item.configure(font=(FONT, 13), text_color='white')
             else:
-                item.configure(font=(FONT, 13, 'bold'), text_color='#c4b5fd')
+                item.configure(font=(FONT, 13, 'bold'), text_color=THEME_NAV_TEXT_ACCENT)
 
         if self.on_select is not None:
             self.on_select(self.child)

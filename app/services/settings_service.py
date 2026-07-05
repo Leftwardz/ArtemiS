@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from app import runtime
 from app.i18n import get_i18n, reload_locales, set_language, t
 from app.models.database_manager import DataBase
+from app.ui.theme import resolve_theme_id
 
 PRINT_BACKENDS = (
     'pdftoprinter',
@@ -191,6 +192,25 @@ def save_database_location(folder: str) -> SettingsSaveResult:
     except Exception as e:
         runtime.context.config['database_location'] = previous_location
         return SettingsSaveResult(ok=False, error=t('settings.db_save_error', error=e))
+
+
+def get_ui_theme() -> str:
+    theme_id = (runtime.context.config.get('ui_theme') or 'purple').strip()
+    return resolve_theme_id(theme_id)
+
+
+def save_ui_theme(theme_id: str) -> SettingsSaveResult:
+    theme_id = resolve_theme_id((theme_id or '').strip())
+    if runtime.context.config.get('ui_theme', 'purple') == theme_id:
+        return SettingsSaveResult(ok=True)
+
+    runtime.context.config['ui_theme'] = theme_id
+    try:
+        with open('config.json', 'w') as configfile:
+            json.dump(runtime.context.config, configfile, indent=4)
+        return SettingsSaveResult(ok=True, message=t('config.theme_saved_restart'))
+    except Exception as e:
+        return SettingsSaveResult(ok=False, error=t('settings.save_error', error=e))
 
 
 def get_language() -> str:

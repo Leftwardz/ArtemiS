@@ -23,7 +23,7 @@ from app import runtime
 from app.i18n import init_i18n, t
 from app.models.database_manager import DataBase
 from app.services import admin_service
-from app.ui.config_window import AddClientWindow, DuplicateProductWindow, ExportProductWindow
+from app.ui.theme import init_theme_from_config
 from app.ui.ttk_theme import apply_azure_dark_theme
 
 
@@ -53,10 +53,13 @@ def _seed_demo_data():
 def main():
     with open('config.json', encoding='utf-8') as f:
         config = json.load(f)
+    init_theme_from_config(config)
     runtime.init(config, DataBase(config['database_location']))
     runtime.context.db.create_tables()
     init_i18n(config)
     _seed_demo_data()
+
+    from app.ui.config_window import AddClientWindow, DuplicateProductWindow, ExportProductWindow
 
     ctk.set_appearance_mode('dark')
     master = _MockMaster()

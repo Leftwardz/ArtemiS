@@ -5,7 +5,7 @@ from app import audit, runtime
 from app.models.database_manager import DataBase
 from app.services.print_group_service import ensure_workorder_directories
 from app.services.print_group_service import DEFAULT_SEARCH_FOLDER
-from app.ui.main_app import App
+from app.ui.theme import init_theme_from_config
 
 
 def main():
@@ -24,8 +24,11 @@ def main():
                 "audit_retention_days": 180,
                 "language": "pt",
                 "locales_folder": "",
+                "ui_theme": "purple",
             }
             json.dump(config, config_file, indent=4)
+
+    init_theme_from_config(config)
 
     runtime.init(config, DataBase(config["database_location"]))
     runtime.context.db.create_tables()
@@ -38,6 +41,8 @@ def main():
     init_i18n(config)
 
     audit.init_audit(config)
+
+    from app.ui.main_app import App
 
     app = App()
     try:

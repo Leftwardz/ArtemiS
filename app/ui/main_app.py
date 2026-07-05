@@ -44,7 +44,9 @@ from app.ui.constants import (
     THEME_BG,
     THEME_CARD,
     THEME_CARD_BORDER,
+    THEME_ICON,
     THEME_NAV_ACTIVE,
+    THEME_NAV_TEXT_ACCENT,
     THEME_PROGRESS_BG,
     THEME_SIDEBAR,
     THEME_TEXT_SECONDARY,
@@ -179,7 +181,7 @@ class App(ctk.CTk):
         if disabled:
             return '#5c5f6a'
         if active:
-            return '#c4b5fd'
+            return THEME_NAV_TEXT_ACCENT
         return '#e8ecf4'
 
     def _nav_item(self, parent, icon_key, text_key, *, active=False, command=None, disabled=False):
@@ -230,11 +232,11 @@ class App(ctk.CTk):
         )
         header = ctk.CTkFrame(outer, fg_color='transparent')
         header.pack(fill='x', padx=16, pady=(12, 6))
-        icon = self._icons.get(icon_key, 16, '#a78bfa')
+        icon = self._icons.get(icon_key, 16, THEME_ICON)
         ctk.CTkLabel(header, image=icon, text='').pack(side='left')
         title_lbl = ctk.CTkLabel(
             header, text=title, font=(FONT, 13, 'bold'),
-            text_color='#a78bfa', anchor='w',
+            text_color=THEME_ICON, anchor='w',
         )
         title_lbl.pack(side='left', padx=(8, 0))
         self._card_titles[title_key] = title_lbl
