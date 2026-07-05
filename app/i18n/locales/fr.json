@@ -172,8 +172,9 @@
     "col_ar": "N° AR",
     "col_name": "Nom"
   },
-  "printer": {
+    "printer": {
     "manage_title": "Gérer les imprimantes",
+    "manage_subtitle": "Enregistrement et découverte des imprimantes sur ce PC",
     "registered_title": "Imprimantes enregistrées",
     "col_display": "Nom affiché",
     "col_name": "Nom Windows",
@@ -202,6 +203,7 @@
     "select_discovered": "Sélectionnez une imprimante découverte.",
     "already_registered_name": "\"{name}\" est déjà enregistrée.",
     "edit_title_register": "Enregistrer l'imprimante",
+    "edit_form_title": "Détails de l'imprimante",
     "not_found_title": "Imprimante introuvable",
     "not_found_verify_body": "Windows n'a pas trouvé l'imprimante :\n{name}\n\nVérifiez le nom ou installez l'imprimante sur ce PC.",
     "already_registered_suffix": " (déjà enregistrée)"

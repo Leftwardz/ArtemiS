@@ -172,8 +172,9 @@
     "col_ar": "AR No.",
     "col_name": "Name"
   },
-  "printer": {
+    "printer": {
     "manage_title": "Manage printers",
+    "manage_subtitle": "Register and discover printers on this PC",
     "registered_title": "Registered printers",
     "col_display": "Display name",
     "col_name": "Windows name",
@@ -202,6 +203,7 @@
     "select_discovered": "Select a discovered printer.",
     "already_registered_name": "\"{name}\" is already registered.",
     "edit_title_register": "Register printer",
+    "edit_form_title": "Printer details",
     "not_found_title": "Printer not found",
     "not_found_verify_body": "Windows did not find the printer:\n{name}\n\nCheck the name or install the printer on this PC.",
     "already_registered_suffix": " (already registered)"

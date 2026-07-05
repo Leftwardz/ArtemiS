@@ -172,8 +172,9 @@
     "col_ar": "Nª AR",
     "col_name": "Nome"
   },
-  "printer": {
+    "printer": {
     "manage_title": "Gerenciar Impressoras",
+    "manage_subtitle": "Cadastro e descoberta de impressoras neste PC",
     "registered_title": "Impressoras cadastradas",
     "col_display": "Apelido",
     "col_name": "Nome Windows",
@@ -202,6 +203,7 @@
     "select_discovered": "Selecione uma impressora descoberta.",
     "already_registered_name": "\"{name}\" já está cadastrada.",
     "edit_title_register": "Cadastrar impressora",
+    "edit_form_title": "Dados da impressora",
     "not_found_title": "Impressora não encontrada",
     "not_found_verify_body": "O Windows não encontrou a impressora:\n{name}\n\nVerifique o nome ou instale a impressora neste PC.",
     "already_registered_suffix": " (já cadastrada)"

@@ -78,6 +78,30 @@ def _secondary_btn_kwargs(**extra):
     )
 
 
+def _section_card(parent, title: str):
+    card = ctk.CTkFrame(
+        parent, fg_color=THEME_CARD, corner_radius=12,
+        border_width=1, border_color=THEME_CARD_BORDER,
+    )
+    ctk.CTkLabel(
+        card, text=title, font=(FONT, 13, 'bold'), text_color='white', anchor='w',
+    ).pack(fill='x', padx=12, pady=(10, 6))
+    body = ctk.CTkFrame(card, fg_color='transparent')
+    body.pack(fill='x', padx=12, pady=(0, 12))
+    return card, body
+
+
+def _table_host(parent, height: int):
+    host = ctk.CTkFrame(
+        parent, fg_color=THEME_BG, corner_radius=8,
+        border_width=1, border_color=THEME_CARD_BORDER, height=height,
+    )
+    host.pack(fill='x')
+    host.pack_propagate(False)
+    host.grid_propagate(False)
+    return host
+
+
 class ConfigWindow(ctk.CTkToplevel):
     def __init__(self, master, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -880,29 +904,58 @@ class EditRegisteredPrinterWindow(ctk.CTkToplevel):
         self.on_save = on_save
         self.printer = printer
         self.grab_set()
+        self.configure(fg_color=THEME_BG)
 
-        self.geometry(calculate_center_screen_with_monitor(master, 420, 320, get_monitor(master)))
-        self.minsize(420, 320)
-        self.maxsize(420, 320)
+        self.geometry(calculate_center_screen_with_monitor(master, 440, 360, get_monitor(master)))
+        self.minsize(440, 360)
+        self.maxsize(440, 360)
         self.resizable(False, False)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
-        ctk.CTkLabel(self, text=self.title(), font=('Arial', 16, 'bold')) \
-            .grid(row=0, column=0, columnspan=2, pady=10, padx=10)
+        header = ctk.CTkFrame(self, fg_color=THEME_CARD, corner_radius=0, height=48)
+        header.grid(row=0, column=0, sticky='ew')
+        header.grid_propagate(False)
+        ctk.CTkLabel(
+            header, text=self.title(), font=(FONT, 15, 'bold'), text_color='white', anchor='w',
+        ).pack(side='left', padx=16, pady=10)
 
-        ctk.CTkLabel(self, text=t('printer.win_name_label')).grid(row=1, column=0, columnspan=2, padx=10, sticky='w')
-        self.entry_name = ctk.CTkEntry(self, width=360)
-        self.entry_name.grid(row=2, column=0, columnspan=2, padx=10, pady=(0, 8))
+        body = ctk.CTkFrame(self, fg_color='transparent')
+        body.grid(row=1, column=0, sticky='nsew', padx=16, pady=12)
+        body.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(self, text=t('printer.display_name_label')).grid(row=3, column=0, columnspan=2, padx=10, sticky='w')
-        self.entry_display = ctk.CTkEntry(self, width=360)
-        self.entry_display.grid(row=4, column=0, columnspan=2, padx=10, pady=(0, 8))
+        card, form = _section_card(body, t('printer.edit_form_title'))
+        card.pack(fill='both', expand=True)
+        form.grid_columnconfigure(0, weight=1)
 
-        self.checkbox_enabled = ctk.CTkCheckBox(self, text=t('printer.enabled_production'))
-        self.checkbox_enabled.grid(row=5, column=0, columnspan=2, padx=10, sticky='w')
+        ctk.CTkLabel(
+            form, text=t('printer.win_name_label'), font=(FONT, 11),
+            text_color=THEME_TEXT_SECONDARY, anchor='w',
+        ).grid(row=0, column=0, sticky='ew', pady=(0, 4))
+        self.entry_name = ctk.CTkEntry(form, **_entry_kwargs())
+        self.entry_name.grid(row=1, column=0, sticky='ew', pady=(0, 8))
 
-        ctk.CTkLabel(self, text=t('printer.notes_label')).grid(row=6, column=0, columnspan=2, padx=10, sticky='w')
-        self.entry_notes = ctk.CTkEntry(self, width=360)
-        self.entry_notes.grid(row=7, column=0, columnspan=2, padx=10, pady=(0, 8))
+        ctk.CTkLabel(
+            form, text=t('printer.display_name_label'), font=(FONT, 11),
+            text_color=THEME_TEXT_SECONDARY, anchor='w',
+        ).grid(row=2, column=0, sticky='ew', pady=(0, 4))
+        self.entry_display = ctk.CTkEntry(form, **_entry_kwargs())
+        self.entry_display.grid(row=3, column=0, sticky='ew', pady=(0, 8))
+
+        self.checkbox_enabled = ctk.CTkCheckBox(
+            form, text=t('printer.enabled_production'),
+            font=(FONT, 12), text_color='white',
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            border_color=THEME_CARD_BORDER,
+        )
+        self.checkbox_enabled.grid(row=4, column=0, sticky='w', pady=(0, 8))
+
+        ctk.CTkLabel(
+            form, text=t('printer.notes_label'), font=(FONT, 11),
+            text_color=THEME_TEXT_SECONDARY, anchor='w',
+        ).grid(row=5, column=0, sticky='ew', pady=(0, 4))
+        self.entry_notes = ctk.CTkEntry(form, **_entry_kwargs())
+        self.entry_notes.grid(row=6, column=0, sticky='ew', pady=(0, 4))
 
         if printer:
             self.entry_name.insert(0, printer.get('name', ''))
@@ -912,11 +965,22 @@ class EditRegisteredPrinterWindow(ctk.CTkToplevel):
             if printer.get('notes'):
                 self.entry_notes.insert(0, printer['notes'])
 
-        ctk.CTkButton(self, text=t('common.save'), width=100, command=self.save) \
-            .grid(row=8, column=0, padx=20, pady=15, sticky='e')
-        ctk.CTkButton(self, text=t('common.cancel'), width=100, fg_color=BTN_RED,
-                      hover_color=BTN_HOVER_RED, command=self.destroy) \
-            .grid(row=8, column=1, padx=20, pady=15, sticky='w')
+        actions = ctk.CTkFrame(body, fg_color='transparent')
+        actions.pack(fill='x', pady=(10, 0))
+        actions.grid_columnconfigure(0, weight=1)
+        actions.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkButton(
+            actions, text=t('common.save'), width=110,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            corner_radius=8, height=32, command=self.save,
+        ).grid(row=0, column=0, padx=(0, 6), sticky='e')
+
+        ctk.CTkButton(
+            actions, text=t('common.cancel'), width=110,
+            fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
+            corner_radius=8, height=32, command=self.destroy,
+        ).grid(row=0, column=1, padx=(6, 0), sticky='w')
 
     def save(self):
         name = self.entry_name.get().strip()
@@ -957,8 +1021,8 @@ class EditRegisteredPrinterWindow(ctk.CTkToplevel):
 class ManagePrintersWindow(ctk.CTkToplevel):
     _TABLE_HEIGHT = 4
     _FRAME_H = 110
-    _WINDOW_W = 540
-    _WINDOW_H = 560
+    _WINDOW_W = 560
+    _WINDOW_H = 600
 
     def __init__(self, master, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -966,6 +1030,7 @@ class ManagePrintersWindow(ctk.CTkToplevel):
         self.title(t('printer.manage_title'))
         self.master = master
         self.grab_set()
+        self.configure(fg_color=THEME_BG)
 
         self.geometry(calculate_center_screen_with_monitor(
             master, self._WINDOW_W, self._WINDOW_H, get_monitor(master),
@@ -975,71 +1040,91 @@ class ManagePrintersWindow(ctk.CTkToplevel):
         self.resizable(False, False)
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
-        body = ctk.CTkScrollableFrame(self, width=self._WINDOW_W - 20, height=self._WINDOW_H - 20)
-        body.grid(row=0, column=0, padx=10, pady=10, sticky='nsew')
+        header = ctk.CTkFrame(self, fg_color=THEME_CARD, corner_radius=0, height=56)
+        header.grid(row=0, column=0, sticky='ew')
+        header.grid_propagate(False)
+        title_col = ctk.CTkFrame(header, fg_color='transparent')
+        title_col.pack(side='left', padx=16, pady=10)
+        ctk.CTkLabel(
+            title_col, text=t('printer.manage_title'), font=(FONT, 18, 'bold'), text_color='white',
+        ).pack(anchor='w')
+        ctk.CTkLabel(
+            title_col, text=t('printer.manage_subtitle'), font=(FONT, 11),
+            text_color=THEME_TEXT_SECONDARY,
+        ).pack(anchor='w')
+
+        body = ctk.CTkScrollableFrame(
+            self, fg_color='transparent',
+            width=self._WINDOW_W - 28, height=self._WINDOW_H - 120,
+        )
+        body.grid(row=1, column=0, padx=14, pady=(10, 8), sticky='nsew')
         body.grid_columnconfigure(0, weight=1)
-        body.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(body, text=t('printer.registered_title'), font=('Arial', 16, 'bold')) \
-            .grid(row=0, column=0, columnspan=2, pady=(0, 5), padx=5, sticky='w')
+        reg_card, reg_body = _section_card(body, t('printer.registered_title'))
+        reg_card.pack(fill='x', pady=(0, 10))
 
-        self.table_frame = ctk.CTkFrame(body, width=500, height=self._FRAME_H, corner_radius=0)
-        self.table_frame.grid_propagate(False)
-        self.table_frame.pack_propagate(False)
-        self.table_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
-
+        self.table_frame = _table_host(reg_body, self._FRAME_H)
         self.table = Table(
-            self.table_frame, [t('printer.col_display'), t('printer.col_name'), t('printer.col_enabled'), t('printer.col_notes')],
+            self.table_frame,
+            [t('printer.col_display'), t('printer.col_name'), t('printer.col_enabled'), t('printer.col_notes')],
             show='headings', height=self._TABLE_HEIGHT,
         )
         self.table.column('#1', width=120)
         self.table.column('#2', width=180)
         self.table.column('#3', width=50)
         self.table.column('#4', width=120)
-        self.table.pack(expand=True, fill='both', padx=2, pady=2)
+        self.table.pack(expand=True, fill='both', padx=4, pady=4)
 
-        btn_row = ctk.CTkFrame(body, fg_color='transparent')
-        btn_row.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
+        btn_row = ctk.CTkFrame(reg_body, fg_color='transparent')
+        btn_row.pack(fill='x', pady=(8, 0))
 
-        ctk.CTkButton(btn_row, text=t('common.new'), width=80, command=self.add_printer) \
-            .pack(side='left', padx=(0, 5))
-        ctk.CTkButton(btn_row, text=t('common.edit'), width=80, command=self.edit_printer) \
-            .pack(side='left', padx=5)
-        ctk.CTkButton(btn_row, text=t('common.remove'), width=80, fg_color=BTN_RED,
-                      hover_color=BTN_HOVER_RED, command=self.remove_printer) \
-            .pack(side='left', padx=5)
-        ctk.CTkButton(btn_row, text=t('common.verify'), width=90, command=self.verify_selected) \
-            .pack(side='right')
+        ctk.CTkButton(
+            btn_row, text=t('common.new'), width=84, command=self.add_printer, **_secondary_btn_kwargs(),
+        ).pack(side='left', padx=(0, 6))
+        ctk.CTkButton(
+            btn_row, text=t('common.edit'), width=84, command=self.edit_printer, **_secondary_btn_kwargs(),
+        ).pack(side='left', padx=(0, 6))
+        ctk.CTkButton(
+            btn_row, text=t('common.remove'), width=84, fg_color=BTN_RED,
+            hover_color=BTN_HOVER_RED, corner_radius=8, height=32, command=self.remove_printer,
+        ).pack(side='left')
+        ctk.CTkButton(
+            btn_row, text=t('common.verify'), width=96, command=self.verify_selected, **_secondary_btn_kwargs(),
+        ).pack(side='right')
 
         self.refresh_table()
 
-        ctk.CTkLabel(body, text=t('printer.discover_title'), font=(FONT, 13, 'bold')) \
-            .grid(row=3, column=0, columnspan=2, padx=5, sticky='w', pady=(10, 0))
+        disc_card, disc_body = _section_card(body, t('printer.discover_title'))
+        disc_card.pack(fill='x')
 
-        discover_row = ctk.CTkFrame(body, fg_color='transparent')
-        discover_row.grid(row=4, column=0, columnspan=2, padx=5, sticky='ew')
+        discover_row = ctk.CTkFrame(disc_body, fg_color='transparent')
+        discover_row.pack(fill='x', pady=(0, 8))
 
-        ctk.CTkButton(discover_row, text=t('printer.discover_windows'), width=130, command=self.discover) \
-            .pack(side='left')
-        ctk.CTkButton(discover_row, text=t('printer.add_selected'), width=140, command=self.add_from_discovery) \
-            .pack(side='right')
+        ctk.CTkButton(
+            discover_row, text=t('printer.discover_windows'), width=140, command=self.discover,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER, corner_radius=8, height=32,
+        ).pack(side='left')
+        ctk.CTkButton(
+            discover_row, text=t('printer.add_selected'), width=150, command=self.add_from_discovery,
+            **_secondary_btn_kwargs(),
+        ).pack(side='right')
 
-        self.discover_frame = ctk.CTkFrame(body, width=500, height=self._FRAME_H, corner_radius=0)
-        self.discover_frame.grid_propagate(False)
-        self.discover_frame.pack_propagate(False)
-        self.discover_frame.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
-
+        self.discover_frame = _table_host(disc_body, self._FRAME_H)
         self.discover_table = Table(
             self.discover_frame, [t('printer.col_installed')], show='headings', height=self._TABLE_HEIGHT,
         )
         self.discover_table.column('#1', width=460)
-        self.discover_table.pack(expand=True, fill='both', padx=2, pady=2)
+        self.discover_table.pack(expand=True, fill='both', padx=4, pady=4)
         self._discovered = []
 
-        ctk.CTkButton(body, text=t('common.close'), width=90, command=self.destroy) \
-            .grid(row=6, column=1, padx=5, pady=(10, 5), sticky='e')
+        footer = ctk.CTkFrame(self, fg_color='transparent')
+        footer.grid(row=2, column=0, sticky='e', padx=14, pady=(0, 12))
+        ctk.CTkButton(
+            footer, text=t('common.close'), width=100, command=self.destroy,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER, corner_radius=8, height=32,
+        ).pack(side='right')
 
     def refresh_table(self):
         self.table.remove_all()
