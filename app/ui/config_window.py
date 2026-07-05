@@ -607,6 +607,12 @@ class ConfigWindow(ctk.CTkToplevel):
             return
         if hasattr(self.master, 'apply_language'):
             self.master.apply_language()
+        if hasattr(self, 'edit_window'):
+            try:
+                if self.edit_window.winfo_exists():
+                    self.edit_window.apply_language()
+            except Exception:
+                pass
         self._lang_labels = {lbl: c for c, lbl in available_languages()}
         self.combo_default_language.configure(values=[lbl for _, lbl in available_languages()])
         self.combo_default_language.set(get_i18n().language_label(code))
@@ -640,6 +646,12 @@ class ConfigWindow(ctk.CTkToplevel):
         self.lbl_available_locales.configure(text=self._available_locales_text())
         if hasattr(self.master, 'apply_language'):
             self.master.apply_language()
+        if hasattr(self, 'edit_window'):
+            try:
+                if self.edit_window.winfo_exists():
+                    self.edit_window.apply_language()
+            except Exception:
+                pass
 
     def save_print_backend(self):
         label = self.combo_print_backend.get()

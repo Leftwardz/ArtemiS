@@ -24,7 +24,7 @@ from app import runtime
 from app.i18n import init_i18n
 from app.models.database_manager import DataBase
 from app.models.sheet_layout import CUSTOM_ORIENTATION_INDEX
-from app.services.designer_service import ORIENTATION_LABELS
+from app.i18n.designer_labels import orientation_labels
 from app.ui.designer_window import EditWindow
 
 
@@ -55,7 +55,7 @@ def main():
 
   editor = EditWindow(master, 'add')
   editor.title('ArtemiS — Editor de Produto')
-  editor.combobox_type.set(ORIENTATION_LABELS[CUSTOM_ORIENTATION_INDEX])
+  editor.combobox_type.set(orientation_labels()[CUSTOM_ORIENTATION_INDEX])
   editor.change_orientation(None)
   editor.geometry('1280x800')
   editor.lift()

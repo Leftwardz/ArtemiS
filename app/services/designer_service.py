@@ -17,19 +17,22 @@ ORIENTATION_LABELS = [
 
 
 def validate_product_name(current_name: str, new_name: str, existing_products: List[str]) -> Optional[str]:
+    from app.i18n import t
+    default_name = t('designer.new_product')
     if new_name in existing_products and new_name != current_name:
-        return 'ERROR - Nome de Produto já existente para esse cliente'
-    if new_name == 'Novo Produto':
-        return 'ERROR - Por favor, dar um novo nome ao produto'
+        return 'name_exists'
+    if new_name in (default_name, 'Novo Produto'):
+        return 'rename_default'
     if new_name.strip() == '':
-        return 'ERROR - Nome do Produto não pode ser vazio'
+        return 'name_empty'
     if '-' in new_name.strip():
-        return 'ERROR - Nome do Produto não pode conter traço " - "'
+        return 'name_dash'
     return None
 
 
 def orientation_index_from_label(label: str) -> int:
-    return ORIENTATION_LABELS.index(label)
+    from app.i18n.designer_labels import orientation_index_from_label as _index_from_label
+    return _index_from_label(label)
 
 
 def load_product_drawings(client: str, product_name: str, db):
