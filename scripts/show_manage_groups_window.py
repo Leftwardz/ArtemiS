@@ -1,0 +1,60 @@
+"""Abre Gerenciar Grupos para captura de tela (dev/Linux)."""
+
+import json
+import os
+import sys
+
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, 'dev_stubs'))
+os.chdir(HERE)
+
+import tkinter as tkmod
+
+tkmod.Wm.wm_iconbitmap = lambda self, *args, **kwargs: None
+tkmod.Wm.iconbitmap = lambda self, *args, **kwargs: None
+
+import customtkinter as ctk
+
+ctk.CTk.iconbitmap = lambda self, *args, **kwargs: None
+ctk.CTkToplevel.iconbitmap = lambda self, *args, **kwargs: None
+
+from app import runtime
+from app.i18n import init_i18n, t
+from app.models.database_manager import DataBase
+from app.services import admin_service
+from app.ui.config_window import ManageGroupWindow
+from app.ui.ttk_theme import apply_azure_dark_theme
+
+
+class _MockMaster(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+        self.withdraw()
+        apply_azure_dark_theme(self)
+
+
+def _seed_demo_groups():
+    for name in ('PADRAO', 'EXPEDICAO', 'OLD'):
+        if name not in admin_service.list_print_groups():
+            admin_service.insert_print_group(name)
+
+
+def main():
+    with open('config.json', encoding='utf-8') as f:
+        config = json.load(f)
+    runtime.init(config, DataBase(config['database_location']))
+    runtime.context.db.create_tables()
+    init_i18n(config)
+    _seed_demo_groups()
+
+    ctk.set_appearance_mode('dark')
+    master = _MockMaster()
+    win = ManageGroupWindow(master, t('group.manage_title'))
+    win.lift()
+    win.focus_force()
+    master.mainloop()
+
+
+if __name__ == '__main__':
+    main()

@@ -96,7 +96,6 @@ def _table_host(parent, height: int):
         parent, fg_color=THEME_BG, corner_radius=8,
         border_width=1, border_color=THEME_CARD_BORDER, height=height,
     )
-    host.pack(fill='x')
     host.pack_propagate(False)
     host.grid_propagate(False)
     return host
@@ -1066,6 +1065,7 @@ class ManagePrintersWindow(ctk.CTkToplevel):
         reg_card.pack(fill='x', pady=(0, 10))
 
         self.table_frame = _table_host(reg_body, self._FRAME_H)
+        self.table_frame.pack(fill='x', pady=(0, 0))
         self.table = Table(
             self.table_frame,
             [t('printer.col_display'), t('printer.col_name'), t('printer.col_enabled'), t('printer.col_notes')],
@@ -1112,6 +1112,7 @@ class ManagePrintersWindow(ctk.CTkToplevel):
         ).pack(side='right')
 
         self.discover_frame = _table_host(disc_body, self._FRAME_H)
+        self.discover_frame.pack(fill='x')
         self.discover_table = Table(
             self.discover_frame, [t('printer.col_installed')], show='headings', height=self._TABLE_HEIGHT,
         )
@@ -1386,45 +1387,84 @@ class ManageAccessWindow(ctk.CTkToplevel):
 
 
 class ManageGroupWindow(ctk.CTkToplevel):
+    _WINDOW_W = 420
+    _WINDOW_H = 400
+    _TABLE_H = 200
+
     def __init__(self, master, title, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.iconbitmap(ICON)
-
-        self.geometry(calculate_center_screen_with_monitor(master, 400, 250, get_monitor(master)))
-        self.minsize(400, 320)
-        self.maxsize(400, 250)
-        self.resizable(False, False)
         self.title(title)
         self.master = master
         self.grab_set()
+        self.configure(fg_color=THEME_BG)
+
+        self.geometry(calculate_center_screen_with_monitor(
+            master, self._WINDOW_W, self._WINDOW_H, get_monitor(master),
+        ))
+        self.minsize(self._WINDOW_W, self._WINDOW_H)
+        self.maxsize(self._WINDOW_W, self._WINDOW_H)
+        self.resizable(False, False)
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=1)
-        self.grid_columnconfigure(2, weight=1)
-        self.grid_rowconfigure(2, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
-        lbl_client_name = ctk.CTkLabel(self, text=title, font=('Arial', 18, 'bold'))
-        lbl_client_name.grid(row=0, column=0, columnspan=2, pady=5, padx=10)
+        header = ctk.CTkFrame(self, fg_color=THEME_CARD, corner_radius=0, height=56)
+        header.grid(row=0, column=0, sticky='ew')
+        header.grid_propagate(False)
+        title_col = ctk.CTkFrame(header, fg_color='transparent')
+        title_col.pack(side='left', padx=16, pady=10)
+        ctk.CTkLabel(
+            title_col, text=title, font=(FONT, 16, 'bold'), text_color='white',
+        ).pack(anchor='w')
+        ctk.CTkLabel(
+            title_col, text=t('group.manage_subtitle'), font=(FONT, 11),
+            text_color=THEME_TEXT_SECONDARY,
+        ).pack(anchor='w')
 
-        self.entry_name = ctk.CTkEntry(self, width=300)
-        self.entry_name.grid(row=1, column=0, padx=10)
+        body = ctk.CTkFrame(self, fg_color='transparent')
+        body.grid(row=1, column=0, sticky='nsew', padx=14, pady=12)
+        body.grid_columnconfigure(0, weight=1)
+        body.grid_rowconfigure(0, weight=1)
 
-        self.btn_incluir = ctk.CTkButton(self, text=t("group.include"), width=120, command=self.add_group)
-        self.btn_incluir.grid(row=1, column=1, pady=10, padx=5)
+        card, card_body = _section_card(body, t('group.list_title'))
+        card.pack(fill='both', expand=True)
+        card_body.grid_columnconfigure(0, weight=1)
+        card_body.grid_rowconfigure(1, weight=1)
 
-        self.btn_delete = ctk.CTkButton(self, text=t("group.delete_btn"), width=120, fg_color=BTN_RED,
-                                        hover_color=BTN_HOVER_RED, command=self.delete_group)
+        add_row = ctk.CTkFrame(card_body, fg_color='transparent')
+        add_row.grid(row=0, column=0, sticky='ew', pady=(0, 8))
+        add_row.grid_columnconfigure(0, weight=1)
 
-        self.btn_delete.grid(row=2, column=1, pady=10, padx=5, sticky='S')
-        # ################## List ##############################
-        self.table_frame = ctk.CTkFrame(self, width=500, height=310, corner_radius=0)
-        self.table_frame.grid(row=2, rowspan=5, column=0, padx=5, pady=5, sticky="nwse")
+        ctk.CTkLabel(
+            add_row, text=t('group.name_prompt'), font=(FONT, 11),
+            text_color=THEME_TEXT_SECONDARY, anchor='w',
+        ).grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 4))
 
-        self.table = Table(self.table_frame, [t('group.col_name')], show="headings")
-        self.table.pack(expand=True, fill="both")
+        self.entry_name = ctk.CTkEntry(add_row, **_entry_kwargs())
+        self.entry_name.grid(row=1, column=0, sticky='ew', padx=(0, 8))
+
+        self.btn_incluir = ctk.CTkButton(
+            add_row, text=t('group.include'), width=100,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            corner_radius=8, height=32, command=self.add_group,
+        )
+        self.btn_incluir.grid(row=1, column=1, sticky='e')
+
+        self.table_frame = _table_host(card_body, self._TABLE_H)
+        self.table_frame.grid(row=1, column=0, sticky='nsew', pady=(0, 8))
+
+        self.table = Table(self.table_frame, [t('group.col_name')], show='headings')
+        self.table.pack(expand=True, fill='both', padx=4, pady=4)
+
+        self.btn_delete = ctk.CTkButton(
+            card_body, text=t('group.delete_btn'), width=110,
+            fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
+            corner_radius=8, height=32, command=self.delete_group,
+        )
+        self.btn_delete.grid(row=2, column=0, sticky='w')
 
         self.refresh_table()
-
         self.entry_name.bind('<Return>', self.add_group)
 
     def add_group(self, *args):

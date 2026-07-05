@@ -239,6 +239,8 @@
   },
   "group": {
     "manage_title": "Gérer les sous-dossiers de recherche",
+    "manage_subtitle": "Sous-dossiers dans le dossier central de recherche",
+    "list_title": "Groupes enregistrés",
     "col_name": "Nom du sous-dossier",
     "add": "Ajouter",
     "remove": "Retirer",

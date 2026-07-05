@@ -239,6 +239,8 @@
   },
   "group": {
     "manage_title": "Manage search subfolders",
+    "manage_subtitle": "Subfolders inside the central search folder",
+    "list_title": "Registered groups",
     "col_name": "Subfolder name",
     "add": "Add",
     "remove": "Remove",
