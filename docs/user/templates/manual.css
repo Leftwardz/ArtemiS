@@ -1,0 +1,155 @@
+@page {
+  size: A4;
+  margin: 18mm 16mm 20mm 16mm;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.45;
+  color: #1a1a1a;
+  max-width: 100%;
+}
+
+header.doc-header {
+  border-bottom: 3px solid #2563eb;
+  margin-bottom: 1.2em;
+  padding-bottom: 0.6em;
+}
+
+header.doc-header h1 {
+  margin: 0 0 0.15em 0;
+  font-size: 22pt;
+  color: #0f172a;
+}
+
+header.doc-header .subtitle {
+  margin: 0;
+  color: #475569;
+  font-size: 11pt;
+}
+
+header.doc-header .meta {
+  margin: 0.4em 0 0 0;
+  font-size: 9pt;
+  color: #64748b;
+}
+
+h1 {
+  font-size: 18pt;
+  color: #0f172a;
+  page-break-before: always;
+  margin-top: 0;
+}
+
+h1:first-of-type {
+  page-break-before: avoid;
+}
+
+h2 {
+  font-size: 13pt;
+  color: #1e293b;
+  margin-top: 1.4em;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.2em;
+}
+
+h3 {
+  font-size: 11pt;
+  color: #334155;
+  margin-top: 1em;
+}
+
+p, li {
+  orphans: 3;
+  widows: 3;
+}
+
+ul, ol {
+  padding-left: 1.4em;
+}
+
+li {
+  margin: 0.25em 0;
+}
+
+figure {
+  margin: 1em 0 1.2em 0;
+  page-break-inside: avoid;
+}
+
+figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+figcaption {
+  font-size: 9pt;
+  color: #64748b;
+  margin-top: 0.35em;
+  font-style: italic;
+}
+
+.note, .warning, .tip {
+  border-radius: 6px;
+  padding: 0.65em 0.85em;
+  margin: 0.8em 0;
+  page-break-inside: avoid;
+}
+
+.note {
+  background: #eff6ff;
+  border-left: 4px solid #2563eb;
+}
+
+.warning {
+  background: #fff7ed;
+  border-left: 4px solid #ea580c;
+}
+
+.tip {
+  background: #f0fdf4;
+  border-left: 4px solid #16a34a;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.8em 0;
+  font-size: 9.5pt;
+}
+
+th, td {
+  border: 1px solid #cbd5e1;
+  padding: 0.35em 0.55em;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #f1f5f9;
+}
+
+code {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 9pt;
+  background: #f8fafc;
+  padding: 0.05em 0.25em;
+  border-radius: 3px;
+}
+
+footer.doc-footer {
+  margin-top: 2em;
+  padding-top: 0.6em;
+  border-top: 1px solid #e2e8f0;
+  font-size: 8.5pt;
+  color: #94a3b8;
+}
