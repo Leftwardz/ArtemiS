@@ -1,5 +1,5 @@
 {
-  "default": "purple",
+  "default": "slate",
   "presets": {
     "purple": {
       "sidebar": "#1a1033",

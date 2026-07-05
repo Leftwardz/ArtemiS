@@ -500,6 +500,8 @@
     "multi_count": "{count} items selected",
     "multi_hint": "Use arrow keys to move the selection (Shift = larger step)",
     "multi_keyboard": "Use arrow keys to move,\nCtrl+C to copy,\nDelete to remove.",
+    "multi_common": "Common properties",
+    "multi_mixed": "Select items of the same type (text, line, etc.) to match properties.",
     "align": "Align",
     "align_left": "Left",
     "align_center": "Center",

@@ -500,6 +500,8 @@
     "multi_count": "{count} éléments sélectionnés",
     "multi_hint": "Utilisez les flèches du clavier pour déplacer la sélection (Maj = pas plus grand)",
     "multi_keyboard": "Flèches pour déplacer,\nCtrl+C pour copier,\nSuppr pour effacer.",
+    "multi_common": "Propriétés communes",
+    "multi_mixed": "Sélectionnez des éléments du même type (texte, ligne, etc.) pour harmoniser les propriétés.",
     "align": "Aligner",
     "align_left": "Gauche",
     "align_center": "Centre",

@@ -24,7 +24,7 @@ def main():
                 "audit_retention_days": 180,
                 "language": "pt",
                 "locales_folder": "",
-                "ui_theme": "purple",
+                "ui_theme": "slate",
             }
             json.dump(config, config_file, indent=4)
 

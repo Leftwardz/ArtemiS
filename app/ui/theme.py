@@ -36,7 +36,7 @@ class ThemePreset:
     error_text: str
 
 
-_current_theme_id: str = 'purple'
+_current_theme_id: str = 'slate'
 
 
 def app_dir() -> Path:
@@ -54,7 +54,7 @@ def _load_catalog() -> Tuple[str, Dict[str, ThemePreset]]:
     path = presets_path()
     with open(path, encoding='utf-8') as f:
         data = json.load(f)
-    default_id = data.get('default', 'purple')
+    default_id = data.get('default', 'slate')
     presets: Dict[str, ThemePreset] = {}
     for preset_id, colors in data.get('presets', {}).items():
         presets[preset_id] = ThemePreset(id=preset_id, **colors)
@@ -66,13 +66,18 @@ def available_theme_ids() -> List[str]:
     return list(presets.keys())
 
 
+def default_theme_id() -> str:
+    default_id, presets = _load_catalog()
+    return default_id if default_id in presets else next(iter(presets))
+
+
 def get_current_theme_id() -> str:
     return _current_theme_id
 
 
 def get_theme() -> ThemePreset:
-    _, presets = _load_catalog()
-    return presets.get(_current_theme_id) or presets['purple']
+    default_id, presets = _load_catalog()
+    return presets.get(_current_theme_id) or presets.get(default_id) or next(iter(presets.values()))
 
 
 def apply_theme(preset: ThemePreset) -> None:

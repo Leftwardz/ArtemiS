@@ -500,6 +500,8 @@
     "multi_count": "{count} itens selecionados",
     "multi_hint": "Use as setas do teclado para mover a seleção (Shift = passo maior)",
     "multi_keyboard": "Use as setas para mover,\nCtrl+C para copiar,\nDelete para apagar.",
+    "multi_common": "Propriedades em comum",
+    "multi_mixed": "Selecione apenas itens do mesmo tipo (texto, linha, etc.) para igualar propriedades.",
     "align": "Alinhar",
     "align_left": "Esquerda",
     "align_center": "Centro",

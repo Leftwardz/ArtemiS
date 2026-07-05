@@ -112,6 +112,39 @@ def column_label(index: int) -> str:
     return t('designer.column', n=index)
 
 
+def column_db_name(index: int) -> str:
+    """Nome canônico da coluna no banco/PDF (independente do idioma da UI)."""
+    return f'Coluna_{index}'
+
+
+def column_index_from_name(name: str) -> int | None:
+    """Converte rótulo de coluna (UI ou banco) no índice 1-based."""
+    if not name:
+        return None
+    name = str(name).strip()
+    for prefix in ('Coluna_', 'Column_', 'Colonne_'):
+        if name.startswith(prefix):
+            suffix = name[len(prefix):]
+            if suffix.isdigit():
+                return int(suffix)
+    for i in range(1, 100):
+        if column_label(i) == name:
+            return i
+    return None
+
+
+def column_indices_from_dotted(names: str) -> list[int]:
+    """'Coluna_1.Coluna_3' → [1, 3] (índices 1-based)."""
+    if not names:
+        return []
+    result: list[int] = []
+    for part in names.split('.'):
+        idx = column_index_from_name(part.strip())
+        if idx is not None:
+            result.append(idx)
+    return result
+
+
 def barcode_model_labels() -> list[str]:
     return [t('designer.barcode_128'), t('designer.barcode_39'), t('designer.qrcode'), t('designer.matrix')]
 

@@ -9,8 +9,8 @@ from app.ui.constants import (
 
 
 class SpinBox(ctk.CTkFrame):
-    def __init__(self, master, step=1, func=None, entry_width=100, entry_height=26,
-                 btn_width=20, btn_height=10, *args, **kwargs):
+    def __init__(self, master, step=1, func=None, entry_width=72, entry_height=24,
+                 btn_width=16, btn_height=9, *args, **kwargs):
         super().__init__(
             master, fg_color=THEME_BG, corner_radius=0,
             border_width=1, border_color=THEME_CARD_BORDER, *args, **kwargs,
@@ -25,23 +25,24 @@ class SpinBox(ctk.CTkFrame):
         self.entry = ctk.CTkEntry(
             self, width=entry_width, height=entry_height,
             border_width=0, corner_radius=0, fg_color=THEME_BG,
+            text_color='white',
         )
         self.entry.grid(row=0, column=0, rowspan=2, padx=(4, 0), pady=2, sticky='ew')
 
-        btn_font = ('Segoe UI', 7 if entry_height >= 30 else 6)
+        btn_font = ('Segoe UI', 6)
         self.btn_up = ctk.CTkButton(
             self, text='▲', font=btn_font, width=btn_width, height=btn_height,
             corner_radius=0, fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
             border_width=0, command=self.increase,
         )
-        self.btn_up.grid(row=0, column=1, padx=(2, 4), pady=(3, 1), sticky='e')
+        self.btn_up.grid(row=0, column=1, padx=(2, 4), pady=(2, 1), sticky='e')
 
         self.btn_down = ctk.CTkButton(
             self, text='▼', font=btn_font, width=btn_width, height=btn_height,
             corner_radius=0, fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
             border_width=0, command=self.decrease,
         )
-        self.btn_down.grid(row=1, column=1, padx=(2, 4), pady=(1, 3), sticky='e')
+        self.btn_down.grid(row=1, column=1, padx=(2, 4), pady=(1, 2), sticky='e')
 
     def increase(self):
         try:

@@ -20,8 +20,11 @@ from app.i18n.designer_labels import (
     barcode_kind_from_model_label,
     barcode_model_labels,
     column_label,
+    column_db_name,
+    column_index_from_name,
     dash_canvas_from_label,
     dash_label_for_canvas,
+    dash_labels,
     font_style_db_from_label,
     font_style_label,
     is_linear_barcode_model,
@@ -98,14 +101,65 @@ from app.utils.document_delivery import open_path
 
 def _flat_combo_kwargs(**overrides):
     kwargs = {
-        'corner_radius': 0,
+        'corner_radius': 8,
         'fg_color': THEME_BG,
+        'border_width': 1,
         'border_color': THEME_CARD_BORDER,
         'button_color': THEME_ACCENT,
         'button_hover_color': THEME_ACCENT_HOVER,
+        'height': 28,
     }
     kwargs.update(overrides)
     return kwargs
+
+
+def _designer_btn_kwargs(**overrides):
+    kwargs = dict(
+        corner_radius=8, height=30,
+        fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+        border_width=1, border_color=THEME_CARD_BORDER,
+    )
+    kwargs.update(overrides)
+    return kwargs
+
+
+def _designer_primary_btn_kwargs(**overrides):
+    kwargs = dict(
+        corner_radius=8, height=30,
+        fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+    )
+    kwargs.update(overrides)
+    return kwargs
+
+
+def _designer_danger_btn_kwargs(**overrides):
+    kwargs = dict(
+        corner_radius=8, height=30,
+        fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
+    )
+    kwargs.update(overrides)
+    return kwargs
+
+
+def _designer_checkbox_kwargs(**overrides):
+    kwargs = dict(
+        fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+        border_color=THEME_CARD_BORDER, text_color='white',
+    )
+    kwargs.update(overrides)
+    return kwargs
+
+
+def _designer_entry_kwargs(**overrides):
+    kwargs = dict(
+        fg_color=THEME_BG, border_color=THEME_CARD_BORDER,
+        border_width=1, corner_radius=8, height=28, text_color='white',
+    )
+    kwargs.update(overrides)
+    return kwargs
+
+
+_SPIN_COMPACT = dict(entry_width=72, entry_height=24, btn_width=16, btn_height=9)
 
 
 class EditWindow(ctk.CTkToplevel):
@@ -122,7 +176,8 @@ class EditWindow(ctk.CTkToplevel):
         self.resizable(True, True)
         self.master = master
         self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=0, minsize=320)
+        self.grid_columnconfigure(1, weight=0, minsize=ListOfPropertiesWindow._total_outer_width(
+            ListOfPropertiesWindow.PANEL_DEFAULT_WIDTH) + 12)
         self.grid_rowconfigure(3, weight=1)
         self.client = master.client_list.radio_var.get()
         self.id_selected_item = None
@@ -291,29 +346,29 @@ class EditWindow(ctk.CTkToplevel):
 
         card_preview, body_preview = self._editor_card(strip, 'designer.card_preview')
         card_preview.pack(side='left', fill='y', padx=(0, 8))
+        self._preview_row = ctk.CTkFrame(body_preview, fg_color='transparent')
+        self._preview_row.pack(anchor='w')
         self.btn_preview_file = ctk.CTkButton(
-            body_preview, text=t('designer.csv_file'), width=100, height=32, corner_radius=8,
+            self._preview_row, text=t('designer.csv_file'), width=100, height=32, corner_radius=8,
             fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
             border_width=1, border_color=THEME_CARD_BORDER, command=self.load_preview_file,
         )
-        self.btn_preview_file.pack(anchor='w')
+        self.btn_preview_file.pack(side='left')
 
-        self._preview_controls = ctk.CTkFrame(body_preview, fg_color='transparent')
-        preview_controls_row = ctk.CTkFrame(self._preview_controls, fg_color='transparent')
-        preview_controls_row.pack(fill='x')
+        self._preview_controls = self._preview_row
         self.lbl_preview_line = ctk.CTkLabel(
-            preview_controls_row, text=t('designer.line'), text_color=THEME_TEXT_SECONDARY,
+            self._preview_row, text=t('designer.line'), text_color=THEME_TEXT_SECONDARY,
         )
-        self.lbl_preview_line.pack(side='left', padx=(0, 4))
-        self.preview_line_spin = SpinBox(preview_controls_row, step=1, func=self._on_preview_line_change, entry_width=48)
+        self.preview_line_spin = SpinBox(
+            self._preview_row, step=1, func=self._on_preview_line_change,
+            entry_width=48, entry_height=24, btn_width=16, btn_height=9,
+        )
         self.preview_line_spin.set(1)
         self.preview_line_spin.entry.bind('<Return>', self._on_preview_line_change)
-        self.preview_line_spin.pack(side='left', padx=(0, 4))
         self.btn_clear_preview = ctk.CTkButton(
-            preview_controls_row, text='×', width=28, height=32, corner_radius=8,
+            self._preview_row, text='×', width=28, height=32, corner_radius=8,
             fg_color=BTN_RED, hover_color=BTN_HOVER_RED, command=self.clear_preview_file,
         )
-        self.btn_clear_preview.pack(side='left')
 
         card_view, body_view = self._editor_card(strip, 'designer.card_view')
         card_view.pack(side='left', fill='y')
@@ -436,7 +491,7 @@ class EditWindow(ctk.CTkToplevel):
         self.canvas_bg = THEME_CANVAS_BG
         self.canvas = Canvas(
             canvas_outer, width=canvas_width, height=canvas_height,
-            bg=self.canvas_bg, highlightthickness=0,
+                             bg=self.canvas_bg, highlightthickness=0,
             scrollregion=(0, 0, canvas_width, canvas_height),
         )
         self.canvas.grid(row=0, column=0, sticky='nswe')
@@ -509,9 +564,9 @@ class EditWindow(ctk.CTkToplevel):
         sh = self.winfo_screenheight()
         self.geometry(f'{sw}x{sh}+0+0')
 
-    _CUSTOM_SPIN_WIDTH = 76
+    _CUSTOM_SPIN_WIDTH = 64
 
-    def _mm_spin(self, parent, value, entry_width=None, entry_height=26, btn_width=20, btn_height=10):
+    def _mm_spin(self, parent, value, entry_width=None, entry_height=24, btn_width=16, btn_height=9):
         if entry_width is None:
             entry_width = self._CUSTOM_SPIN_WIDTH
         spin = SpinBox(
@@ -879,10 +934,14 @@ class EditWindow(ctk.CTkToplevel):
         return text
 
     def _set_preview_controls_visible(self, visible: bool):
+        extras = (self.lbl_preview_line, self.preview_line_spin, self.btn_clear_preview)
         if visible:
-            self._preview_controls.pack(fill='x', pady=(6, 0))
+            self.lbl_preview_line.pack(side='left', padx=(8, 4))
+            self.preview_line_spin.pack(side='left', padx=(0, 4))
+            self.btn_clear_preview.pack(side='left')
         else:
-            self._preview_controls.pack_forget()
+            for widget in extras:
+                widget.pack_forget()
 
     def _sync_preview_ui(self):
         has_file = bool(self.preview_file_path and self.preview_file)
@@ -1069,10 +1128,8 @@ class EditWindow(ctk.CTkToplevel):
 
     @staticmethod
     def _column_name_to_index(col_name):
-        if not col_name:
-            return None
-        name = str(col_name).replace('Coluna_', '')
-        return int(name) - 1 if name.isdigit() else None
+        idx = column_index_from_name(col_name)
+        return idx - 1 if idx else None
 
     def _file_value_at_column(self, col_name):
         cols = self._preview_file_columns()
@@ -1087,14 +1144,20 @@ class EditWindow(ctk.CTkToplevel):
         if not self._use_file_preview():
             return [line.preview_text for line in seg.lines]
         texts: list[str] = []
-        for col in seg.columns:
+        for col_i, col in enumerate(seg.columns):
             val = self._file_value_at_column(col)
+            if not val and col_i < len(seg.labels):
+                val = seg.labels[col_i]
             parts = break_line(val or '', seg.char_limit)
-            texts.append(parts[0])
+            texts.append(parts[0] or '')
             if parts[1]:
-                texts.append(parts[1])
+                texts.append(parts[1] or '')
         while len(texts) < len(seg.lines):
-            texts.append('')
+            label_i = len(texts)
+            fallback = ''
+            if label_i < len(seg.lines):
+                fallback = seg.lines[label_i].preview_text
+            texts.append(fallback)
         return texts[:len(seg.lines)]
 
     def _barcode_display_text(self, obj: BarcodeObject):
@@ -1689,6 +1752,40 @@ class EditWindow(ctk.CTkToplevel):
         self.refresh()
         self.properties_window.refresh()
 
+    def apply_font_to_reps(self, reps, font_name, font_size, font_style, orientation):
+        """Apply font settings to all selected text-like objects."""
+        font_tuple = (font_name, self._zfont(str(font_size)), font_style)
+        angle = str(orientation)
+        for rep in reps:
+            obj = self.drawing_store.get_by_canvas(rep)
+            if not isinstance(obj, (TextObject, CounterObject, SegmentObject)):
+                continue
+            obj.font_name = font_name
+            obj.font_size = str(font_size)
+            obj.font_style = font_style
+            obj.orientation = angle
+            if isinstance(obj, SegmentObject):
+                canvas_ids = self.drawing_store.segment_canvas_ids(obj.object_id)
+            else:
+                canvas_ids = self.drawing_store.canvas_ids_for_object(obj.object_id)
+            for cid in canvas_ids:
+                self.canvas.itemconfig(cid, font=font_tuple, angle=angle)
+        self.update_save_button()
+
+    def apply_line_style_to_reps(self, reps, thickness, dash_label):
+        """Apply thickness and dash to all selected lines/rectangles."""
+        dash = dash_canvas_from_label(dash_label)
+        width = int(thickness)
+        for rep in reps:
+            obj = self.drawing_store.get_by_canvas(rep)
+            if not isinstance(obj, (LineObject, RectangleObject)):
+                continue
+            obj.thickness = str(width)
+            obj.dashed = dash
+            for cid in self.drawing_store.canvas_ids_for_object(obj.object_id):
+                self.canvas.itemconfig(cid, width=width, dash=dash)
+        self.update_save_button()
+
     def distribute_selected(self, mode):
         """Distribute items with equal spacing (keeps first and last fixed)."""
         if len(self.selected_items) < 3:
@@ -2060,36 +2157,53 @@ class EditWindow(ctk.CTkToplevel):
 
 
 class ListOfPropertiesWindow(ctk.CTkFrame):
-    PANEL_WIDTH = 300
+    PANEL_DEFAULT_WIDTH = 320
+    PANEL_MIN_WIDTH = 260
+    PANEL_MAX_WIDTH = 560
+    GRIP_WIDTH = 6
+    GRIP_GAP = 10
 
     def __init__(self, master, *args, **kwargs):
-        super().__init__(master, width=self.PANEL_WIDTH, fg_color='transparent', *args, **kwargs)
+        self._panel_width = self.PANEL_DEFAULT_WIDTH
+        super().__init__(master, width=self._total_outer_width(self._panel_width), fg_color='transparent', *args, **kwargs)
         self.grid_propagate(False)
         self.master = master
         self.last_id = master.id_selected_item
+        self._resize_start_x = 0
+        self._resize_start_width = self._panel_width
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
+
+        self._resize_grip = ctk.CTkFrame(
+            self, width=self.GRIP_WIDTH, fg_color=THEME_CARD_BORDER, corner_radius=0, cursor='sb_h_double_arrow',
+        )
+        self._resize_grip.place(x=0, rely=0, relheight=1, anchor='nw')
+        self._resize_grip.bind('<ButtonPress-1>', self._on_resize_start)
+        self._resize_grip.bind('<B1-Motion>', self._on_resize_drag)
 
         shell = ctk.CTkFrame(
             self, fg_color=THEME_CARD, corner_radius=12,
             border_width=1, border_color=THEME_CARD_BORDER,
         )
-        shell.grid(row=0, column=0, sticky='nsew')
+        shell.grid(row=0, column=0, sticky='nsew', padx=(self.GRIP_WIDTH + self.GRIP_GAP, 0))
         shell.grid_columnconfigure(0, weight=1)
         shell.grid_rowconfigure(1, weight=1)
+        self._shell = shell
 
         self.lbl_properties = ctk.CTkLabel(
             shell, text=t('designer.properties'), font=(FONT, 15, 'bold'), text_color='white',
         )
         self.lbl_properties.grid(row=0, column=0, padx=16, pady=(12, 8), sticky='w')
 
-        self._body = ctk.CTkScrollableFrame(shell, fg_color='transparent', width=self.PANEL_WIDTH - 16)
+        self._body = ctk.CTkScrollableFrame(
+            shell, fg_color='transparent', width=self._panel_width - 24,
+        )
         self._body.grid(row=1, column=0, padx=8, pady=(0, 12), sticky='nsew')
         self._body.grid_columnconfigure(0, weight=1)
         self._body.grid_rowconfigure(0, weight=1)
 
-        self._empty_center = ctk.CTkFrame(shell, fg_color='transparent')
+        self._empty_center = ctk.CTkFrame(self._shell, fg_color='transparent')
         self._empty_center.grid_columnconfigure(0, weight=1)
         self._empty_center.grid_rowconfigure(0, weight=1)
         self._empty_center.grid_rowconfigure(2, weight=1)
@@ -2105,6 +2219,7 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
         self.panel_refs = {}
         self._multi_count_label = None
         self._multi_spacing_label = None
+        self._multi_common_frame = None
 
         self.is_segment = False
         self.selected_object = None
@@ -2160,7 +2275,42 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
     def is_valid_input(input_str):
         return input_str.isdigit() or input_str == ""
 
+    @classmethod
+    def _total_outer_width(cls, content_width: int) -> int:
+        return content_width + cls.GRIP_WIDTH + cls.GRIP_GAP
+
+    def _on_resize_start(self, event):
+        self._resize_start_x = event.x_root
+        self._resize_start_width = self._panel_width
+
+    def _on_resize_drag(self, event):
+        delta = self._resize_start_x - event.x_root
+        new_w = max(self.PANEL_MIN_WIDTH, min(self.PANEL_MAX_WIDTH, self._resize_start_width + delta))
+        self._apply_panel_width(new_w)
+
+    def _apply_panel_width(self, width: int):
+        self._panel_width = width
+        self.configure(width=self._total_outer_width(width))
+        self.master.grid_columnconfigure(1, minsize=self._total_outer_width(width) + 12)
+        self._body.configure(width=max(120, width - 24))
+        if self.info_label is not None:
+            try:
+                self.info_label.configure(wraplength=max(160, width - 48))
+            except Exception:
+                pass
+
+    def _prepare_property_grid(self, frame):
+        frame.grid_columnconfigure(0, weight=0, minsize=96)
+        frame.grid_columnconfigure(1, weight=1)
+
+    def _spin(self, parent, **kwargs):
+        opts = {**_SPIN_COMPACT, **kwargs}
+        if 'func' not in opts:
+            opts['func'] = self.update_item
+        return SpinBox(parent, **opts)
+
     def images_properties(self, selected_object):
+        self._prepare_property_grid(self.frame)
         x, y = self.master.canvas.coords(selected_object)
 
         proportion = self.master.canvas_dict_images[selected_object][3]
@@ -2169,19 +2319,19 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
         lbl_position_x = ctk.CTkLabel(self.frame, text=t('designer.pos_x'))
         lbl_position_x.grid(row=0, column=0, padx=10, pady=10, sticky="W")
 
-        self.entry_x1 = SpinBox(self.frame, func=self.update_item)
+        self.entry_x1 = self._spin(self.frame)
         self.entry_x1.grid(row=0, column=1, pady=10, padx=10)
         self.entry_x1.set(int(x))
 
         lbl_position_y = ctk.CTkLabel(self.frame, text=t('designer.pos_y'))
         lbl_position_y.grid(row=1, column=0, padx=10, pady=10, sticky="W")
 
-        self.entry_y1 = SpinBox(self.frame, func=self.update_item)
+        self.entry_y1 = self._spin(self.frame)
         self.entry_y1.grid(row=1, column=1, pady=10, padx=10)
         self.entry_y1.set(int(y))
 
         ctk.CTkLabel(self.frame, text=t('designer.proportion')).grid(row=2, column=0, padx=10, pady=10, sticky="W")
-        self.entry_proportion = SpinBox(self.frame, func=self.update_item)
+        self.entry_proportion = self._spin(self.frame)
         self.entry_proportion.grid(row=2, column=1, pady=10, padx=10)
         self.entry_proportion.set(int(proportion))
         self.last_proportion = int(proportion)
@@ -2212,7 +2362,7 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
                 row += 1
 
                 ctk.CTkLabel(self.frame, text=t('designer.height')).grid(row=row, column=0, padx=10, pady=10, sticky="W")
-                self.barcode_height = SpinBox(self.frame, func=self.update_item, step=0.1)
+                self.barcode_height = self._spin(self.frame, step=0.1)
                 self.barcode_height.grid(row=row, column=1, pady=10, padx=10)
                 self.barcode_height.set(self.barcode_obj.barcode_height)
                 row += 1
@@ -2230,33 +2380,48 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
 
             # ------------------ String do preview + reconstruir ----------------------------------------------
             ctk.CTkLabel(self.frame, text=t('designer.preview_string')).grid(row=row, column=0, padx=10, pady=10, sticky="W")
-            self.barcode_text_entry = ctk.CTkEntry(self.frame, width=120, justify='center')
+            self.barcode_text_entry = ctk.CTkEntry(self.frame, justify='center', **_designer_entry_kwargs())
             self.barcode_text_entry.grid(row=row, column=1, pady=10, padx=10)
             self.barcode_text_entry.insert(0, self.barcode_obj.placeholder)
             self.barcode_text_entry.bind('<Return>', self.rebuild_barcode)
             row += 1
 
-            self.btn_rebuild_barcode = ctk.CTkButton(self.frame, text=t('designer.rebuild_preview'), width=120,
-                                                     command=self.rebuild_barcode)
+            self.btn_rebuild_barcode = ctk.CTkButton(
+                self.frame, text=t('designer.rebuild_preview'), width=120,
+                command=self.rebuild_barcode, **_designer_btn_kwargs(),
+            )
             self.btn_rebuild_barcode.grid(row=row, column=0, columnspan=2, padx=10, pady=5)
             row += 1
             next_row = row
 
         btn_row = self._install_duplex_checkbox(next_row)
-        self.btn_ok = ctk.CTkButton(self.frame, text=t('common.ok'), width=100, command=self.update_item)
+        self.btn_ok = ctk.CTkButton(
+            self.frame, text=t('common.ok'), width=100, command=self.update_item, **_designer_primary_btn_kwargs(),
+        )
         self.btn_ok.grid(row=btn_row, column=1, padx=10, pady=10)
 
-        self.btn_cancel = ctk.CTkButton(self.frame, text=t('common.delete'), fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
-                                        width=100, command=self.master.delete_object)
+        self.btn_cancel = ctk.CTkButton(
+            self.frame, text=t('common.delete'), width=100, command=self.master.delete_object,
+            **_designer_danger_btn_kwargs(),
+        )
         self.btn_cancel.grid(row=btn_row, column=0, padx=10, pady=10)
 
-        self.btn_lift_up = ctk.CTkButton(self.frame, text=t('designer.bring_front'), width=100, command=self.bring_to_front)
+        self.btn_lift_up = ctk.CTkButton(
+            self.frame, text=t('designer.bring_front'), width=100, command=self.bring_to_front,
+            **_designer_btn_kwargs(),
+        )
         self.btn_lift_up.grid(row=btn_row + 1, column=1, padx=10, pady=10)
 
-        self.btn_lift_down = ctk.CTkButton(self.frame, text=t('designer.send_back'), width=100, command=self.send_to_back)
+        self.btn_lift_down = ctk.CTkButton(
+            self.frame, text=t('designer.send_back'), width=100, command=self.send_to_back,
+            **_designer_btn_kwargs(),
+        )
         self.btn_lift_down.grid(row=btn_row + 1, column=0, padx=10, pady=10)
 
-        self.btn_save_img = ctk.CTkButton(self.frame, text=t('designer.save_image'), width=100, command=self.save_img)
+        self.btn_save_img = ctk.CTkButton(
+            self.frame, text=t('designer.save_image'), width=100, command=self.save_img,
+            **_designer_btn_kwargs(),
+        )
         self.btn_save_img.grid(row=btn_row + 2, column=0, columnspan=2, padx=10, pady=10)
 
         self._show_object_info(row=btn_row + 3)
@@ -2272,13 +2437,17 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
         return str(self.master.canvas.gettags(self.master.id_selected_item))
 
     def _show_object_info(self, row):
-        info_frame = ctk.CTkScrollableFrame(self.frame, height=40, orientation='horizontal')
-        info_frame.grid(row=row, column=0, columnspan=2, padx=10, pady=10)
+        info_frame = ctk.CTkFrame(
+            self.frame, fg_color=THEME_BG, corner_radius=8,
+            border_width=1, border_color=THEME_CARD_BORDER,
+        )
+        info_frame.grid(row=row, column=0, columnspan=2, padx=8, pady=6, sticky='ew')
         self.info_label = ctk.CTkLabel(
             info_frame, text=self._object_info_text(),
-            font=(FONT_LIST[0] if FONT_LIST else 'Arial', 10),
+            font=(FONT, 10), text_color=THEME_TEXT_SECONDARY,
+            justify='left', anchor='w', wraplength=max(160, self._panel_width - 48),
         )
-        self.info_label.pack()
+        self.info_label.pack(fill='x', padx=8, pady=6)
 
     def _install_duplex_checkbox(self, row):
         self.duplex_var = ctk.BooleanVar(value=False)
@@ -2288,8 +2457,9 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
         self.duplex_checkbox = ctk.CTkCheckBox(
             self.frame, text=t('designer.duplex'),
             variable=self.duplex_var, command=self.update_item,
+            **_designer_checkbox_kwargs(),
         )
-        self.duplex_checkbox.grid(row=row, column=0, columnspan=2, padx=10, pady=5, sticky='W')
+        self.duplex_checkbox.grid(row=row, column=0, columnspan=2, padx=8, pady=4, sticky='W')
         return row + 1
 
     def _apply_duplex_to_selected(self):
@@ -2309,6 +2479,7 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
             self.duplex_var.set(getattr(obj, 'duplex', False))
 
     def line_properties(self, selected_object):
+        self._prepare_property_grid(self.frame)
         x1, y1, x2, y2 = [int(i) for i in self.master.canvas.coords(selected_object)]
         line_width = int(float(self.master.canvas.itemconfig(selected_object, 'width')[4]))
         dash = self.master.canvas.itemconfig(selected_object, 'dash')[4]
@@ -2333,48 +2504,53 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
             command=self.update_item, **_flat_combo_kwargs(),
         )
         self.combobox_dash.grid(row=1, column=1, padx=10, pady=10)
-        self.combobox_dash.set(dash_values[dash])
+        self.combobox_dash.set(dash_values.get(dash, dash_label_for_canvas('0')))
 
         lbl_x_initial = ctk.CTkLabel(self.frame, text=t('designer.pos_x1'))
         lbl_x_initial.grid(row=2, column=0, padx=10, pady=10, sticky="W")
 
-        self.entry_x1 = SpinBox(self.frame, func=self.update_item)
+        self.entry_x1 = self._spin(self.frame)
         self.entry_x1.grid(row=2, column=1, padx=10, pady=10)
         self.entry_x1.set(int(x1))
 
         lbl_x_initial = ctk.CTkLabel(self.frame, text=t('designer.pos_y1'))
         lbl_x_initial.grid(row=3, column=0, padx=10, pady=10, sticky="W")
 
-        self.entry_y1 = SpinBox(self.frame, func=self.update_item)
+        self.entry_y1 = self._spin(self.frame)
         self.entry_y1.grid(row=3, column=1, padx=10, pady=10)
         self.entry_y1.set(int(y1))
 
         lbl_y_final = ctk.CTkLabel(self.frame, text=t('designer.pos_x2'))
         lbl_y_final.grid(row=4, column=0, padx=10, pady=10, sticky="W")
 
-        self.entry_x2 = SpinBox(self.frame, func=self.update_item)
+        self.entry_x2 = self._spin(self.frame)
         self.entry_x2.grid(row=4, column=1, padx=10, pady=10)
         self.entry_x2.set(int(x2))
 
         lbl_y_final = ctk.CTkLabel(self.frame, text=t('designer.pos_y2'))
         lbl_y_final.grid(row=5, column=0, padx=10, pady=10, sticky="W")
 
-        self.entry_y2 = SpinBox(self.frame, func=self.update_item)
+        self.entry_y2 = self._spin(self.frame)
         self.entry_y2.grid(row=5, column=1, padx=10, pady=10)
         self.entry_y2.set(int(y2))
 
         btn_row = self._install_duplex_checkbox(6)
-        self.btn_ok = ctk.CTkButton(self.frame, text=t('common.ok'), width=100, command=self.update_item)
+        self.btn_ok = ctk.CTkButton(
+            self.frame, text=t('common.ok'), width=100, command=self.update_item, **_designer_primary_btn_kwargs(),
+        )
         self.btn_ok.grid(row=btn_row, column=1, padx=10, pady=10)
 
-        self.btn_cancel = ctk.CTkButton(self.frame, text=t('common.delete'), fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
-                                        width=100, command=self.master.delete_object)
+        self.btn_cancel = ctk.CTkButton(
+            self.frame, text=t('common.delete'), width=100, command=self.master.delete_object,
+            **_designer_danger_btn_kwargs(),
+        )
         self.btn_cancel.grid(row=btn_row, column=0, padx=10, pady=10)
 
         self._show_object_info(row=btn_row + 1)
         self._fill_line_values(selected_object)
 
     def text_properties(self, selected_object):
+        self._prepare_property_grid(self.frame)
         fonte = self.master.canvas.itemconfig(selected_object, 'font')[4]
         if '{' in fonte:
             fontname = fonte.split('}')[0].replace('{', '')
@@ -2434,29 +2610,29 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
             char_limit = self.segment_obj.char_limit
 
             ctk.CTkLabel(self.frame, text=t('designer.line_spacing')).grid(row=4, column=0, padx=10, pady=10, sticky="W")
-            self.distance = SpinBox(self.frame, func=self.update_item)
+            self.distance = self._spin(self.frame)
             self.distance.grid(row=4, column=1, pady=10, padx=10)
             self.distance.set(segment_distance)
 
             ctk.CTkLabel(self.frame, text=t('designer.char_limit')).grid(row=5, column=0, padx=10, pady=10, sticky="W")
-            self.char_limit = SpinBox(self.frame, func=self.update_item)
+            self.char_limit = self._spin(self.frame)
             self.char_limit.grid(row=5, column=1, pady=10, padx=10)
             self.char_limit.set(char_limit)
 
             self.btn_edit_segment = ctk.CTkButton(
                 self.frame, text=t('designer.edit_columns'), width=120,
-                command=self.open_segment_editor,
+                command=self.open_segment_editor, **_designer_btn_kwargs(),
             )
             self.btn_edit_segment.grid(row=8, column=0, columnspan=2, padx=10, pady=5)
 
         pos_row = 6 if not self.is_segment else 6
         ctk.CTkLabel(self.frame, text=t('designer.pos_x')).grid(row=pos_row, column=0, padx=10, pady=10, sticky="W")
-        self.entry_x1 = SpinBox(self.frame, func=self.update_item)
+        self.entry_x1 = self._spin(self.frame)
         self.entry_x1.grid(row=pos_row, column=1, pady=10, padx=10)
         self.entry_x1.set(int(round(x / z)))
 
         ctk.CTkLabel(self.frame, text=t('designer.pos_y')).grid(row=pos_row + 1, column=0, padx=10, pady=10, sticky="W")
-        self.entry_y1 = SpinBox(self.frame, func=self.update_item)
+        self.entry_y1 = self._spin(self.frame)
         self.entry_y1.grid(row=pos_row + 1, column=1, pady=10, padx=10)
         self.entry_y1.set(int(round(y / z)))
 
@@ -2470,18 +2646,25 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
             lbl_text_help.pack(side='left', padx=(4, 0))
             Tooltip(lbl_text_help, t('designer.fixed_text_tip'))
 
-            self.entry_text = ctk.CTkEntry(self.frame, width=self.PANEL_WIDTH - 80, justify='center')
+            self.entry_text = ctk.CTkEntry(
+                self.frame, justify='center',
+                width=max(120, self._panel_width - 48), **_designer_entry_kwargs(),
+            )
             self.entry_text.grid(row=pos_row + 3, column=0, columnspan=2, padx=10, pady=5)
             self.entry_text.configure(textvariable=ctk.StringVar(value=texto))
             self.entry_text.bind("<KeyRelease>", self.update_item)
 
         btn_row = pos_row + 4 if not self.is_segment else 9
         btn_row = self._install_duplex_checkbox(btn_row)
-        self.btn_ok = ctk.CTkButton(self.frame, text=t('common.ok'), width=100, command=self.update_item)
+        self.btn_ok = ctk.CTkButton(
+            self.frame, text=t('common.ok'), width=100, command=self.update_item, **_designer_primary_btn_kwargs(),
+        )
         self.btn_ok.grid(row=btn_row, column=1, padx=10, pady=10)
 
-        self.btn_cancel = ctk.CTkButton(self.frame, text=t('common.delete'), fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
-                                        width=100, command=self.master.delete_object)
+        self.btn_cancel = ctk.CTkButton(
+            self.frame, text=t('common.delete'), width=100, command=self.master.delete_object,
+            **_designer_danger_btn_kwargs(),
+        )
         self.btn_cancel.grid(row=btn_row, column=0, padx=10, pady=10)
 
         self._show_object_info(row=btn_row + 1)
@@ -2686,6 +2869,160 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
             return
         self._show_panel(sig)
 
+    def _selected_drawing_objects(self):
+        objs = []
+        for rep in self.master.selected_items:
+            obj = self.master.drawing_store.get_by_canvas(rep)
+            if obj is not None:
+                objs.append(obj)
+        return objs
+
+    def _multi_common_kind(self):
+        objs = self._selected_drawing_objects()
+        if not objs:
+            return None
+        if all(isinstance(o, (TextObject, CounterObject, SegmentObject)) for o in objs):
+            return 'font'
+        if all(isinstance(o, (LineObject, RectangleObject)) for o in objs):
+            return 'line'
+        return None
+
+    def _build_multi_common_section(self, parent):
+        self._multi_common_frame = ctk.CTkFrame(parent, fg_color='transparent')
+        self._multi_common_frame.grid(row=3, column=0, padx=10, pady=(4, 8), sticky='ew')
+
+        ctk.CTkLabel(
+            self._multi_common_frame, text=t('designer.multi_common'),
+            font=('Lato', 12, 'bold'),
+        ).grid(row=0, column=0, columnspan=2, sticky='w', pady=(0, 6))
+
+        self._multi_common_hint = ctk.CTkLabel(
+            self._multi_common_frame, text=t('designer.multi_mixed'),
+            font=('Lato', 11), text_color='gray',
+            wraplength=max(160, self._panel_width - 48), justify='left',
+        )
+        self._multi_common_hint.grid(row=1, column=0, columnspan=2, sticky='w')
+
+        self._multi_font_frame = ctk.CTkFrame(self._multi_common_frame, fg_color='transparent')
+        self._multi_font_frame.grid(row=2, column=0, columnspan=2, sticky='ew')
+        self._multi_font_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(self._multi_font_frame, text=t('designer.font')).grid(
+            row=0, column=0, padx=(0, 8), pady=4, sticky='w')
+        self._multi_font_family = ctk.CTkComboBox(
+            self._multi_font_frame, values=FONT_LIST, width=120,
+            command=self._apply_multi_common_font, **_flat_combo_kwargs(),
+        )
+        self._multi_font_family.grid(row=0, column=1, pady=4, sticky='w')
+
+        ctk.CTkLabel(self._multi_font_frame, text=t('designer.size')).grid(
+            row=1, column=0, padx=(0, 8), pady=4, sticky='w')
+        self._multi_font_size = ctk.CTkComboBox(
+            self._multi_font_frame, width=120, values=list(map(str, range(6, 28))),
+            command=self._apply_multi_common_font, **_flat_combo_kwargs(),
+        )
+        self._multi_font_size.grid(row=1, column=1, pady=4, sticky='w')
+
+        ctk.CTkLabel(self._multi_font_frame, text=t('designer.style')).grid(
+            row=2, column=0, padx=(0, 8), pady=4, sticky='w')
+        self._multi_font_style = ctk.CTkComboBox(
+            self._multi_font_frame,
+            values=[t('designer.font_bold'), t('designer.font_normal')], width=120,
+            command=self._apply_multi_common_font, **_flat_combo_kwargs(),
+        )
+        self._multi_font_style.grid(row=2, column=1, pady=4, sticky='w')
+
+        ctk.CTkLabel(self._multi_font_frame, text=t('designer.orientation_label')).grid(
+            row=3, column=0, padx=(0, 8), pady=4, sticky='w')
+        self._multi_orientation = ctk.CTkComboBox(
+            self._multi_font_frame, values=['0', '90', '180', '270'], width=120,
+            command=self._apply_multi_common_font, **_flat_combo_kwargs(),
+        )
+        self._multi_orientation.grid(row=3, column=1, pady=4, sticky='w')
+
+        self._multi_line_frame = ctk.CTkFrame(self._multi_common_frame, fg_color='transparent')
+        self._multi_line_frame.grid(row=2, column=0, columnspan=2, sticky='ew')
+        self._multi_line_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(self._multi_line_frame, text=t('designer.thickness')).grid(
+            row=0, column=0, padx=(0, 8), pady=4, sticky='w')
+        self._multi_line_width = ctk.CTkComboBox(
+            self._multi_line_frame, width=120, values=list(map(str, range(1, 10))),
+            command=self._apply_multi_common_line, **_flat_combo_kwargs(),
+        )
+        self._multi_line_width.grid(row=0, column=1, pady=4, sticky='w')
+
+        ctk.CTkLabel(self._multi_line_frame, text=t('designer.dashed')).grid(
+            row=1, column=0, padx=(0, 8), pady=4, sticky='w')
+        self._multi_line_dash = ctk.CTkComboBox(
+            self._multi_line_frame, width=120, values=dash_labels(),
+            command=self._apply_multi_common_line, **_flat_combo_kwargs(),
+        )
+        self._multi_line_dash.grid(row=1, column=1, pady=4, sticky='w')
+
+        self._update_multi_common_section()
+
+    def _update_multi_common_section(self):
+        if not self._frame_alive(self._multi_common_frame):
+            return
+        kind = self._multi_common_kind()
+        self._multi_common_hint.grid_remove()
+        self._multi_font_frame.grid_remove()
+        self._multi_line_frame.grid_remove()
+        if kind == 'font':
+            self._multi_font_frame.grid()
+            self._fill_multi_font_values()
+        elif kind == 'line':
+            self._multi_line_frame.grid()
+            self._fill_multi_line_values()
+        else:
+            self._multi_common_hint.grid()
+
+    def _fill_multi_font_values(self):
+        objs = [
+            o for o in self._selected_drawing_objects()
+            if isinstance(o, (TextObject, CounterObject, SegmentObject))
+        ]
+        if not objs:
+            return
+        obj = objs[0]
+        self._multi_font_family.set(obj.font_name)
+        self._multi_font_size.set(str(int(float(obj.font_size))))
+        self._multi_font_style.set(font_style_label(obj.font_style))
+        self._multi_orientation.set(str(obj.orientation).replace('.0', ''))
+
+    def _fill_multi_line_values(self):
+        objs = [
+            o for o in self._selected_drawing_objects()
+            if isinstance(o, (LineObject, RectangleObject))
+        ]
+        if not objs:
+            return
+        obj = objs[0]
+        dash_key = obj.dashed if obj.dashed else '0'
+        self._multi_line_width.set(str(int(float(obj.thickness))))
+        self._multi_line_dash.set(dash_label_for_canvas(dash_key))
+
+    def _apply_multi_common_font(self, *_args):
+        if self._multi_common_kind() != 'font':
+            return
+        self.master.apply_font_to_reps(
+            self.master.selected_items,
+            self._multi_font_family.get(),
+            int(self._multi_font_size.get()),
+            font_style_db_from_label(self._multi_font_style.get()),
+            self._multi_orientation.get(),
+        )
+
+    def _apply_multi_common_line(self, *_args):
+        if self._multi_common_kind() != 'line':
+            return
+        self.master.apply_line_style_to_reps(
+            self.master.selected_items,
+            self._multi_line_width.get(),
+            self._multi_line_dash.get(),
+        )
+
     def _fill_multi_spacing(self):
         if self._multi_spacing_label is None:
             return
@@ -2703,6 +3040,7 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
             if self._multi_count_label is not None:
                 self._multi_count_label.configure(text=text)
             self._fill_multi_spacing()
+            self._update_multi_common_section()
             return
         self._hide_current_frame()
         self.panel_signature = ('multi',)
@@ -2713,6 +3051,7 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
             if self._multi_count_label is not None:
                 self._multi_count_label.configure(text=text)
             self._fill_multi_spacing()
+            self._update_multi_common_section()
             self.frame.grid(row=0, column=0, padx=10, pady=10)
             return
         frame = ctk.CTkFrame(self._body, fg_color='transparent')
@@ -2731,9 +3070,10 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
         )
         self._multi_spacing_label.grid(row=2, column=0, padx=20, pady=(0, 8), sticky='w')
         self._fill_multi_spacing()
+        self._build_multi_common_section(frame)
 
         align_frame = ctk.CTkFrame(frame, fg_color='transparent')
-        align_frame.grid(row=3, column=0, padx=10, pady=(4, 8))
+        align_frame.grid(row=4, column=0, padx=10, pady=(4, 8))
         ctk.CTkLabel(align_frame, text=t('designer.align'), font=('Lato', 12, 'bold')).grid(
             row=0, column=0, columnspan=3, pady=(0, 6))
         h_align = (
@@ -2748,38 +3088,44 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
         )
         for col, (label, mode) in enumerate(h_align):
             ctk.CTkButton(
-                align_frame, text=label, width=78, height=28,
+                align_frame, text=label, width=78,
                 command=lambda m=mode: self.master.align_selected(m),
+                **_designer_btn_kwargs(height=28),
             ).grid(row=1, column=col, padx=3, pady=2)
         for col, (label, mode) in enumerate(v_align):
             ctk.CTkButton(
-                align_frame, text=label, width=78, height=28,
+                align_frame, text=label, width=78,
                 command=lambda m=mode: self.master.align_selected(m),
+                **_designer_btn_kwargs(height=28),
             ).grid(row=2, column=col, padx=3, pady=2)
 
         dist_frame = ctk.CTkFrame(frame, fg_color='transparent')
-        dist_frame.grid(row=4, column=0, padx=10, pady=(0, 8))
+        dist_frame.grid(row=5, column=0, padx=10, pady=(0, 8))
         ctk.CTkLabel(dist_frame, text=t('designer.distribute'), font=('Lato', 12, 'bold')).grid(
             row=0, column=0, columnspan=2, pady=(0, 2))
         ctk.CTkLabel(dist_frame, text=t('designer.distribute_min'), font=('Lato', 10), text_color='gray').grid(
             row=1, column=0, columnspan=2, pady=(0, 4))
         ctk.CTkButton(
-            dist_frame, text=t('designer.horizontal'), width=120, height=28,
+            dist_frame, text=t('designer.horizontal'), width=120,
             command=lambda: self.master.distribute_selected('horizontal'),
+            **_designer_btn_kwargs(height=28),
         ).grid(row=2, column=0, padx=3, pady=2)
         ctk.CTkButton(
-            dist_frame, text=t('designer.vertical'), width=120, height=28,
+            dist_frame, text=t('designer.vertical'), width=120,
             command=lambda: self.master.distribute_selected('vertical'),
+            **_designer_btn_kwargs(height=28),
         ).grid(row=2, column=1, padx=3, pady=2)
 
         ctk.CTkButton(
             frame, text=t('designer.copy_selection'), width=120,
             command=lambda: self.master.control_c(None),
-        ).grid(row=5, column=0, padx=10, pady=10)
+            **_designer_btn_kwargs(),
+        ).grid(row=6, column=0, padx=10, pady=10)
         ctk.CTkButton(
-            frame, text=t('common.delete'), width=120, fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
+            frame, text=t('common.delete'), width=120,
             command=self.master.delete_object,
-        ).grid(row=6, column=0, padx=10, pady=5)
+            **_designer_danger_btn_kwargs(),
+        ).grid(row=7, column=0, padx=10, pady=5)
         self.panels[('multi',)] = frame
 
     def _activate_none_panel(self):
@@ -2987,10 +3333,11 @@ class GetImageWindow(ctk.CTkToplevel):
     def __init__(self, master, x, y, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.iconbitmap(ICON)
+        self.configure(fg_color=THEME_BG)
 
-        self.geometry(calculate_center_screen_with_monitor(master, 250, 150, get_monitor(master)))
-        self.minsize(250, 150)
-        self.maxsize(250, 150)
+        self.geometry(calculate_center_screen_with_monitor(master, 320, 180, get_monitor(master)))
+        self.minsize(320, 180)
+        self.maxsize(320, 180)
         self.resizable(False, False)
         self.master = master
         self.grab_set()
@@ -3000,23 +3347,30 @@ class GetImageWindow(ctk.CTkToplevel):
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
-
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
-        self.grid_rowconfigure(2, weight=1)
+        self.grid_rowconfigure(2, weight=0)
 
-        self.btn_select_image = ctk.CTkButton(self, text=t('designer.select_file'), command=self.select_file)
+        self.btn_select_image = ctk.CTkButton(
+            self, text=t('designer.select_file'), command=self.select_file,
+            **_designer_btn_kwargs(),
+        )
         self.btn_select_image.grid(row=0, column=0, columnspan=2, padx=10, pady=10, sticky='S')
 
-        self.lbl_image_name = ctk.CTkLabel(self, text='')
+        self.lbl_image_name = ctk.CTkLabel(self, text='', text_color=THEME_TEXT_SECONDARY)
         self.lbl_image_name.grid(row=1, column=0, columnspan=2, padx=10, sticky='N')
 
-        self.btn_ok = ctk.CTkButton(self, text=t('common.ok'), width=80, state="disabled", command=self.draw_image)
-        self.btn_ok.grid(row=2, column=0, pady=10)
+        self.btn_ok = ctk.CTkButton(
+            self, text=t('common.ok'), width=100, state='disabled', command=self.draw_image,
+            **_designer_primary_btn_kwargs(),
+        )
+        self.btn_ok.grid(row=2, column=0, pady=12, padx=10)
 
-        self.btn_cancelar = ctk.CTkButton(self, width=80, text=t('common.cancel'), fg_color=BTN_RED,
-                                          hover_color=BTN_HOVER_RED)
-        self.btn_cancelar.grid(row=2, column=1, pady=10)
+        self.btn_cancelar = ctk.CTkButton(
+            self, width=100, text=t('common.cancel'), command=self.destroy,
+            **_designer_danger_btn_kwargs(),
+        )
+        self.btn_cancelar.grid(row=2, column=1, pady=12, padx=10)
 
     def select_file(self):
         self.filepath = askopenfilename(filetypes=[(t('designer.image_files_filter'), ['*.png', '*.jpg'])])
@@ -3043,10 +3397,11 @@ class GetTextWindow(ctk.CTkToplevel):
     def __init__(self, master, x, y, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.iconbitmap(ICON)
+        self.configure(fg_color=THEME_BG)
 
-        self.geometry(calculate_center_screen_with_monitor(master, 420, 300, get_monitor(master)))
-        self.minsize(420, 300)
-        self.maxsize(420, 300)
+        self.geometry(calculate_center_screen_with_monitor(master, 420, 340, get_monitor(master)))
+        self.minsize(420, 340)
+        self.maxsize(420, 340)
         self.resizable(False, False)
         self.master = master
         self.grab_set()
@@ -3056,45 +3411,50 @@ class GetTextWindow(ctk.CTkToplevel):
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(self, text=t('designer.font')).grid(row=0, column=0, pady=10, padx=10)
+        ctk.CTkLabel(self, text=t('designer.font'), text_color=THEME_TEXT_SECONDARY).grid(row=0, column=0, pady=8, padx=10)
         self.font_list = ctk.CTkComboBox(self, values=FONT_LIST, **_flat_combo_kwargs())
-        self.font_list.grid(row=0, column=1, pady=10, padx=10, sticky='W')
+        self.font_list.grid(row=0, column=1, pady=8, padx=10, sticky='ew')
 
-        ctk.CTkLabel(self, text=t('designer.size')).grid(row=1, column=0, pady=10, padx=10)
+        ctk.CTkLabel(self, text=t('designer.size'), text_color=THEME_TEXT_SECONDARY).grid(row=1, column=0, pady=8, padx=10)
         self.fontsize = ctk.CTkComboBox(self, values=list(map(str, range(6, 28))), **_flat_combo_kwargs())
         self.fontsize.set('10')
-        self.fontsize.grid(row=1, column=1, pady=10, padx=10, sticky='W')
+        self.fontsize.grid(row=1, column=1, pady=8, padx=10, sticky='ew')
 
-        ctk.CTkLabel(self, text=t('designer.orientation_label')).grid(row=2, column=0, pady=10, padx=10)
+        ctk.CTkLabel(self, text=t('designer.orientation_label'), text_color=THEME_TEXT_SECONDARY).grid(row=2, column=0, pady=8, padx=10)
         self.orientation = ctk.CTkComboBox(self, values=['0', '90', '180', '270'], **_flat_combo_kwargs())
-        self.orientation.grid(row=2, column=1, pady=10, padx=10, sticky='W')
+        self.orientation.grid(row=2, column=1, pady=8, padx=10, sticky='ew')
 
         self.counter_var = ctk.IntVar()
         self.counter = ctk.CTkCheckBox(
             self, text=t('designer.counter'), command=self.verify_counter, variable=self.counter_var,
+            **_designer_checkbox_kwargs(),
         )
-        self.counter.grid(row=3, column=0, padx=30, sticky='E')
+        self.counter.grid(row=3, column=0, padx=20, sticky='E')
 
-        self.bold = ctk.CTkCheckBox(self, text=t('designer.font_bold'))
+        self.bold = ctk.CTkCheckBox(self, text=t('designer.font_bold'), **_designer_checkbox_kwargs())
         self.bold.grid(row=3, column=1, padx=10)
 
         text_hdr = ctk.CTkFrame(self, fg_color='transparent')
         text_hdr.grid(row=4, column=0, columnspan=2, padx=10, sticky='w')
-        ctk.CTkLabel(text_hdr, text=t('designer.text')).pack(side='left')
+        ctk.CTkLabel(text_hdr, text=t('designer.text'), text_color=THEME_TEXT_SECONDARY).pack(side='left')
         lbl_text_help = ctk.CTkLabel(
-            text_hdr, text='?', width=18, cursor='hand2', text_color='gray',
+            text_hdr, text='?', width=18, cursor='hand2', text_color=THEME_TEXT_SECONDARY,
         )
         lbl_text_help.pack(side='left', padx=(4, 0))
         Tooltip(lbl_text_help, t('designer.fixed_text_tip'))
-        self.text = ctk.CTkEntry(self, width=300)
+        self.text = ctk.CTkEntry(self, width=300, **_designer_entry_kwargs())
         self.text.grid(row=5, column=0, columnspan=2, padx=10)
 
-        self.btn_ok = ctk.CTkButton(self, text=t('common.ok'), width=120, command=self.draw_text)
-        self.btn_ok.grid(row=6, column=0, pady=20, padx=20)
+        self.btn_ok = ctk.CTkButton(
+            self, text=t('common.ok'), width=120, command=self.draw_text, **_designer_primary_btn_kwargs(),
+        )
+        self.btn_ok.grid(row=6, column=0, pady=16, padx=20)
 
-        self.btn_cancelar = ctk.CTkButton(self, width=120, text=t('common.cancel'), fg_color=BTN_RED,
-                                          hover_color=BTN_HOVER_RED, command=self.destroy)
-        self.btn_cancelar.grid(row=6, column=1, pady=20, padx=20)
+        self.btn_cancelar = ctk.CTkButton(
+            self, width=120, text=t('common.cancel'), command=self.destroy,
+            **_designer_danger_btn_kwargs(),
+        )
+        self.btn_cancelar.grid(row=6, column=1, pady=16, padx=20)
 
     def draw_text(self):
         weight = "bold" if self.bold.get() else "normal"
@@ -3127,10 +3487,11 @@ class GetBarcodeWindow(ctk.CTkToplevel):
     def __init__(self, master, x, y, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.iconbitmap(ICON)
+        self.configure(fg_color=THEME_BG)
 
-        self.geometry(calculate_center_screen_with_monitor(master, 380, 540, get_monitor(master)))
-        self.minsize(380, 540)
-        self.maxsize(380, 540)
+        self.geometry(calculate_center_screen_with_monitor(master, 380, 560, get_monitor(master)))
+        self.minsize(380, 560)
+        self.maxsize(380, 560)
         self.resizable(False, False)
         self.master = master
         self.grab_set()
@@ -3142,7 +3503,9 @@ class GetBarcodeWindow(ctk.CTkToplevel):
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(self, text=t('designer.barcode_model')).grid(row=0, column=0, padx=10, pady=10, sticky='E')
+        ctk.CTkLabel(self, text=t('designer.barcode_model'), text_color=THEME_TEXT_SECONDARY).grid(
+            row=0, column=0, padx=10, pady=10, sticky='E',
+        )
 
         barcode_models = barcode_model_labels()
         self.entry_model = ctk.CTkComboBox(
@@ -3151,13 +3514,17 @@ class GetBarcodeWindow(ctk.CTkToplevel):
         )
         self.entry_model.grid(row=0, column=1, padx=10, pady=10, sticky='W')
 
-        ctk.CTkLabel(self, text=t('designer.thickness')).grid(row=1, column=0, padx=10, pady=10, sticky='E')
+        ctk.CTkLabel(self, text=t('designer.thickness'), text_color=THEME_TEXT_SECONDARY).grid(
+            row=1, column=0, padx=10, pady=10, sticky='E',
+        )
 
         barcode_widths = ['0.17', '0.18', '0.19', '0.20']
         self.entry_width = ctk.CTkComboBox(self, values=barcode_widths, width=120, **_flat_combo_kwargs())
         self.entry_width.grid(row=1, column=1, padx=10, pady=10, sticky='W')
 
-        ctk.CTkLabel(self, text=t('designer.height')).grid(row=2, column=0, padx=10, pady=10, sticky='E')
+        ctk.CTkLabel(self, text=t('designer.height'), text_color=THEME_TEXT_SECONDARY).grid(
+            row=2, column=0, padx=10, pady=10, sticky='E',
+        )
 
         barcode_heights = ['1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9',
                            '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8',
@@ -3167,24 +3534,33 @@ class GetBarcodeWindow(ctk.CTkToplevel):
         self.entry_height.set('5')
         self.entry_height.grid(row=2, column=1, padx=10, pady=10, sticky='W')
 
-        ctk.CTkLabel(self, text=t('designer.placeholder')).grid(row=3, column=0, columnspan=2, padx=10)
+        ctk.CTkLabel(self, text=t('designer.placeholder'), text_color=THEME_TEXT_SECONDARY).grid(
+            row=3, column=0, columnspan=2, padx=10,
+        )
 
-        self.text = ctk.CTkEntry(self, width=200)
+        self.text = ctk.CTkEntry(self, width=200, **_designer_entry_kwargs())
         self.text.insert(0, 'FS123456789BR')
         self.text.grid(row=4, column=0, columnspan=2, padx=10)
 
         help_text = t('designer.barcode_help')
-        ctk.CTkLabel(self, text=help_text).grid(row=5, column=0, columnspan=2, pady=5)
+        ctk.CTkLabel(self, text=help_text, text_color=THEME_TEXT_SECONDARY, justify='left').grid(
+            row=5, column=0, columnspan=2, pady=5, padx=10,
+        )
 
         self.fields = ListBox(self, [column_label(i) for i in range(1, 100)])
-        self.fields.grid(row=6, column=0, columnspan=2)
+        self.fields.grid(row=6, column=0, columnspan=2, padx=10)
 
-        self.btn_ok = ctk.CTkButton(self, text=t('common.ok'), width=120, state='disabled', command=self.create_barcode)
-        self.btn_ok.grid(row=7, column=0, pady=20, padx=20)
+        self.btn_ok = ctk.CTkButton(
+            self, text=t('common.ok'), width=120, state='disabled', command=self.create_barcode,
+            **_designer_primary_btn_kwargs(),
+        )
+        self.btn_ok.grid(row=7, column=0, pady=16, padx=20)
 
-        self.btn_cancelar = ctk.CTkButton(self, width=120, text=t('common.cancel'), fg_color=BTN_RED,
-                                          hover_color=BTN_HOVER_RED, command=self.destroy)
-        self.btn_cancelar.grid(row=7, column=1, pady=20, padx=20)
+        self.btn_cancelar = ctk.CTkButton(
+            self, width=120, text=t('common.cancel'), command=self.destroy,
+            **_designer_danger_btn_kwargs(),
+        )
+        self.btn_cancelar.grid(row=7, column=1, pady=16, padx=20)
 
     def create_barcode(self):
         if self.text.get():
@@ -3219,11 +3595,12 @@ class GetSegmentWindow(ctk.CTkToplevel):
     def __init__(self, master, x, y, edit_segment=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.iconbitmap(ICON)
+        self.configure(fg_color=THEME_BG)
         self.edit_segment = edit_segment
 
-        self.geometry(calculate_center_screen_with_monitor(master, 600, 350, get_monitor(master)))
-        self.minsize(600, 350)
-        self.maxsize(600, 350)
+        self.geometry(calculate_center_screen_with_monitor(master, 620, 400, get_monitor(master)))
+        self.minsize(620, 400)
+        self.maxsize(620, 400)
         self.resizable(False, False)
         self.title(t('designer.segment_edit_title') if edit_segment else t('designer.segment_new_title'))
         self.master = master
@@ -3240,61 +3617,79 @@ class GetSegmentWindow(ctk.CTkToplevel):
         self.list = []
         self.checkbox_list = {}
         self.placeholders_list = []
-        # ------------------ Fields Frame -----------------------------------------------
-        self.fields_frame = ctk.CTkScrollableFrame(self, label_text=t('designer.segment_fields'),
-                                                   width=100, height=220)
+        self.fields_frame = ctk.CTkScrollableFrame(
+            self, label_text=t('designer.segment_fields'),
+            fg_color=THEME_BG, label_fg_color=THEME_CARD,
+            width=120, height=220,
+        )
         self.fields_frame.grid(padx=15, pady=15, row=0, column=0, rowspan=4)
 
         for i in range(1, 100):
-            checkbox = ctk.CTkCheckBox(self.fields_frame, text=column_label(i), border_width=1, corner_radius=3,
-                                       checkbox_height=20, checkbox_width=20, border_color='white')
-            checkbox.configure(command=lambda z=checkbox: self.update_placeholder_frame(z))
-
-            checkbox.grid(padx=2, pady=5)
+            checkbox = ctk.CTkCheckBox(
+                self.fields_frame, text=column_label(i),
+                checkbox_height=18, checkbox_width=18,
+                **_designer_checkbox_kwargs(),
+            )
+            checkbox.configure(command=lambda cb=checkbox: self.update_placeholder_frame(cb))
+            checkbox.grid(padx=2, pady=4)
             self.checkbox_list[i] = checkbox
 
-        # ------------------ Placeholders Frame -----------------------------------------
         self.placeholders_frame = None
 
-        # ------------------ First Row (Labels and Input) -------------------------------
-        ctk.CTkLabel(self, text=t('designer.placeholders'), font=(FONT_LIST[0], 20, 'bold')).grid(row=0, column=1, sticky='W')
+        ctk.CTkLabel(
+            self, text=t('designer.placeholders'), font=(FONT, 16, 'bold'), text_color='white',
+        ).grid(row=0, column=1, sticky='W')
 
-        ctk.CTkLabel(self, text=t('designer.char_limit_short')).grid(row=0, column=2, padx=5, sticky='E')
+        ctk.CTkLabel(self, text=t('designer.char_limit_short'), text_color=THEME_TEXT_SECONDARY).grid(
+            row=0, column=2, padx=5, sticky='E',
+        )
 
-        self.input_largura = ctk.CTkEntry(self, width=50, height=10, fg_color='white', text_color='black',
-                                          border_width=1, corner_radius=0, validate='key',
-                                          validatecommand=(self.validation, '%S'))
-
+        self.input_largura = ctk.CTkEntry(
+            self, width=56, **_designer_entry_kwargs(),
+            validate='key', validatecommand=(self.validation, '%S'),
+        )
         self.input_largura.grid(row=0, column=3, sticky='W')
         self.input_largura.insert(0, '0')
 
-        # ------------------ Line Height ----------------------------------------------
-        ctk.CTkLabel(self, text=t('designer.line_distance')).grid(row=3, column=1, sticky='W')
-        self.input_distancia = ctk.CTkEntry(self, width=50, height=10, fg_color='white', text_color='black',
-                                            border_width=1, corner_radius=0, validate='key',
-                                            validatecommand=(self.validation, '%S'))
-
+        ctk.CTkLabel(self, text=t('designer.line_distance'), text_color=THEME_TEXT_SECONDARY).grid(
+            row=3, column=1, sticky='W',
+        )
+        self.input_distancia = ctk.CTkEntry(
+            self, width=56, **_designer_entry_kwargs(),
+            validate='key', validatecommand=(self.validation, '%S'),
+        )
         self.input_distancia.grid(row=3, column=1, sticky='E')
         self.input_distancia.insert(0, '15')
 
-        # ------------------ Ok Button ------------------------------------------------
-        self.btn_ok = ctk.CTkButton(self, text=t('common.ok'), width=80, command=self.place_segment)
-        self.btn_ok.grid(row=3, column=2, columnspan=2, sticky='E', padx=25)
+        btn_row = ctk.CTkFrame(self, fg_color='transparent')
+        btn_row.grid(row=3, column=2, columnspan=2, sticky='E', padx=20)
+        self.btn_ok = ctk.CTkButton(
+            btn_row, text=t('common.ok'), width=90, command=self.place_segment,
+            **_designer_primary_btn_kwargs(),
+        )
+        self.btn_ok.pack(side='left', padx=(0, 8))
+        ctk.CTkButton(
+            btn_row, text=t('common.cancel'), width=90, command=self.destroy,
+            **_designer_danger_btn_kwargs(),
+        ).pack(side='left')
 
-        # ---------------- Font Properties -------------------------------------------
-        ctk.CTkLabel(self, text=t('designer.font')).grid(padx=20, row=4, column=0, sticky='W')
-        self.font = ctk.CTkComboBox(self, width=100, height=20, fg_color='white', text_color='black',
-                                    border_width=1, corner_radius=0, values=FONT_LIST)
+        ctk.CTkLabel(self, text=t('designer.font'), text_color=THEME_TEXT_SECONDARY).grid(
+            padx=20, row=4, column=0, sticky='W',
+        )
+        self.font = ctk.CTkComboBox(self, width=120, values=FONT_LIST, **_flat_combo_kwargs())
         self.font.grid(padx=20, row=4, column=0)
 
-        ctk.CTkLabel(self, text=t('designer.size')).grid(row=4, column=1, sticky='W')
-        self.size = ctk.CTkComboBox(self, width=70, height=20, fg_color='white', text_color='black',
-                                    border_width=1, corner_radius=0, values=[str(i) for i in range(6, 20)])
+        ctk.CTkLabel(self, text=t('designer.size'), text_color=THEME_TEXT_SECONDARY).grid(row=4, column=1, sticky='W')
+        self.size = ctk.CTkComboBox(
+            self, width=80, values=[str(i) for i in range(6, 20)], **_flat_combo_kwargs(),
+        )
         self.size.set('10')
         self.size.grid(padx=20, row=4, column=1, sticky='E')
 
-        self.bold = ctk.CTkCheckBox(self, checkbox_width=20, checkbox_height=20,
-                                    corner_radius=0, text=t('designer.font_bold'), border_width=2)
+        self.bold = ctk.CTkCheckBox(
+            self, checkbox_width=18, checkbox_height=18,
+            text=t('designer.font_bold'), **_designer_checkbox_kwargs(),
+        )
         self.bold.grid(row=4, column=2, sticky='W')
 
         if self.edit_segment:
@@ -3311,32 +3706,35 @@ class GetSegmentWindow(ctk.CTkToplevel):
         self.size.set(seg.font_size)
         if seg.font_style.lower() == 'bold':
             self.bold.select()
-        self.list = list(seg.columns)
+        self.list = []
         for col in seg.columns:
-            num = col.replace('Coluna_', '')
-            if num.isdigit() and int(num) in self.checkbox_list:
-                self.checkbox_list[int(num)].select()
+            num = column_index_from_name(col)
+            if num is not None and num in self.checkbox_list:
+                self.checkbox_list[num].select()
+                self.list.append(num)
         if self.placeholders_frame is not None:
             self.placeholders_frame.destroy()
-        self.placeholders_frame = ctk.CTkScrollableFrame(self, width=320, height=210)
+        self.placeholders_frame = ctk.CTkScrollableFrame(
+            self, width=320, height=210, fg_color=THEME_BG, label_fg_color=THEME_CARD,
+        )
         self.placeholders_frame.grid(row=1, column=1, columnspan=3, rowspan=2, sticky='W')
         self.placeholders_list = []
-        for i, col in enumerate(seg.columns):
-            ctk.CTkLabel(self.placeholders_frame, text=col).grid(padx=10, row=i, column=0)
-            entry = ctk.CTkEntry(self.placeholders_frame, width=230, height=10,
-                                 fg_color='white', text_color='black',
-                                 border_width=1, corner_radius=0)
+        for i, col_num in enumerate(self.list):
+            ctk.CTkLabel(
+                self.placeholders_frame, text=column_label(col_num), text_color=THEME_TEXT_SECONDARY,
+            ).grid(padx=10, row=i, column=0)
+            entry = ctk.CTkEntry(self.placeholders_frame, width=220, **_designer_entry_kwargs())
             label = seg.labels[i] if i < len(seg.labels) else t('designer.placeholder_n', n=i)
             entry.insert(0, label)
             entry.grid(column=1, row=i, sticky='W')
             self.placeholders_list.append(entry)
 
     def place_segment(self):
-        if not self.placeholders_list:
+        if not self.list:
             PopUpWindow(self, t('common.error'), t('designer.select_column'))
             return
         char_limit = self.input_largura.get()
-        columns = self.get_selected_checkbox().split('.') if self.get_selected_checkbox() else []
+        columns = [column_db_name(i) for i in self.list]
         labels = [entry.get() for entry in self.placeholders_list]
         font_style = 'bold' if self.bold.get() else 'normal'
 
@@ -3368,38 +3766,49 @@ class GetSegmentWindow(ctk.CTkToplevel):
             self.master._rebuild_segment_preview_lines(seg)
             self.master._render_segment(seg)
             new_ids = self.master.drawing_store.segment_canvas_ids(seg.object_id)
-            self.master.id_selected_item = new_ids[0] if new_ids else None
+            if new_ids:
+                self.master.select_single(new_ids[0])
+            else:
+                self.master.id_selected_item = None
             self.master.properties_window.last_id = None
 
         self.master.refresh()
         self.master.properties_window.refresh()
         self.destroy()
 
-    def get_selected_checkbox(self):
-        selected_checkbox = [i.cget('text') for i in self.checkbox_list.values() if i.get()]
-        return '.'.join(self.list)
+    def _checkbox_column_index(self, widget):
+        for idx, cb in self.checkbox_list.items():
+            if cb is widget:
+                return idx
+        return None
 
     def update_placeholder_frame(self, widget):
+        col_index = self._checkbox_column_index(widget)
+        if col_index is None:
+            return
         placeholders_content = [entry.get() for entry in self.placeholders_list]
         placeholders_content = dict(enumerate(placeholders_content))
         if widget.get():
-            self.list.append(widget.cget('text'))
-        else:
-            self.list.remove(widget.cget('text'))
+            if col_index not in self.list:
+                self.list.append(col_index)
+        elif col_index in self.list:
+            self.list.remove(col_index)
 
         if self.placeholders_frame is not None:
             self.placeholders_frame.destroy()
-        self.placeholders_frame = ctk.CTkScrollableFrame(self, width=320, height=210)
+        self.placeholders_frame = ctk.CTkScrollableFrame(
+            self, width=320, height=210, fg_color=THEME_BG, label_fg_color=THEME_CARD,
+        )
         self.placeholders_frame.grid(row=1, column=1, columnspan=3, rowspan=2, sticky='W')
         self.placeholders_frame.columnconfigure(0, weight=1)
         self.placeholders_frame.columnconfigure(1, weight=3)
 
         self.placeholders_list = []
-        for i, checkbox in enumerate(self.list):
-            ctk.CTkLabel(self.placeholders_frame, text=checkbox).grid(padx=10, row=i, column=0)
-            entry = ctk.CTkEntry(self.placeholders_frame, width=230, height=10,
-                                 fg_color='white', text_color='black',
-                                 border_width=1, corner_radius=0)
+        for i, col_num in enumerate(self.list):
+            ctk.CTkLabel(
+                self.placeholders_frame, text=column_label(col_num), text_color=THEME_TEXT_SECONDARY,
+            ).grid(padx=10, row=i, column=0)
+            entry = ctk.CTkEntry(self.placeholders_frame, width=220, **_designer_entry_kwargs())
             self.placeholders_list.append(entry)
             entry.insert(0, placeholders_content.get(i, t('designer.placeholder_n', n=i)))
             entry.grid(column=1, row=i, sticky='W')
@@ -3408,12 +3817,16 @@ class GetSegmentWindow(ctk.CTkToplevel):
             self.no_selection_lbl()
 
     def no_selection_lbl(self):
-        self.placeholders_frame = ctk.CTkScrollableFrame(self, width=320, height=210)
+        self.placeholders_frame = ctk.CTkScrollableFrame(
+            self, width=320, height=210, fg_color=THEME_BG, label_fg_color=THEME_CARD,
+        )
         self.placeholders_frame.grid(row=1, column=1, columnspan=3, rowspan=2, sticky='W')
         self.placeholders_frame.columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(self.placeholders_frame, text=t('designer.select_field'), font=(FONT_LIST[0], 25, 'bold'),
-                     text_color='#161616', height=180).grid(row=0, column=0)
+        ctk.CTkLabel(
+            self.placeholders_frame, text=t('designer.select_field'),
+            font=(FONT, 14, 'bold'), text_color=THEME_TEXT_SECONDARY, height=180,
+        ).grid(row=0, column=0)
 
     @staticmethod
     def is_valid_input(input_str):

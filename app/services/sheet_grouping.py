@@ -8,13 +8,15 @@ from typing import Any
 
 def parse_column_indices(file_columns: str | None) -> list[int]:
     """Converte 'Coluna_1.Coluna_3' em índices 0-based [0, 2]."""
+    from app.i18n.designer_labels import column_index_from_name
+
     if not file_columns:
         return []
     indices: list[int] = []
     for part in file_columns.split('.'):
-        part = part.strip()
-        if part.startswith('Coluna_'):
-            indices.append(int(part.replace('Coluna_', '')) - 1)
+        idx = column_index_from_name(part.strip())
+        if idx is not None:
+            indices.append(idx - 1)
     return indices
 
 
