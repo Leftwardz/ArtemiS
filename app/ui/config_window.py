@@ -1219,12 +1219,13 @@ class ManageAccessWindow(ctk.CTkToplevel):
     _TABLE_HEIGHT = 4
     _AUTHORIZED_FRAME_H = 110
     _RESULTS_FRAME_H = 110
-    _WINDOW_W = 520
-    _WINDOW_H = 580
+    _WINDOW_W = 560
+    _WINDOW_H = 620
 
     def __init__(self, master, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.iconbitmap(ICON)
+        self.configure(fg_color=THEME_BG)
 
         self.geometry(calculate_center_screen_with_monitor(
             master, self._WINDOW_W, self._WINDOW_H, get_monitor(master),
@@ -1237,44 +1238,61 @@ class ManageAccessWindow(ctk.CTkToplevel):
         self.grab_set()
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
-        body = ctk.CTkScrollableFrame(self, width=self._WINDOW_W - 20, height=self._WINDOW_H - 20)
-        body.grid(row=0, column=0, padx=10, pady=10, sticky='nsew')
-        body.grid_columnconfigure(0, weight=1)
-        body.grid_columnconfigure(1, weight=1)
+        header = ctk.CTkFrame(self, fg_color=THEME_CARD, corner_radius=0, height=56)
+        header.grid(row=0, column=0, sticky='ew')
+        header.grid_propagate(False)
+        title_col = ctk.CTkFrame(header, fg_color='transparent')
+        title_col.pack(side='left', padx=16, pady=10)
+        ctk.CTkLabel(
+            title_col, text=t('access.manage_title'), font=(FONT, 17, 'bold'), text_color='white',
+        ).pack(anchor='w')
+        ctk.CTkLabel(
+            title_col, text=t('access.manage_subtitle'), font=(FONT, 11),
+            text_color=THEME_TEXT_SECONDARY,
+        ).pack(anchor='w')
 
-        ctk.CTkLabel(body, text=t('access.authorized_title'), font=('Arial', 16, 'bold')) \
-            .grid(row=0, column=0, columnspan=2, pady=(0, 5), padx=5, sticky='w')
-
-        self.table_frame = ctk.CTkFrame(
-            body, width=480, height=self._AUTHORIZED_FRAME_H, corner_radius=0,
+        body = ctk.CTkScrollableFrame(
+            self, fg_color='transparent',
+            width=self._WINDOW_W - 28, height=self._WINDOW_H - 120,
         )
-        self.table_frame.grid_propagate(False)
-        self.table_frame.pack_propagate(False)
-        self.table_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
+        body.grid(row=1, column=0, padx=14, pady=(10, 8), sticky='nsew')
+        body.grid_columnconfigure(0, weight=1)
+
+        auth_card, auth_body = _section_card(body, t('access.authorized_title'))
+        auth_card.pack(fill='x', pady=(0, 10))
+
+        self.table_frame = _table_host(auth_body, self._AUTHORIZED_FRAME_H)
+        self.table_frame.pack(fill='x')
         self.table = Table(
-            self.table_frame, [t('access.col_principal'), t('access.col_type')], show='headings', height=self._TABLE_HEIGHT,
+            self.table_frame,
+            [t('access.col_principal'), t('access.col_type')],
+            show='headings', height=self._TABLE_HEIGHT,
         )
         self.table.column('#1', width=320)
         self.table.column('#2', width=80)
-        self.table.pack(expand=True, fill='both', padx=2, pady=2)
+        self.table.pack(expand=True, fill='both', padx=4, pady=4)
         self.refresh_table()
 
         self.btn_delete = ctk.CTkButton(
-            body, text=t('access.remove_selected'), width=140, fg_color=BTN_RED,
-            hover_color=BTN_HOVER_RED, command=self.remove_selected,
+            auth_body, text=t('access.remove_selected'), width=150,
+            fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
+            corner_radius=8, height=32, command=self.remove_selected,
         )
-        self.btn_delete.grid(row=2, column=1, padx=5, pady=5, sticky='e')
+        self.btn_delete.pack(anchor='e', pady=(8, 0))
 
-        ctk.CTkLabel(body, text=t('access.search_title'), font=(FONT, 13, 'bold')) \
-            .grid(row=3, column=0, columnspan=2, padx=5, sticky='w', pady=(10, 0))
+        search_card, search_body = _section_card(body, t('access.search_title'))
+        search_card.pack(fill='x', pady=(0, 10))
 
-        search_frame = ctk.CTkFrame(body, fg_color='transparent')
-        search_frame.grid(row=4, column=0, columnspan=2, padx=5, sticky='ew')
+        search_row = ctk.CTkFrame(search_body, fg_color='transparent')
+        search_row.pack(fill='x', pady=(0, 8))
+        search_row.grid_columnconfigure(0, weight=1)
 
-        self.entry_search = ctk.CTkEntry(search_frame, width=220, placeholder_text=t('access.search_hint'))
-        self.entry_search.pack(side='left', padx=(0, 5))
+        self.entry_search = ctk.CTkEntry(
+            search_row, placeholder_text=t('access.search_hint'), **_entry_kwargs(),
+        )
+        self.entry_search.grid(row=0, column=0, sticky='ew', padx=(0, 8))
         self.entry_search.bind('<Return>', self.search_principals)
 
         self._type_combo_labels = {
@@ -1283,46 +1301,58 @@ class ManageAccessWindow(ctk.CTkToplevel):
             t('access.type_group'): 'group',
         }
         self.combo_type = ctk.CTkComboBox(
-            search_frame, width=100, values=list(self._type_combo_labels.keys()),
+            search_row, width=130, values=list(self._type_combo_labels.keys()), **_combo_kwargs(),
         )
         self.combo_type.set(t('access.type_both'))
-        self.combo_type.pack(side='left', padx=5)
+        self.combo_type.grid(row=0, column=1, padx=(0, 8))
 
-        ctk.CTkButton(search_frame, text=t('access.search_btn'), width=90, command=self.search_principals) \
-            .pack(side='left', padx=5)
+        ctk.CTkButton(
+            search_row, text=t('access.search_btn'), width=96,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            corner_radius=8, height=32, command=self.search_principals,
+        ).grid(row=0, column=2)
 
-        self.results_frame = ctk.CTkFrame(
-            body, width=480, height=self._RESULTS_FRAME_H, corner_radius=0,
-        )
-        self.results_frame.grid_propagate(False)
-        self.results_frame.pack_propagate(False)
-        self.results_frame.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky='ew')
+        self.results_frame = _table_host(search_body, self._RESULTS_FRAME_H)
+        self.results_frame.pack(fill='x', pady=(0, 8))
         self.results_table = Table(
-            self.results_frame, [t('access.col_search_result'), t('access.col_type')], show='headings', height=self._TABLE_HEIGHT,
+            self.results_frame,
+            [t('access.col_search_result'), t('access.col_type')],
+            show='headings', height=self._TABLE_HEIGHT,
         )
         self.results_table.column('#1', width=320)
         self.results_table.column('#2', width=80)
-        self.results_table.pack(expand=True, fill='both', padx=2, pady=2)
+        self.results_table.pack(expand=True, fill='both', padx=4, pady=4)
         self._search_results = []
 
-        ctk.CTkButton(body, text=t('access.add_selected'), width=140, command=self.add_selected) \
-            .grid(row=6, column=1, padx=5, pady=5, sticky='e')
+        ctk.CTkButton(
+            search_body, text=t('access.add_selected'), width=150, command=self.add_selected,
+            **_secondary_btn_kwargs(),
+        ).pack(anchor='e')
 
-        ctk.CTkLabel(body, text=t('access.manual_hint'), font=(FONT, 11)) \
-            .grid(row=7, column=0, columnspan=2, padx=5, sticky='w', pady=(8, 0))
+        manual_card, manual_body = _section_card(body, t('access.manual_hint'))
+        manual_card.pack(fill='x')
 
-        manual_frame = ctk.CTkFrame(body, fg_color='transparent')
-        manual_frame.grid(row=8, column=0, columnspan=2, padx=5, sticky='ew')
+        manual_row = ctk.CTkFrame(manual_body, fg_color='transparent')
+        manual_row.pack(fill='x')
+        manual_row.grid_columnconfigure(0, weight=1)
 
-        self.entry_manual = ctk.CTkEntry(manual_frame, width=280, placeholder_text=t('access.manual_placeholder'))
-        self.entry_manual.pack(side='left', padx=(0, 5))
+        self.entry_manual = ctk.CTkEntry(
+            manual_row, placeholder_text=t('access.manual_placeholder'), **_entry_kwargs(),
+        )
+        self.entry_manual.grid(row=0, column=0, sticky='ew', padx=(0, 8))
         self.entry_manual.bind('<Return>', self.add_manual)
 
-        ctk.CTkButton(manual_frame, text=t('common.add'), width=90, command=self.add_manual) \
-            .pack(side='left')
+        ctk.CTkButton(
+            manual_row, text=t('common.add'), width=96, command=self.add_manual,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER, corner_radius=8, height=32,
+        ).grid(row=0, column=1)
 
-        #ctk.CTkButton(body, text=t('common.close'), width=90, command=self.destroy) \
-        #    .grid(row=9, column=1, padx=5, pady=(10, 5), sticky='e')
+        footer = ctk.CTkFrame(self, fg_color='transparent')
+        footer.grid(row=2, column=0, sticky='e', padx=14, pady=(0, 12))
+        ctk.CTkButton(
+            footer, text=t('common.close'), width=100, command=self.destroy,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER, corner_radius=8, height=32,
+        ).pack(side='right')
 
     def _type_filter(self):
         return self._type_combo_labels.get(self.combo_type.get(), 'both')

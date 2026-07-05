@@ -210,6 +210,7 @@
   },
   "access": {
     "manage_title": "Gérer l'accès aux paramètres",
+    "manage_subtitle": "Utilisateurs et groupes Windows autorisés",
     "authorized_title": "Utilisateurs et groupes autorisés",
     "col_principal": "Principal",
     "col_type": "Type",
