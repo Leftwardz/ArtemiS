@@ -3313,7 +3313,7 @@ class GetSegmentWindow(ctk.CTkToplevel):
             entry = ctk.CTkEntry(self.placeholders_frame, width=230, height=10,
                                  fg_color='white', text_color='black',
                                  border_width=1, corner_radius=0)
-            label = seg.labels[i] if i < len(seg.labels) else f'Placeholder {i}'
+            label = seg.labels[i] if i < len(seg.labels) else t('designer.placeholder_n', n=i)
             entry.insert(0, label)
             entry.grid(column=1, row=i, sticky='W')
             self.placeholders_list.append(entry)
@@ -3388,7 +3388,7 @@ class GetSegmentWindow(ctk.CTkToplevel):
                                  fg_color='white', text_color='black',
                                  border_width=1, corner_radius=0)
             self.placeholders_list.append(entry)
-            entry.insert(0, placeholders_content.get(i, f'Placeholder {i}'))
+            entry.insert(0, placeholders_content.get(i, t('designer.placeholder_n', n=i)))
             entry.grid(column=1, row=i, sticky='W')
 
         if not self.list:

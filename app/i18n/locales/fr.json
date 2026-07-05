@@ -151,6 +151,10 @@
   "remake": {
     "title": "Remake",
     "select_title": "Sélectionner remake",
+    "card_context": "Contexte",
+    "card_search": "Recherche",
+    "card_results": "Résultats",
+    "card_actions": "Actions",
     "work_total": "WO:{work} - (Total : {total})",
     "printer": "Imprimante :",
     "range_label": "Plage (ex. : 1-3,5,10)",
