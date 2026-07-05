@@ -249,8 +249,9 @@
     "add_error": "Não foi possível adicionar grupo à base\n{error}",
     "delete_error": "Não foi possível deletar o grupo.\n{error}"
   },
-  "audit": {
+    "audit": {
     "title": "Auditoria / Logs",
+    "subtitle": "Consulta ao banco central de auditoria",
     "date_from": "De (AAAA-MM-DD)",
     "date_to": "Até",
     "user": "Usuário",

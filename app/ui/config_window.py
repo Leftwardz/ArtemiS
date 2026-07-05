@@ -70,6 +70,14 @@ def _combo_kwargs(**extra):
     )
 
 
+def _secondary_btn_kwargs(**extra):
+    return dict(
+        fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+        border_width=1, border_color=THEME_CARD_BORDER,
+        corner_radius=8, height=32, **extra,
+    )
+
+
 class ConfigWindow(ctk.CTkToplevel):
     def __init__(self, master, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1540,6 +1548,7 @@ class AuditWindow(ctk.CTkToplevel):
     def __init__(self, master, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.iconbitmap(ICON)
+        self.configure(fg_color=THEME_BG)
         self._category_labels = {
             t('audit.category_all'): None,
             t('audit.category_print'): 'print',
@@ -1566,51 +1575,103 @@ class AuditWindow(ctk.CTkToplevel):
         self.grab_set()
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(2, weight=1)
 
-        filters = ctk.CTkFrame(self, fg_color='transparent')
-        filters.grid(row=0, column=0, padx=10, pady=10, sticky='ew')
+        header = ctk.CTkFrame(self, fg_color=THEME_CARD, corner_radius=0, height=56)
+        header.grid(row=0, column=0, sticky='ew')
+        header.grid_propagate(False)
+        title_col = ctk.CTkFrame(header, fg_color='transparent')
+        title_col.pack(side='left', padx=16, pady=10)
+        ctk.CTkLabel(
+            title_col, text=t('audit.title'), font=(FONT, 18, 'bold'), text_color='white',
+        ).pack(anchor='w')
+        ctk.CTkLabel(
+            title_col, text=t('audit.subtitle'), font=(FONT, 11),
+            text_color=THEME_TEXT_SECONDARY,
+        ).pack(anchor='w')
 
-        ctk.CTkLabel(filters, text=t('audit.date_from')).pack(side='left', padx=(0, 3))
-        self.entry_from = ctk.CTkEntry(filters, width=105)
-        self.entry_from.pack(side='left', padx=(0, 8))
+        filter_card = ctk.CTkFrame(
+            self, fg_color=THEME_CARD, corner_radius=12,
+            border_width=1, border_color=THEME_CARD_BORDER,
+        )
+        filter_card.grid(row=1, column=0, padx=14, pady=(10, 8), sticky='ew')
+        filters = ctk.CTkFrame(filter_card, fg_color='transparent')
+        filters.pack(fill='x', padx=12, pady=10)
+        filters.grid_columnconfigure(7, weight=1)
 
-        ctk.CTkLabel(filters, text=t('audit.date_to')).pack(side='left', padx=(0, 3))
-        self.entry_to = ctk.CTkEntry(filters, width=105)
-        self.entry_to.pack(side='left', padx=(0, 8))
+        ctk.CTkLabel(filters, text=t('audit.date_from'), font=(FONT, 11), text_color=THEME_TEXT_SECONDARY).grid(
+            row=0, column=0, padx=(0, 4), sticky='w',
+        )
+        self.entry_from = ctk.CTkEntry(filters, width=100, **_entry_kwargs())
+        self.entry_from.grid(row=0, column=1, padx=(0, 8), sticky='w')
 
-        ctk.CTkLabel(filters, text=t('audit.user')).pack(side='left', padx=(0, 3))
-        self.entry_user = ctk.CTkEntry(filters, width=110)
-        self.entry_user.pack(side='left', padx=(0, 8))
+        ctk.CTkLabel(filters, text=t('audit.date_to'), font=(FONT, 11), text_color=THEME_TEXT_SECONDARY).grid(
+            row=0, column=2, padx=(0, 4), sticky='w',
+        )
+        self.entry_to = ctk.CTkEntry(filters, width=100, **_entry_kwargs())
+        self.entry_to.grid(row=0, column=3, padx=(0, 8), sticky='w')
 
-        ctk.CTkLabel(filters, text=t('audit.printer')).pack(side='left', padx=(0, 3))
-        self.entry_printer = ctk.CTkEntry(filters, width=110)
-        self.entry_printer.pack(side='left', padx=(0, 8))
+        ctk.CTkLabel(filters, text=t('audit.user'), font=(FONT, 11), text_color=THEME_TEXT_SECONDARY).grid(
+            row=0, column=4, padx=(0, 4), sticky='w',
+        )
+        self.entry_user = ctk.CTkEntry(filters, width=100, **_entry_kwargs())
+        self.entry_user.grid(row=0, column=5, padx=(0, 8), sticky='w')
 
-        ctk.CTkLabel(filters, text=t('audit.file')).pack(side='left', padx=(0, 3))
-        self.entry_file = ctk.CTkEntry(filters, width=120, placeholder_text=t('audit.file_placeholder'))
-        self.entry_file.pack(side='left', padx=(0, 8))
+        ctk.CTkLabel(filters, text=t('audit.printer'), font=(FONT, 11), text_color=THEME_TEXT_SECONDARY).grid(
+            row=0, column=6, padx=(0, 4), sticky='w',
+        )
+        self.entry_printer = ctk.CTkEntry(filters, width=100, **_entry_kwargs())
+        self.entry_printer.grid(row=0, column=7, padx=(0, 8), sticky='w')
+
+        ctk.CTkLabel(filters, text=t('audit.file'), font=(FONT, 11), text_color=THEME_TEXT_SECONDARY).grid(
+            row=1, column=0, padx=(0, 4), pady=(8, 0), sticky='w',
+        )
+        self.entry_file = ctk.CTkEntry(
+            filters, width=160, placeholder_text=t('audit.file_placeholder'), **_entry_kwargs(),
+        )
+        self.entry_file.grid(row=1, column=1, columnspan=2, padx=(0, 8), pady=(8, 0), sticky='w')
         self.entry_file.bind('<Return>', lambda _e: self.refresh())
 
         self.combo_category = ctk.CTkComboBox(
-            filters, width=130, values=list(self._category_labels.keys()),
+            filters, width=120, values=list(self._category_labels.keys()), **_combo_kwargs(),
         )
         self.combo_category.set(t('audit.category_all'))
-        self.combo_category.pack(side='left', padx=(0, 8))
+        self.combo_category.grid(row=1, column=3, padx=(0, 8), pady=(8, 0), sticky='w')
 
-        ctk.CTkButton(filters, text=t('audit.search'), width=80, command=self.refresh) \
-            .pack(side='left', padx=5)
+        ctk.CTkButton(
+            filters, text=t('audit.search'), width=88,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            corner_radius=8, height=32, command=self.refresh,
+        ).grid(row=1, column=4, padx=(0, 6), pady=(8, 0), sticky='w')
 
-        ctk.CTkButton(filters, text=t('audit.copy_all'), width=90, command=self.copy_all) \
-            .pack(side='left', padx=(12, 3))
-        ctk.CTkButton(filters, text=t('audit.copy_selection'), width=100, command=self.copy_selected) \
-            .pack(side='left', padx=3)
+        actions = ctk.CTkFrame(filters, fg_color='transparent')
+        actions.grid(row=1, column=5, columnspan=4, pady=(8, 0), sticky='e')
+        ctk.CTkButton(
+            actions, text=t('audit.copy_all'), width=96, command=self.copy_all, **_secondary_btn_kwargs(),
+        ).pack(side='left', padx=(0, 6))
+        ctk.CTkButton(
+            actions, text=t('audit.copy_selection'), width=110, command=self.copy_selected,
+            **_secondary_btn_kwargs(),
+        ).pack(side='left')
 
         self._rows = []
         self._item_to_index = {}
 
-        table_frame = ctk.CTkFrame(self, corner_radius=0)
-        table_frame.grid(row=1, column=0, padx=10, pady=(0, 5), sticky='nsew')
+        table_card = ctk.CTkFrame(
+            self, fg_color=THEME_CARD, corner_radius=12,
+            border_width=1, border_color=THEME_CARD_BORDER,
+        )
+        table_card.grid(row=2, column=0, padx=14, pady=(0, 8), sticky='nsew')
+        table_card.grid_rowconfigure(0, weight=1)
+        table_card.grid_columnconfigure(0, weight=1)
+
+        table_host = ctk.CTkFrame(
+            table_card, fg_color=THEME_BG, corner_radius=8,
+            border_width=1, border_color=THEME_CARD_BORDER,
+        )
+        table_host.grid(row=0, column=0, sticky='nsew', padx=10, pady=10)
+        table_host.grid_rowconfigure(0, weight=1)
+        table_host.grid_columnconfigure(0, weight=1)
 
         try:
             style = ttk.Style(self)
@@ -1618,18 +1679,20 @@ class AuditWindow(ctk.CTkToplevel):
         except Exception:
             pass
 
-        self.table = Table(table_frame, list(self._columns), show='headings', style='Audit.Treeview')
+        self.table = Table(table_host, list(self._columns), show='headings', style='Audit.Treeview')
         for i, width in enumerate(self._WIDTHS, start=1):
             anchor = 'w' if i in (3, 5, 8) else 'center'
             self.table.column(f'#{i}', width=width, anchor=anchor)
-        self.table.tag_configure('rec_a', background='#242729')
-        self.table.tag_configure('rec_b', background='#1b1d1e')
+        self.table.tag_configure('rec_a', background='#1a1d28')
+        self.table.tag_configure('rec_b', background='#12151f')
         self.table.bind('<Control-c>', lambda _e: self.copy_selected())
         self.table.bind('<Control-C>', lambda _e: self.copy_selected())
-        self.table.pack(expand=True, fill='both', padx=2, pady=2)
+        self.table.grid(row=0, column=0, sticky='nsew', padx=4, pady=4)
 
-        self.lbl_status = ctk.CTkLabel(self, text='', font=(FONT, 11), text_color='gray')
-        self.lbl_status.grid(row=2, column=0, padx=10, pady=(0, 8), sticky='w')
+        self.lbl_status = ctk.CTkLabel(
+            self, text='', font=(FONT, 11), text_color=THEME_TEXT_SECONDARY,
+        )
+        self.lbl_status.grid(row=3, column=0, padx=16, pady=(0, 10), sticky='w')
 
         self.refresh()
 

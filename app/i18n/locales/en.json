@@ -249,8 +249,9 @@
     "add_error": "Could not add group to database\n{error}",
     "delete_error": "Could not delete group.\n{error}"
   },
-  "audit": {
+    "audit": {
     "title": "Audit / logs",
+    "subtitle": "Central audit database query",
     "date_from": "From (YYYY-MM-DD)",
     "date_to": "To",
     "user": "User",

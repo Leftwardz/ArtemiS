@@ -249,8 +249,9 @@
     "add_error": "Impossible d'ajouter le groupe à la base\n{error}",
     "delete_error": "Impossible de supprimer le groupe.\n{error}"
   },
-  "audit": {
+    "audit": {
     "title": "Audit / journaux",
+    "subtitle": "Consultation de la base centrale d'audit",
     "date_from": "De (AAAA-MM-JJ)",
     "date_to": "À",
     "user": "Utilisateur",
