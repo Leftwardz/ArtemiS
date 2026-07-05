@@ -49,7 +49,6 @@ from app.ui.constants import (
     THEME_BG,
     THEME_CARD,
     THEME_CARD_BORDER,
-    THEME_ICON,
     THEME_NAV_ACTIVE,
     THEME_NAV_TEXT_ACCENT,
     THEME_TABLE_ROW_A,
@@ -58,14 +57,15 @@ from app.ui.constants import (
 )
 from app.ui.designer_window import EditWindow
 from app.ui.theme import available_theme_ids
-from app.ui.theme_assets import IconCache
 from app.utils.window_geometry import calculate_center_screen_with_monitor, get_monitor
 
 
 def _entry_kwargs(**extra):
     return dict(
         fg_color=THEME_BG, border_color=THEME_CARD_BORDER,
-        border_width=2, corner_radius=8, height=32, **extra,
+        border_width=2, corner_radius=8, height=32,
+        text_color='white', placeholder_text_color=THEME_TEXT_SECONDARY,
+        **extra,
     )
 
 
@@ -143,20 +143,13 @@ def _dialog_action_row(parent, window, ok_text: str, ok_command, ok_kwargs=None)
     return btn_ok
 
 
-class ConfigWindow(ctk.CTkToplevel):
-    def __init__(self, master, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.title(t('config.title'))
-        self.configure(fg_color=THEME_BG)
-
-        self.geometry(calculate_center_screen_with_monitor(master, CONFIG_WIDTH, CONFIG_HEIGHT, get_monitor(master)))
-        self.minsize(CONFIG_WIDTH, CONFIG_HEIGHT)
-        self.resizable(True, True)
-        self.master = master
-        self.grid_columnconfigure(0, weight=2)
-        self.grid_columnconfigure(1, weight=3)
-        self.grid_rowconfigure(1, weight=1)
-        ctk.deactivate_automatic_dpi_awareness()
+class ConfigPanel(ctk.CTkFrame):
+    def __init__(self, parent, app, *args, **kwargs):
+        super().__init__(parent, fg_color=THEME_BG, *args, **kwargs)
+        self.app = app
+        self.grid_columnconfigure(0, weight=3, minsize=380)
+        self.grid_columnconfigure(1, weight=4, minsize=480)
+        self.grid_rowconfigure(0, weight=1)
 
         self.edit_window = None
         self.btn_edit = None
@@ -164,10 +157,8 @@ class ConfigWindow(ctk.CTkToplevel):
         self.btn_delete_client = None
         self.btn_add_product = None
         self.btn_edit_product = None
-        self._icons = IconCache()
         self._search_query = ''
 
-        self._build_header()
         self._build_left_panel()
         self._build_settings_tabs()
 
@@ -175,30 +166,43 @@ class ConfigWindow(ctk.CTkToplevel):
         self.inpt_search_folder.bind('<KeyRelease>', self.update_save_button)
         self.inpt_db_location.bind('<Return>', self.save_database_location)
         self.inpt_search_folder.bind('<Return>', self.save_folder)
-        self.protocol("WM_DELETE_WINDOW", self.exit)
 
         self._apply_search_filter()
+        self.bind('<Map>', self._on_panel_mapped, add='+')
 
-    def _build_header(self):
-        header = ctk.CTkFrame(self, fg_color=THEME_CARD, corner_radius=0, height=56)
-        header.grid(row=0, column=0, columnspan=2, sticky='ew')
-        header.grid_propagate(False)
+    def refresh_layout(self):
+        """Recalcula geometria após a view de configurações ficar visível."""
+        self.update_idletasks()
+        tabs = getattr(self, 'tabs', None)
+        if tabs is None:
+            return
+        tab_frames = list(getattr(tabs, '_tab_dict', {}).values())
+        if not tab_frames:
+            tab_frames = [tabs.tab(name) for name in getattr(tabs, '_name_list', [])]
+        for tab in tab_frames:
+            tab.update_idletasks()
+            for child in tab.winfo_children():
+                child.update_idletasks()
+                canvas = getattr(child, '_parent_canvas', None)
+                if canvas is not None:
+                    try:
+                        canvas.configure(scrollregion=canvas.bbox('all'))
+                    except Exception:
+                        pass
 
-        title_row = ctk.CTkFrame(header, fg_color='transparent')
-        title_row.pack(side='left', padx=20, pady=12)
-        gear = self._icons.get('settings', 20, THEME_ICON)
-        ctk.CTkLabel(title_row, image=gear, text='').pack(side='left')
-        ctk.CTkLabel(
-            title_row, text=t('config.title'), font=(FONT, 20, 'bold'), text_color='white',
-        ).pack(side='left', padx=(10, 0))
+    def _on_panel_mapped(self, _event=None):
+        self.after_idle(self.refresh_layout)
 
-        current_user = admin_service.get_current_windows_user()
-        admin_hint = t('config.admin_suffix') if admin_service.is_windows_admin() else ''
-        ctk.CTkLabel(
-            header,
-            text=t('config.current_user', user=current_user, admin=admin_hint),
-            font=(FONT, 11), text_color=THEME_TEXT_SECONDARY,
-        ).pack(side='right', padx=20)
+    def deiconify(self):
+        """Restaura o app após fechar o editor (compatível com EditWindow)."""
+        self.app.deiconify()
+        self.app._set_active_view('settings')
+
+    def exit(self):
+        """Volta à produção (ex.: após salvar database)."""
+        self.app._set_active_view('production')
+        self.app.focus_set()
+        self.app.refresh()
 
     def _settings_card(self, parent, title):
         card = ctk.CTkFrame(
@@ -214,7 +218,7 @@ class ConfigWindow(ctk.CTkToplevel):
 
     def _build_left_panel(self):
         left = ctk.CTkFrame(self, fg_color='transparent')
-        left.grid(row=1, column=0, sticky='nsew', padx=(16, 8), pady=(12, 16))
+        left.grid(row=0, column=0, sticky='nsew', padx=(16, 8), pady=(12, 16))
 
         card, body = self._settings_card(left, t('config.clients_products'))
         card.pack(fill='both', expand=True)
@@ -269,7 +273,7 @@ class ConfigWindow(ctk.CTkToplevel):
 
     def _build_settings_tabs(self):
         right = ctk.CTkFrame(self, fg_color='transparent')
-        right.grid(row=1, column=1, sticky='nsew', padx=(8, 16), pady=(12, 16))
+        right.grid(row=0, column=1, sticky='nsew', padx=(8, 16), pady=(12, 16))
 
         self.tabs = ctk.CTkTabview(
             right,
@@ -299,9 +303,87 @@ class ConfigWindow(ctk.CTkToplevel):
         self._build_tab_access(tab_access)
         self._build_tab_language(tab_language)
 
-    def _build_tab_general(self, parent):
+    def _tab_scroll(self, parent):
         scroll = ctk.CTkScrollableFrame(parent, fg_color='transparent')
         scroll.pack(fill='both', expand=True, padx=4, pady=4)
+        return scroll
+
+    def _build_tab_general(self, parent):
+        scroll = self._tab_scroll(parent)
+
+        card_files, body_files = self._settings_card(scroll, t('config.card_files'))
+        card_files.pack(fill='x', pady=(0, 10))
+
+        ctk.CTkLabel(
+            body_files, text=t('config.search_folder'), anchor='w', text_color=THEME_TEXT_SECONDARY,
+        ).pack(fill='x')
+        row_sf = ctk.CTkFrame(body_files, fg_color='transparent')
+        row_sf.pack(fill='x', pady=(4, 10))
+        self.inpt_search_folder = ctk.CTkEntry(row_sf, **_entry_kwargs())
+        self.inpt_search_folder.pack(side='left', fill='x', expand=True, padx=(0, 8))
+        self.btn_save_folder = ctk.CTkButton(
+            row_sf, text=t('config.save'), width=80, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            state='disabled', command=self.save_folder,
+        )
+        self.btn_save_folder.pack(side='left')
+        search_folder = get_search_folder()
+        if search_folder:
+            self.inpt_search_folder.insert(0, search_folder)
+        ctk.CTkLabel(
+            body_files, text=t('config.search_folder_hint'), font=(FONT, 10),
+            text_color=THEME_TEXT_SECONDARY, justify='left', wraplength=520, anchor='w',
+        ).pack(fill='x', pady=(0, 10))
+
+        ctk.CTkLabel(
+            body_files, text=t('config.database'), anchor='w', text_color=THEME_TEXT_SECONDARY,
+        ).pack(fill='x')
+        row_db = ctk.CTkFrame(body_files, fg_color='transparent')
+        row_db.pack(fill='x', pady=(4, 0))
+        self.inpt_db_location = ctk.CTkEntry(row_db, **_entry_kwargs())
+        self.inpt_db_location.pack(side='left', fill='x', expand=True, padx=(0, 8))
+        self.btn_save_db = ctk.CTkButton(
+            row_db, text=t('config.save'), width=80, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            state='disabled', command=self.save_database_location,
+        )
+        self.btn_save_db.pack(side='left')
+        database_location = get_database_location()
+        if database_location:
+            self.inpt_db_location.insert(0, database_location)
+
+        card_audit, body_audit = self._settings_card(scroll, t('config.card_audit'))
+        card_audit.pack(fill='x', pady=(0, 10))
+        ctk.CTkLabel(
+            body_audit, text=t('config.audit_db'), anchor='w', text_color=THEME_TEXT_SECONDARY,
+        ).pack(fill='x')
+        row_au = ctk.CTkFrame(body_audit, fg_color='transparent')
+        row_au.pack(fill='x', pady=(4, 6))
+        self.inpt_audit_location = ctk.CTkEntry(
+            row_au,
+            placeholder_text=t('config.audit_db_placeholder'),
+            **_entry_kwargs(),
+        )
+        self.inpt_audit_location.pack(side='left', fill='x', expand=True, padx=(0, 8))
+        self.btn_save_audit_location = ctk.CTkButton(
+            row_au, text=t('config.save'), width=80, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            command=self.save_audit_location,
+        )
+        self.btn_save_audit_location.pack(side='left')
+        audit_location = get_audit_central_location()
+        if audit_location:
+            self.inpt_audit_location.insert(0, audit_location)
+        ctk.CTkLabel(
+            body_audit, text=t('config.audit_hint'), font=(FONT, 10),
+            text_color=THEME_TEXT_SECONDARY, justify='left', anchor='w', wraplength=520,
+        ).pack(fill='x', pady=(0, 8))
+        ctk.CTkButton(
+            body_audit, text=t('config.audit_logs'), width=160, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            border_width=1, border_color=THEME_CARD_BORDER,
+            command=lambda: AuditWindow(self),
+        ).pack(anchor='w')
 
         card_ie, body_ie = self._settings_card(scroll, t('config.card_import_export'))
         card_ie.pack(fill='x', pady=(0, 10))
@@ -320,83 +402,8 @@ class ConfigWindow(ctk.CTkToplevel):
             command=lambda: ExportProductWindow(self),
         ).pack(side='left')
 
-        card_files, body_files = self._settings_card(scroll, t('config.card_files'))
-        card_files.pack(fill='x', pady=(0, 10))
-
-        ctk.CTkLabel(
-            body_files, text=t('config.search_folder'), anchor='w', text_color=THEME_TEXT_SECONDARY,
-        ).pack(fill='x')
-        self.inpt_search_folder = ctk.CTkEntry(body_files, **_entry_kwargs())
-        self.btn_save_folder = ctk.CTkButton(
-            body_files, text=t('config.save'), width=80, height=32, corner_radius=8,
-            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
-            state='disabled', command=self.save_folder,
-        )
-        row_sf = ctk.CTkFrame(body_files, fg_color='transparent')
-        row_sf.pack(fill='x', pady=(4, 10))
-        self.inpt_search_folder.pack(in_=row_sf, side='left', fill='x', expand=True, padx=(0, 8))
-        self.btn_save_folder.pack(in_=row_sf, side='left')
-        search_folder = get_search_folder()
-        if search_folder:
-            self.inpt_search_folder.insert(0, search_folder)
-        ctk.CTkLabel(
-            body_files, text=t('config.search_folder_hint'), font=(FONT, 10),
-            text_color=THEME_TEXT_SECONDARY, justify='left', wraplength=420, anchor='w',
-        ).pack(fill='x', pady=(0, 10))
-
-        ctk.CTkLabel(
-            body_files, text=t('config.database'), anchor='w', text_color=THEME_TEXT_SECONDARY,
-        ).pack(fill='x')
-        self.inpt_db_location = ctk.CTkEntry(body_files, **_entry_kwargs())
-        self.btn_save_db = ctk.CTkButton(
-            body_files, text=t('config.save'), width=80, height=32, corner_radius=8,
-            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
-            state='disabled', command=self.save_database_location,
-        )
-        row_db = ctk.CTkFrame(body_files, fg_color='transparent')
-        row_db.pack(fill='x', pady=(4, 0))
-        self.inpt_db_location.pack(in_=row_db, side='left', fill='x', expand=True, padx=(0, 8))
-        self.btn_save_db.pack(in_=row_db, side='left')
-        database_location = get_database_location()
-        if database_location:
-            self.inpt_db_location.insert(0, database_location)
-
-        card_audit, body_audit = self._settings_card(scroll, t('config.card_audit'))
-        card_audit.pack(fill='x')
-        ctk.CTkLabel(
-            body_audit, text=t('config.audit_db'), anchor='w', text_color=THEME_TEXT_SECONDARY,
-        ).pack(fill='x')
-        self.inpt_audit_location = ctk.CTkEntry(
-            body_audit,
-            placeholder_text=t('config.audit_db_placeholder'),
-            **_entry_kwargs(),
-        )
-        self.btn_save_audit_location = ctk.CTkButton(
-            body_audit, text=t('config.save'), width=80, height=32, corner_radius=8,
-            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
-            command=self.save_audit_location,
-        )
-        row_au = ctk.CTkFrame(body_audit, fg_color='transparent')
-        row_au.pack(fill='x', pady=(4, 6))
-        self.inpt_audit_location.pack(in_=row_au, side='left', fill='x', expand=True, padx=(0, 8))
-        self.btn_save_audit_location.pack(in_=row_au, side='left')
-        audit_location = get_audit_central_location()
-        if audit_location:
-            self.inpt_audit_location.insert(0, audit_location)
-        ctk.CTkLabel(
-            body_audit, text=t('config.audit_hint'), font=(FONT, 10),
-            text_color=THEME_TEXT_SECONDARY, justify='left', anchor='w',
-        ).pack(fill='x', pady=(0, 8))
-        ctk.CTkButton(
-            body_audit, text=t('config.audit_logs'), width=160, height=32, corner_radius=8,
-            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
-            border_width=1, border_color=THEME_CARD_BORDER,
-            command=lambda: AuditWindow(self),
-        ).pack(anchor='w')
-
     def _build_tab_printing(self, parent):
-        scroll = ctk.CTkScrollableFrame(parent, fg_color='transparent')
-        scroll.pack(fill='both', expand=True, padx=4, pady=4)
+        scroll = self._tab_scroll(parent)
 
         card, body = self._settings_card(scroll, t('config.printers'))
         card.pack(fill='x', pady=(0, 10))
@@ -444,8 +451,7 @@ class ConfigWindow(ctk.CTkToplevel):
         ).pack(fill='x', pady=(8, 0))
 
     def _build_tab_access(self, parent):
-        scroll = ctk.CTkScrollableFrame(parent, fg_color='transparent')
-        scroll.pack(fill='both', expand=True, padx=4, pady=4)
+        scroll = self._tab_scroll(parent)
 
         card, body = self._settings_card(scroll, t('config.config_access'))
         card.pack(fill='x')
@@ -460,8 +466,7 @@ class ConfigWindow(ctk.CTkToplevel):
         ).pack(anchor='w', pady=(0, 8))
 
     def _build_tab_language(self, parent):
-        scroll = ctk.CTkScrollableFrame(parent, fg_color='transparent')
-        scroll.pack(fill='both', expand=True, padx=4, pady=4)
+        scroll = self._tab_scroll(parent)
 
         card, body = self._settings_card(scroll, t('config.language_section'))
         card.pack(fill='x')
@@ -481,16 +486,16 @@ class ConfigWindow(ctk.CTkToplevel):
         ctk.CTkLabel(
             body, text=t('config.locales_folder'), anchor='w', text_color=THEME_TEXT_SECONDARY,
         ).pack(fill='x')
-        self.inpt_locales_folder = ctk.CTkEntry(body, **_entry_kwargs())
+        row_loc = ctk.CTkFrame(body, fg_color='transparent')
+        row_loc.pack(fill='x', pady=(4, 8))
+        self.inpt_locales_folder = ctk.CTkEntry(row_loc, **_entry_kwargs())
+        self.inpt_locales_folder.pack(side='left', fill='x', expand=True, padx=(0, 8))
         self.btn_save_locales_folder = ctk.CTkButton(
-            body, text=t('config.save'), width=80, height=32, corner_radius=8,
+            row_loc, text=t('config.save'), width=80, height=32, corner_radius=8,
             fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
             command=self.save_locales_folder,
         )
-        row_loc = ctk.CTkFrame(body, fg_color='transparent')
-        row_loc.pack(fill='x', pady=(4, 8))
-        self.inpt_locales_folder.pack(in_=row_loc, side='left', fill='x', expand=True, padx=(0, 8))
-        self.btn_save_locales_folder.pack(in_=row_loc, side='left')
+        self.btn_save_locales_folder.pack(side='left')
         locales_folder = get_locales_folder()
         if locales_folder:
             self.inpt_locales_folder.insert(0, locales_folder)
@@ -621,7 +626,7 @@ class ConfigWindow(ctk.CTkToplevel):
             items,
             height=240,
             border_width=0,
-            fg_color='transparent',
+            fg_color=THEME_BG,
             on_select=lambda _child: self.refresh(),
         )
         self.client_list.pack(fill='both', expand=True, padx=2, pady=2)
@@ -646,7 +651,7 @@ class ConfigWindow(ctk.CTkToplevel):
             child=True,
             height=240,
             border_width=0,
-            fg_color='transparent',
+            fg_color=THEME_BG,
             on_select=lambda _child: self.refresh(True),
         )
         self.product_list.pack(fill='both', expand=True, padx=2, pady=2)
@@ -688,7 +693,7 @@ class ConfigWindow(ctk.CTkToplevel):
         if result.message:
             self.update_save_button()
             self.exit()
-            PopUpWindow(self.master, t('common.success'), result.message)
+            PopUpWindow(self.app, t('common.success'), result.message)
 
     def save_audit_location(self):
         result = save_audit_central_location(self.inpt_audit_location.get())
@@ -730,8 +735,8 @@ class ConfigWindow(ctk.CTkToplevel):
         if not result.ok:
             PopUpWindow(self, t('popup.error'), result.error)
             return
-        if hasattr(self.master, 'apply_language'):
-            self.master.apply_language()
+        if hasattr(self.app, 'apply_language'):
+            self.app.apply_language()
         if hasattr(self, 'edit_window'):
             try:
                 if self.edit_window.winfo_exists():
@@ -772,8 +777,8 @@ class ConfigWindow(ctk.CTkToplevel):
         self.combo_default_language.set(get_i18n().language_label())
         self.lbl_available_locales.configure(text=self._available_locales_text())
         self._refresh_theme_combo()
-        if hasattr(self.master, 'apply_language'):
-            self.master.apply_language()
+        if hasattr(self.app, 'apply_language'):
+            self.app.apply_language()
         if hasattr(self, 'edit_window'):
             try:
                 if self.edit_window.winfo_exists():
@@ -840,7 +845,7 @@ class ConfigWindow(ctk.CTkToplevel):
 
     def open_edit_window(self, mode):
         self.edit_window = EditWindow(self, mode)
-        self.withdraw()
+        self.winfo_toplevel().withdraw()
 
     def update_product_list(self, products):
         self._mount_product_list(products)
@@ -984,11 +989,17 @@ class ConfigWindow(ctk.CTkToplevel):
 
         self.reset_all()
 
-    def exit(self):
-        self.master.deiconify()
-        self.master.focus_set()
-        self.master.refresh()
-        self.destroy()
+    def apply_language(self):
+        """Atualiza textos do painel após troca de idioma."""
+        if hasattr(self, 'entry_search'):
+            self.entry_search.configure(placeholder_text=t('config.search_placeholder'))
+        if hasattr(self, 'btn_add_client'):
+            self.btn_add_client.configure(text=f'+ {t("config.add_client")}')
+        if hasattr(self, 'lbl_available_locales'):
+            self.lbl_available_locales.configure(text=self._available_locales_text())
+
+
+ConfigWindow = ConfigPanel
 
 
 class EditRegisteredPrinterWindow(ctk.CTkToplevel):

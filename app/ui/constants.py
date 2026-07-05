@@ -52,8 +52,8 @@ def apply_theme_colors(**colors: str) -> None:
     THEME_CANVAS_BG = colors['canvas_bg']
     THEME_ERROR_TEXT = colors['error_text']
 
-DEFAULT_WIDTH = 1000
-DEFAULT_HEIGHT = 640
+DEFAULT_WIDTH = 1280
+DEFAULT_HEIGHT = 720
 SIDEBAR_WIDTH = 200
 
 CONFIG_WIDTH = 950

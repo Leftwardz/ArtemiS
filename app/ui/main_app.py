@@ -25,9 +25,10 @@ from app.services.production_service import (
     validate_duplex_batch,
     validate_landscape_batch,
 )
+from app.services.print_group_service import normalize_group_flag, resolve_work_search_path
 from app.utils.printing.base import ORIENTATION_PORTRAIT
 from app.ui.components import PopUpWindow, WORK_QUEUE_WIDTH, WorkQueueList
-from app.ui.config_window import ConfigWindow
+from app.ui.config_window import ConfigPanel
 from app.ui.constants import (
     APP_NAME,
     BTN_HOVER_RED,
@@ -44,14 +45,12 @@ from app.ui.constants import (
     THEME_BG,
     THEME_CARD,
     THEME_CARD_BORDER,
-    THEME_ICON,
     THEME_NAV_ACTIVE,
-    THEME_NAV_TEXT_ACCENT,
     THEME_PROGRESS_BG,
     THEME_SIDEBAR,
     THEME_TEXT_SECONDARY,
 )
-from app.ui.theme_assets import GradientButton, IconCache, gradient_ctk_image
+from app.ui.theme_assets import gradient_ctk_image
 from app.ui.remake_window import RemakeWindow
 from app.ui.ttk_theme import apply_azure_dark_theme
 from app.utils.document_delivery import open_path
@@ -79,17 +78,28 @@ class App(ctk.CTk):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self.config_window = None
+        self.config_panel = None
+        self._active_view = 'production'
         self.file_lines = None
         self.progressbar = None
         self.lbl_progressbar = None
         self._nav_buttons = {}
-        self._icons = IconCache()
         self._card_titles = {}
 
         self._build_sidebar()
         self._build_content()
+        self._prime_config_panel_layout()
         self.verify_directorys()
+
+    def _prime_config_panel_layout(self):
+        """Monta o painel de config com geometria real antes da primeira exibição."""
+        self.production_view.grid_remove()
+        self.settings_view.grid()
+        self.update_idletasks()
+        if self.config_panel is not None:
+            self.config_panel.refresh_layout()
+        self.settings_view.grid_remove()
+        self.production_view.grid()
 
     def _build_sidebar(self):
         self.sidebar = ctk.CTkFrame(self, width=SIDEBAR_WIDTH, corner_radius=0, fg_color=THEME_SIDEBAR)
@@ -112,24 +122,10 @@ class App(ctk.CTk):
         ctk.CTkLabel(logo_frame, text=APP_NAME, font=(FONT, 20, 'bold'), text_color='white').pack(side='left', padx=(10, 0))
 
         nav_frame = ctk.CTkFrame(self.sidebar, fg_color='transparent')
-        nav_frame.grid(row=1, column=0, sticky='ew', padx=8)
+        nav_frame.grid(row=1, column=0, sticky='new', padx=8)
 
         self._nav_buttons['production'] = self._nav_item(
-            nav_frame, 'production', 'main.nav_production', active=True, command=self._nav_production,
-        )
-        self._nav_buttons['settings'] = self._nav_item(
-            nav_frame, 'settings', 'main.nav_settings', command=self.open_toplevel,
-        )
-        self._nav_buttons['remake'] = self._nav_item(
-            nav_frame, 'remake', 'main.nav_remake', disabled=True,
-        )
-        self._nav_buttons['reports'] = self._nav_item(
-            nav_frame, 'reports', 'main.nav_reports', disabled=True,
-        )
-
-        ctk.CTkFrame(nav_frame, height=1, fg_color=THEME_CARD_BORDER).pack(fill='x', padx=8, pady=10)
-        self._nav_buttons['help'] = self._nav_item(
-            nav_frame, 'help', 'main.nav_help', disabled=True,
+            nav_frame, 'main.nav_production', active=True, command=self._nav_production,
         )
 
         self.loading_frame = LoadingBarFrame(
@@ -141,6 +137,28 @@ class App(ctk.CTk):
 
         footer = ctk.CTkFrame(self.sidebar, fg_color='transparent')
         footer.grid(row=3, column=0, sticky='ew', padx=12, pady=(0, 12))
+
+        self._settings_wrapper = ctk.CTkFrame(footer, fg_color='transparent', corner_radius=8, height=34)
+        self._settings_wrapper.pack(fill='x', pady=(0, 12))
+        self._settings_wrapper.pack_propagate(False)
+
+        self._btn_settings = ctk.CTkButton(
+            self._settings_wrapper,
+            text=t('main.nav_settings'),
+            anchor='w',
+            height=30,
+            corner_radius=8,
+            fg_color='transparent',
+            hover_color=THEME_NAV_ACTIVE,
+            text_color=THEME_TEXT_SECONDARY,
+            font=(FONT, 12),
+            command=self._nav_settings,
+        )
+        self._btn_settings.pack(fill='x', padx=(6, 6), pady=2)
+        self._btn_settings._nav_wrapper = self._settings_wrapper
+        self._btn_settings._nav_active = False
+        self._btn_settings._i18n_key = 'main.nav_settings'
+        self._settings_accent = None
 
         self.lbl_language = ctk.CTkLabel(footer, text=t('main.language'), text_color=THEME_TEXT_SECONDARY, font=(FONT, 11))
         self.lbl_language.pack(anchor='w')
@@ -177,54 +195,123 @@ class App(ctk.CTk):
             user_row, text=account, font=(FONT, 10), text_color=THEME_TEXT_SECONDARY, anchor='w',
         ).pack(side='left', padx=(8, 0))
 
-    def _nav_icon_color(self, *, active=False, disabled=False):
-        if disabled:
-            return '#5c5f6a'
-        if active:
-            return THEME_NAV_TEXT_ACCENT
-        return '#e8ecf4'
-
-    def _nav_item(self, parent, icon_key, text_key, *, active=False, command=None, disabled=False):
+    def _nav_item(self, parent, text_key, *, active=False, command=None):
         text = t(text_key)
-        icon = self._icons.get(icon_key, 18, self._nav_icon_color(active=active, disabled=disabled))
 
         wrapper = ctk.CTkFrame(
             parent,
             fg_color=THEME_NAV_ACTIVE if active else 'transparent',
             corner_radius=8,
+            height=34,
         )
-        wrapper.pack(fill='x', pady=2)
-
-        if active:
-            ctk.CTkFrame(wrapper, width=3, corner_radius=2, fg_color=THEME_ACCENT).pack(side='left', fill='y', padx=(0, 2))
+        wrapper.pack(fill='x', pady=1)
+        wrapper.pack_propagate(False)
 
         btn = ctk.CTkButton(
             wrapper,
-            image=icon,
-            compound='left',
-            text=f'  {text}',
+            text=text,
             anchor='w',
-            height=36,
+            height=30,
             corner_radius=8,
             fg_color='transparent',
             hover_color=THEME_NAV_ACTIVE,
-            text_color=THEME_TEXT_SECONDARY if disabled else 'white',
-            font=(FONT, 13, 'bold' if active else 'normal'),
-            command=command,
-            state='disabled' if disabled else 'normal',
+            text_color='white' if active else THEME_TEXT_SECONDARY,
+            font=(FONT, 12),
+            command=command or (lambda: None),
         )
-        btn.pack(fill='x', padx=(4 if active else 6, 8))
+        btn.pack(fill='x', padx=(8 if active else 6, 6), pady=2)
         btn._nav_wrapper = wrapper
         btn._nav_active = active
-        btn._icon_key = icon_key
+        btn._nav_accent = None
         btn._i18n_key = text_key
-        btn._nav_icon = icon
+        if active:
+            btn._nav_accent = ctk.CTkFrame(
+                wrapper, width=3, height=24, corner_radius=2, fg_color=THEME_ACCENT,
+            )
+            btn._nav_accent.place(x=0, rely=0.5, anchor='w')
         return btn
 
     def _nav_production(self):
-        pass
+        self._set_active_view('production')
 
-    def _card(self, parent, title_key, icon_key):
+    def _nav_settings(self):
+        self._set_active_view('settings')
+
+    def _set_active_view(self, view: str):
+        if view == 'settings':
+            if not admin_service.can_access_config():
+                user = admin_service.get_current_windows_user()
+                PopUpWindow(
+                    self,
+                    t('main.access_denied_title'),
+                    t('main.access_denied_body', user=user),
+                )
+                return
+            self.production_view.grid_remove()
+            self.settings_view.grid()
+            self.update_idletasks()
+            if self.config_panel is not None:
+                self.config_panel.refresh_layout()
+        else:
+            self.settings_view.grid_remove()
+            self.production_view.grid()
+
+        self._active_view = view
+        self._update_nav_active(view)
+        self._update_page_header(view)
+
+    def _update_nav_active(self, view: str):
+        production_active = view == 'production'
+        settings_active = view == 'settings'
+
+        prod_btn = self._nav_buttons.get('production')
+        if prod_btn is not None:
+            prod_btn._nav_active = production_active
+            wrapper = prod_btn._nav_wrapper
+            wrapper.configure(fg_color=THEME_NAV_ACTIVE if production_active else 'transparent')
+            prod_btn.configure(text_color='white' if production_active else THEME_TEXT_SECONDARY)
+            prod_btn.pack_configure(padx=(8 if production_active else 6, 6))
+            if prod_btn._nav_accent is not None:
+                prod_btn._nav_accent.destroy()
+                prod_btn._nav_accent = None
+            if production_active:
+                prod_btn._nav_accent = ctk.CTkFrame(
+                    wrapper, width=3, height=24, corner_radius=2, fg_color=THEME_ACCENT,
+                )
+                prod_btn._nav_accent.place(x=0, rely=0.5, anchor='w')
+
+        self._btn_settings._nav_active = settings_active
+        self._settings_wrapper.configure(
+            fg_color=THEME_NAV_ACTIVE if settings_active else 'transparent',
+        )
+        self._btn_settings.configure(
+            text_color='white' if settings_active else THEME_TEXT_SECONDARY,
+        )
+        if self._settings_accent is not None:
+            self._settings_accent.destroy()
+            self._settings_accent = None
+        if settings_active:
+            self._settings_accent = ctk.CTkFrame(
+                self._settings_wrapper, width=3, height=24, corner_radius=2, fg_color=THEME_ACCENT,
+            )
+            self._settings_accent.place(x=0, rely=0.5, anchor='w')
+            self._btn_settings.pack_configure(padx=(8, 6))
+        else:
+            self._btn_settings.pack_configure(padx=(6, 6))
+
+    def _update_page_header(self, view: str):
+        if view == 'settings':
+            self.lbl_page_title.configure(text=t('config.title'))
+            user = admin_service.get_current_windows_user()
+            admin_hint = t('config.admin_suffix') if admin_service.is_windows_admin() else ''
+            self.lbl_page_subtitle.configure(
+                text=t('config.current_user', user=user, admin=admin_hint),
+            )
+        else:
+            self.lbl_page_title.configure(text=t('main.production_title'))
+            self.lbl_page_subtitle.configure(text=t('main.production_subtitle'))
+
+    def _card(self, parent, title_key):
         title = t(title_key)
         outer = ctk.CTkFrame(
             parent, fg_color=THEME_CARD, corner_radius=12,
@@ -232,13 +319,11 @@ class App(ctk.CTk):
         )
         header = ctk.CTkFrame(outer, fg_color='transparent')
         header.pack(fill='x', padx=16, pady=(12, 6))
-        icon = self._icons.get(icon_key, 16, THEME_ICON)
-        ctk.CTkLabel(header, image=icon, text='').pack(side='left')
         title_lbl = ctk.CTkLabel(
             header, text=title, font=(FONT, 13, 'bold'),
-            text_color=THEME_ICON, anchor='w',
+            text_color='white', anchor='w',
         )
-        title_lbl.pack(side='left', padx=(8, 0))
+        title_lbl.pack(anchor='w')
         self._card_titles[title_key] = title_lbl
         body = ctk.CTkFrame(outer, fg_color='transparent')
         body.pack(fill='both', expand=True, padx=16, pady=(0, 14))
@@ -247,12 +332,11 @@ class App(ctk.CTk):
     def _build_content(self):
         self.content = ctk.CTkFrame(self, fg_color=THEME_BG, corner_radius=0)
         self.content.grid(row=0, column=1, sticky='nswe', padx=(0, 0), pady=0)
-        self.content.grid_columnconfigure(0, weight=3)
-        self.content.grid_columnconfigure(1, weight=2)
-        self.content.grid_rowconfigure(2, weight=1)
+        self.content.grid_columnconfigure(0, weight=1)
+        self.content.grid_rowconfigure(1, weight=1)
 
         header = ctk.CTkFrame(self.content, fg_color='transparent')
-        header.grid(row=0, column=0, columnspan=2, sticky='ew', padx=24, pady=(20, 12))
+        header.grid(row=0, column=0, sticky='ew', padx=24, pady=(20, 12))
 
         self.lbl_page_title = ctk.CTkLabel(
             header, text=t('main.production_title'), font=(FONT, 26, 'bold'), text_color='white', anchor='w',
@@ -264,11 +348,27 @@ class App(ctk.CTk):
         )
         self.lbl_page_subtitle.pack(anchor='w', pady=(2, 0))
 
-        left_col = ctk.CTkFrame(self.content, fg_color='transparent')
-        left_col.grid(row=1, column=0, rowspan=2, sticky='nsew', padx=(24, 8), pady=(0, 20))
+        self.production_view = ctk.CTkFrame(self.content, fg_color=THEME_BG)
+        self.production_view.grid(row=1, column=0, sticky='nsew')
+        self.production_view.grid_columnconfigure(0, weight=3)
+        self.production_view.grid_columnconfigure(1, weight=2)
+        self.production_view.grid_rowconfigure(0, weight=1)
+
+        self.settings_view = ctk.CTkFrame(self.content, fg_color=THEME_BG)
+        self.settings_view.grid(row=1, column=0, sticky='nsew')
+        self.settings_view.grid_rowconfigure(0, weight=1)
+        self.settings_view.grid_columnconfigure(0, weight=1)
+        self.settings_view.grid_remove()
+
+        self.update_idletasks()
+        self.config_panel = ConfigPanel(self.settings_view, app=self)
+        self.config_panel.grid(row=0, column=0, sticky='nsew')
+
+        left_col = ctk.CTkFrame(self.production_view, fg_color='transparent')
+        left_col.grid(row=0, column=0, sticky='nsew', padx=(24, 8), pady=(0, 20))
         left_col.grid_columnconfigure(0, weight=1)
 
-        card_print, body_print = self._card(left_col, 'main.card_printing', 'printing')
+        card_print, body_print = self._card(left_col, 'main.card_printing')
         card_print.pack(fill='x', pady=(0, 12))
 
         self.lbl_select_printer = ctk.CTkLabel(body_print, text=t('main.select_printer'), anchor='w', text_color=THEME_TEXT_SECONDARY)
@@ -287,16 +387,18 @@ class App(ctk.CTk):
             body_print, values=groups, width=WORK_QUEUE_WIDTH,
             fg_color=THEME_BG, border_color=THEME_CARD_BORDER,
             button_color=THEME_ACCENT, button_hover_color=THEME_ACCENT_HOVER,
+            command=self._on_print_group_changed,
         )
         self.print_group_list.pack(fill='x', pady=(4, 0))
-        self._sync_print_group_combo()
         self.lbl_select_group_hint = ctk.CTkLabel(
-            body_print, text=t('main.select_group_hint'), anchor='w',
+            body_print, text='', anchor='w',
             font=(FONT, 10), text_color=THEME_TEXT_SECONDARY, justify='left', wraplength=420,
         )
         self.lbl_select_group_hint.pack(fill='x', pady=(4, 0))
+        if groups:
+            self.print_group_list.set(groups[0])
 
-        card_queue, body_queue = self._card(left_col, 'main.card_queue', 'queue')
+        card_queue, body_queue = self._card(left_col, 'main.card_queue')
         card_queue.pack(fill='both', expand=True)
 
         self.lbl_scan_work = ctk.CTkLabel(body_queue, text=t('main.scan_workorders'), anchor='w', text_color=THEME_TEXT_SECONDARY)
@@ -315,11 +417,17 @@ class App(ctk.CTk):
         self.entry_work.bind('<FocusIn>', lambda _e: self.entry_work.configure(border_color=THEME_ACCENT))
         self.entry_work.bind('<FocusOut>', lambda _e: self.entry_work.configure(border_color=THEME_CARD_BORDER))
 
-        self.work_queue = WorkQueueList(body_queue, width=WORK_QUEUE_WIDTH, height=122)
-        self.work_queue.pack(fill='x')
+        self.remake_frame = ctk.CTkFrame(body_queue, fg_color='transparent')
+        self.remake_frame.pack(side='bottom', fill='x', pady=(12, 0))
+        self.checkbox_remake = ctk.CTkCheckBox(
+            self.remake_frame, text=t('main.enable_remake'), command=self.remake_checkbox_event,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+        )
+        self.checkbox_remake.pack(side='left')
+        self.checkbox_remake_refazer = None
 
         worklist_actions = ctk.CTkFrame(body_queue, fg_color='transparent')
-        worklist_actions.pack(fill='x', pady=(8, 0))
+        worklist_actions.pack(side='bottom', fill='x')
 
         self.btn_remove_work = ctk.CTkButton(
             worklist_actions, text=t('main.remove'), width=80, height=28, corner_radius=8,
@@ -334,36 +442,37 @@ class App(ctk.CTk):
         )
         self.btn_clear_works.pack(side='left')
 
-        self.remake_frame = ctk.CTkFrame(body_queue, fg_color='transparent')
-        self.remake_frame.pack(fill='x', pady=(12, 0))
-        self.checkbox_remake = ctk.CTkCheckBox(
-            self.remake_frame, text=t('main.enable_remake'), command=self.remake_checkbox_event,
-            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
-        )
-        self.checkbox_remake.pack(side='left')
-        self.checkbox_remake_refazer = None
+        self.work_queue = WorkQueueList(body_queue, width=WORK_QUEUE_WIDTH, height=122, visible_rows=6)
+        self.work_queue.pack(fill='both', expand=True, pady=(0, 8))
 
-        right_col = ctk.CTkFrame(self.content, fg_color='transparent')
-        right_col.grid(row=1, column=1, rowspan=2, sticky='nsew', padx=(8, 24), pady=(0, 20))
+        right_col = ctk.CTkFrame(self.production_view, fg_color='transparent')
+        right_col.grid(row=0, column=1, sticky='nsew', padx=(8, 24), pady=(0, 20))
         right_col.grid_rowconfigure(1, weight=1)
 
-        card_status, body_status = self._card(right_col, 'main.card_status', 'status')
+        card_status, body_status = self._card(right_col, 'main.card_status')
         card_status.pack(fill='x')
 
+        self.status_content = ctk.CTkFrame(body_status, fg_color='transparent', height=106)
+        self.status_content.pack(fill='x')
+        self.status_content.pack_propagate(False)
+
         self.lbl_status_empty = ctk.CTkLabel(
-            body_status,
+            self.status_content,
             text=t('main.status_empty'),
             font=(FONT, 11),
             text_color=THEME_TEXT_SECONDARY,
             wraplength=240,
             justify='left',
-            anchor='w',
+            anchor='nw',
         )
-        self.lbl_status_empty.pack(fill='x')
+        self.lbl_status_empty.place(relx=0, rely=0, relwidth=1, relheight=1)
 
-        self.frame_papercolor = ctk.CTkFrame(body_status, fg_color=THEME_BG, corner_radius=10, border_width=1, border_color=THEME_CARD_BORDER)
+        self.frame_papercolor = ctk.CTkFrame(
+            self.status_content, fg_color=THEME_BG, corner_radius=10,
+            border_width=1, border_color=THEME_CARD_BORDER,
+        )
         inner_color = ctk.CTkFrame(self.frame_papercolor, fg_color='transparent')
-        inner_color.pack(fill='x', padx=12, pady=12)
+        inner_color.pack(fill='both', expand=True, padx=12, pady=8)
 
         self.lbl_paper_color = ctk.CTkLabel(
             inner_color, text=t('main.paper_color'),
@@ -372,46 +481,45 @@ class App(ctk.CTk):
         self.lbl_paper_color.pack(anchor='w')
 
         color_row = ctk.CTkFrame(inner_color, fg_color='transparent')
-        color_row.pack(anchor='w', pady=(8, 0))
-        self.paper_color = ctk.CTkFrame(color_row, height=44, width=44, fg_color='#3CB371', corner_radius=10)
+        color_row.pack(anchor='w', pady=(4, 0))
+        self.paper_color = ctk.CTkFrame(color_row, height=36, width=36, fg_color='#3CB371', corner_radius=8)
         self.paper_color.pack(side='left')
         self.paper_color.pack_propagate(False)
 
         name_col = ctk.CTkFrame(color_row, fg_color='transparent')
-        name_col.pack(side='left', padx=(12, 0))
+        name_col.pack(side='left', padx=(10, 0))
         self.lbl_paper_color_name = ctk.CTkLabel(
-            name_col, text=t('main.no_value'), font=(FONT, 16, 'bold'), text_color='white', anchor='w',
+            name_col, text=t('main.no_value'), font=(FONT, 14, 'bold'), text_color='white', anchor='w',
         )
         self.lbl_paper_color_name.pack(anchor='w')
         self.lbl_paper_color_hint = ctk.CTkLabel(
             name_col, text=t('main.paper_color_hint'),
-            font=(FONT, 10), text_color=THEME_TEXT_SECONDARY, anchor='w',
+            font=(FONT, 10), text_color=THEME_TEXT_SECONDARY, anchor='w', wraplength=190,
         )
         self.lbl_paper_color_hint.pack(anchor='w', pady=(2, 0))
 
         self.defined_color = None
         self.defined_paper_size = None
-        self.frame_papercolor.pack_forget()
 
         self.printing_label = None
 
-        self.btn_start = GradientButton(
+        self.btn_start = ctk.CTkButton(
             right_col,
             text=t('main.start'),
             font=(FONT, 16, 'bold'),
             state='disabled',
-            min_height=48,
+            height=48,
             corner_radius=10,
-            color_left=THEME_ACCENT,
-            color_right=THEME_ACCENT_SECONDARY,
-            hover_left=THEME_ACCENT_HOVER,
-            hover_right='#4338ca',
-            command=self.btn_start,
-            text_color='white',
+            fg_color=THEME_ACCENT,
+            hover_color=THEME_ACCENT_HOVER,
+            command=self._on_start_click,
         )
-        self.btn_start.pack(fill='x', pady=(16, 0), side='bottom')
+        self.btn_start.pack(fill='x', pady=(12, 0), side='bottom')
+
+        self._sync_print_group_combo()
 
     def remake_checkbox_event(self, event=None):
+        self._update_group_search_path_hint()
         if self.checkbox_remake.get():
             self.checkbox_remake_refazer = ctk.CTkCheckBox(
                 self.remake_frame, text=t('main.skip_remake_screen'), command=self.clean_worklist,
@@ -423,6 +531,23 @@ class App(ctk.CTk):
             self.checkbox_remake_refazer = None
 
         self.clean_worklist()
+
+    def _group_search_path(self) -> str:
+        combo = getattr(self, 'print_group_list', None)
+        group_name = combo.get() if combo is not None else ''
+        group_flag = normalize_group_flag(group_name)
+        checkbox = getattr(self, 'checkbox_remake', None)
+        is_remake = bool(checkbox.get()) if checkbox is not None else False
+        return resolve_work_search_path(get_search_folder(), group_flag, is_remake)
+
+    def _update_group_search_path_hint(self):
+        hint = getattr(self, 'lbl_select_group_hint', None)
+        if hint is None:
+            return
+        hint.configure(text=self._group_search_path())
+
+    def _on_print_group_changed(self, _choice=None):
+        self._update_group_search_path_hint()
 
     def create_printing_label(self):
         self.printing_label = ctk.CTkLabel(
@@ -440,14 +565,18 @@ class App(ctk.CTk):
             self.printing_label = None
 
     def show_color(self, color):
-        self.lbl_status_empty.pack_forget()
-        self.frame_papercolor.pack(fill='x', pady=(8, 0))
+        self.lbl_status_empty.place_forget()
+        self.frame_papercolor.place(relx=0, rely=0, relwidth=1, relheight=1)
         self.defined_color = color
         label = paper_color_label(color)
         self.lbl_paper_color.configure(text=t('main.paper_color'))
         self.lbl_paper_color_name.configure(text=label)
         self.lbl_paper_color_hint.configure(text=t('main.paper_color_hint'))
         self.paper_color.configure(fg_color=PAPER_COLOR_LIST[color])
+
+    def _show_status_empty(self):
+        self.frame_papercolor.place_forget()
+        self.lbl_status_empty.place(relx=0, rely=0, relwidth=1, relheight=1)
 
     def remake_widget_update(self):
         if self.remake_var.get() == 1:
@@ -457,17 +586,7 @@ class App(ctk.CTk):
             self.txtbox_ar.delete('0.0', 'end')
 
     def open_toplevel(self):
-        if not admin_service.can_access_config():
-            user = admin_service.get_current_windows_user()
-            PopUpWindow(
-                self,
-                t('main.access_denied_title'),
-                t('main.access_denied_body', user=user),
-            )
-            return
-
-        self.config_window = ConfigWindow(self)
-        self.withdraw()
+        self._nav_settings()
 
     @staticmethod
     def _printer_combo_values():
@@ -499,15 +618,13 @@ class App(ctk.CTk):
         self.language_combo.configure(values=[label for _, label in available_languages()])
         self.language_combo.set(get_i18n().language_label())
 
-        self.lbl_page_title.configure(text=t('main.production_title'))
-        self.lbl_page_subtitle.configure(text=t('main.production_subtitle'))
+        self._update_page_header(self._active_view)
+        self._update_nav_active(self._active_view)
         for btn in self._nav_buttons.values():
-            active = getattr(btn, '_nav_active', False)
-            disabled = str(btn.cget('state')) == 'disabled'
-            icon = self._icons.get(
-                btn._icon_key, 18, self._nav_icon_color(active=active, disabled=disabled),
-            )
-            btn.configure(image=icon, text=f'  {t(btn._i18n_key)}')
+            btn.configure(text=t(btn._i18n_key))
+        self._btn_settings.configure(text=t(self._btn_settings._i18n_key))
+        if self.config_panel is not None:
+            self.config_panel.apply_language()
         for key, lbl in self._card_titles.items():
             lbl.configure(text=t(key))
         self.lbl_status_empty.configure(text=t('main.status_empty'))
@@ -516,8 +633,8 @@ class App(ctk.CTk):
         current_printer = self._selected_printer_name()
         self.lbl_select_printer.configure(text=t('main.select_printer'))
         self.lbl_select_group.configure(text=t('main.select_group'))
-        self.lbl_select_group_hint.configure(text=t('main.select_group_hint'))
         self._sync_print_group_combo()
+        self._update_group_search_path_hint()
         self.lbl_scan_work.configure(text=t('main.scan_workorders'))
         self.checkbox_remake.configure(text=t('main.enable_remake'))
         if self.checkbox_remake_refazer is not None:
@@ -554,7 +671,7 @@ class App(ctk.CTk):
     def get_paper_size_from_worklist(self):
         return get_paper_size_from_path(self.get_work_paths()[0], admin_service.get_db())
 
-    def btn_start(self):
+    def _on_start_click(self):
         printer_name = self._selected_printer_name()
         if printer_name != PDF_MODE_SENTINEL:
             paper_size = self.get_paper_size_from_worklist()
@@ -636,8 +753,7 @@ class App(ctk.CTk):
         paths = self.get_work_paths()
         if not paths:
             self.btn_start.configure(state='disabled')
-            self.frame_papercolor.pack_forget()
-            self.lbl_status_empty.pack(fill='x')
+            self._show_status_empty()
             self.defined_color = None
             self.defined_paper_size = None
             self.entry_work.focus()
@@ -785,7 +901,7 @@ class App(ctk.CTk):
 
     def refresh(self, *args):
         self.btn_start.configure(state='disabled')
-        self._nav_buttons['settings'].configure(state='normal')
+        self._btn_settings.configure(state='normal')
         self.printers_list.configure(state='normal')
 
         self.printers_list.configure(values=self._printer_combo_values())
@@ -812,6 +928,7 @@ class App(ctk.CTk):
             self.print_group_list.set(current)
         else:
             self.print_group_list.set(groups[0])
+        self._update_group_search_path_hint()
 
 
 class LoadingBarFrame(ctk.CTkFrame):
