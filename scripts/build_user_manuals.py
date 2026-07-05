@@ -60,22 +60,36 @@ def _enhance_markdown_html(html_text: str, source_path: Path) -> str:
         html_text,
     )
 
-    def _figure_repl(match: re.Match[str]) -> str:
-        alt = html.escape(match.group(1))
-        src = match.group(2)
+    def _abs_img_src(src: str) -> str:
         resolved = (source_path.parent / src).resolve()
-        src_uri = resolved.as_uri() if resolved.is_file() else src
-        caption = html.escape(match.group(3)) if match.group(3) else alt
+        return resolved.as_uri() if resolved.is_file() else src
+
+    def _figure_block(match: re.Match[str]) -> str:
+        alt = html.escape(match.group(1))
+        src = _abs_img_src(match.group(2))
+        caption = html.escape(match.group(3).strip())
         return (
-            f'<figure><img src="{html.escape(src_uri, quote=True)}" alt="{alt}"/>'
+            f'<figure><img src="{html.escape(src, quote=True)}" alt="{alt}"/>'
             f'<figcaption>{caption}</figcaption></figure>'
         )
 
+    # Markdown wraps image + italic caption in one paragraph.
     html_text = re.sub(
-        r'!\[(.*?)\]\((.*?)\)\s*\n\*([^*]+)\*',
-        _figure_repl,
+        r'<p><img alt="([^"]*)" src="([^"]+)" />\s*<em>(.*?)</em></p>',
+        _figure_block,
         html_text,
-        flags=re.MULTILINE,
+        flags=re.DOTALL,
+    )
+
+    def _resolve_img(match: re.Match[str]) -> str:
+        alt = match.group(1)
+        src = _abs_img_src(match.group(2))
+        return f'<img alt="{alt}" src="{html.escape(src, quote=True)}"/>'
+
+    html_text = re.sub(
+        r'<img alt="([^"]*)" src="([^"]+)" />',
+        _resolve_img,
+        html_text,
     )
     return html_text
 
