@@ -4,9 +4,12 @@ import json
 
 from app.models.sheet_layout import SheetLayout
 from app.services.layout_service import (
+    apply_page_preset,
     batch_print_orientation,
+    infer_page_preset,
     is_landscape_layout,
     resolve_print_orientation,
+    resolve_product_paper_size,
 )
 from app.services.production_service import validate_landscape_batch
 from app.utils.printing.base import ORIENTATION_LANDSCAPE, ORIENTATION_PORTRAIT
@@ -64,3 +67,26 @@ def test_validate_landscape_batch_pdftoprinter():
     configs = [_layout_json(297, 210)]
     assert validate_landscape_batch(['4'], configs, 'pdftoprinter') == 'landscape.pdftoprinter_unsupported'
     assert validate_landscape_batch(['4'], configs, 'ghostscript') is None
+
+
+def test_apply_page_preset_a4_landscape():
+    layout = apply_page_preset(SheetLayout(), 'A4_landscape')
+    assert layout.page_width_mm == 297.0
+    assert layout.page_height_mm == 210.0
+    assert layout.page_preset == 'A4_landscape'
+    assert is_landscape_layout(layout)
+
+
+def test_infer_page_preset_from_manual_landscape_a4():
+    layout = SheetLayout(page_width_mm=297.0, page_height_mm=210.0, page_preset='A4')
+    assert infer_page_preset(layout) == 'A4_landscape'
+
+
+def test_infer_page_preset_portrait_a4():
+    layout = SheetLayout(page_width_mm=210.0, page_height_mm=297.0, page_preset='A4')
+    assert infer_page_preset(layout) == 'A4'
+
+
+def test_resolve_product_paper_size_landscape_preset():
+    layout = SheetLayout(page_width_mm=297.0, page_height_mm=210.0, page_preset='A4_landscape')
+    assert resolve_product_paper_size(4, layout.to_json()) == '9'

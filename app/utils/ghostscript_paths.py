@@ -1,12 +1,14 @@
 """Caminhos do Ghostscript empacotado (dev, PyInstaller e override em config.json)."""
 
 import os
+import subprocess
 import sys
 
 _GS_VENDOR = ('vendor', 'ghostscript')
 _GS_EXE_NAME = 'gswin64c.exe'
 _GS_DLL_NAME = 'gsdll64.dll'
 _GS_LIB_MARKER = 'Fontmap.ATB'
+_smoke_test_cache: bool | None = None
 
 
 def _candidate_roots():
@@ -67,16 +69,57 @@ def ghostscript_bin_dir():
     return os.path.abspath(bin_dir) if os.path.isdir(bin_dir) else None
 
 
-def ghostscript_is_available():
+def ghostscript_files_present():
     for root in _candidate_roots():
         if _ghostscript_at(root):
             return True
     return False
 
 
+def ghostscript_smoke_test(*, config=None) -> bool:
+    """Executa gswin64c --version (cache em memoria). Usado no exe empacotado."""
+    global _smoke_test_cache
+    if _smoke_test_cache is not None:
+        return _smoke_test_cache
+
+    if not ghostscript_files_present():
+        _smoke_test_cache = False
+        return False
+
+    gs_exe = resolve_ghostscript_exe(config)
+    if not os.path.isfile(gs_exe):
+        _smoke_test_cache = False
+        return False
+
+    bin_dir = ghostscript_bin_dir() or os.path.dirname(gs_exe)
+    try:
+        result = subprocess.run(
+            [gs_exe, '--version'],
+            env=ghostscript_env(config),
+            capture_output=True,
+            text=True,
+            cwd=bin_dir,
+            timeout=15,
+        )
+        _smoke_test_cache = result.returncode == 0
+    except Exception:
+        _smoke_test_cache = False
+    return _smoke_test_cache
+
+
+def ghostscript_is_available():
+    if not ghostscript_files_present():
+        return False
+    if getattr(sys, 'frozen', False):
+        return ghostscript_smoke_test()
+    return True
+
+
 def describe_ghostscript_paths() -> dict:
     """Resumo dos caminhos resolvidos (para logs/diagnóstico)."""
     roots = _candidate_roots()
+    files_ok = ghostscript_files_present()
+    smoke_ok = ghostscript_smoke_test() if files_ok and getattr(sys, 'frozen', False) else None
     return {
         'frozen': bool(getattr(sys, 'frozen', False)),
         'executable': getattr(sys, 'executable', ''),
@@ -89,7 +132,21 @@ def describe_ghostscript_paths() -> dict:
         ),
         'lib': bundled_ghostscript_lib(),
         'lib_exists': os.path.isdir(bundled_ghostscript_lib()),
+        'files_present': files_ok,
+        'smoke_test_passed': smoke_ok,
     }
+
+
+def log_ghostscript_startup():
+    """Registra diagnostico de GS no log de impressao (exe empacotado)."""
+    if not getattr(sys, 'frozen', False):
+        return
+    try:
+        from app.utils.printing.logger import get_print_logger
+        info = describe_ghostscript_paths()
+        get_print_logger().info('Ghostscript startup: %s', info)
+    except Exception:
+        pass
 
 
 def resolve_ghostscript_exe(config=None):

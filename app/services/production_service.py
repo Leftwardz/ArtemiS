@@ -1,7 +1,13 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
+from app.services.print_group_service import (
+    ensure_workorder_directories,
+    normalize_group_flag,
+    resolve_work_search_path,
+)
+from app.services.layout_service import get_product_paper_size
 from app.utils.file_parser import FileUtils
 
 
@@ -15,8 +21,18 @@ class WorkProductInfo:
 
 @dataclass
 class WorkValidationError:
-    title: str
-    message: str
+    title_key: str
+    message_key: str
+    message_params: Optional[dict] = None
+
+
+class ProductNotFoundError(Exception):
+    """Cliente/produto do CSV não cadastrado no banco."""
+
+    def __init__(self, client: str, product: str):
+        self.client = client
+        self.product = product
+        super().__init__(client, product)
 
 
 @dataclass
@@ -28,23 +44,16 @@ class QueueConsistencyResult:
     show_color: bool = False
 
 
-def normalize_group_flag(group_name: str) -> str:
-    if group_name == 'AR':
-        return ''
-    return f'\\{group_name}'
+def ensure_output_directories(search_folder: str) -> None:
+    from app import runtime
 
-
-def resolve_work_search_path(search_folder: str, group_flag: str, is_remake: bool) -> str:
-    if is_remake:
-        return search_folder + group_flag + '\\Old'
-    return search_folder + group_flag
-
-
-def ensure_output_directories(search_folder: str):
-    old_path = os.path.join(search_folder, 'Old')
-
-    if not os.path.exists(old_path):
-        os.mkdir(old_path)
+    groups: list[str] = []
+    try:
+        if runtime.context and runtime.context.db:
+            groups = runtime.context.db.search_print_group()
+    except Exception:
+        pass
+    ensure_workorder_directories(search_folder, groups)
 
 
 def is_empty_file(path: str) -> bool:
@@ -77,7 +86,7 @@ def get_work_product_info(path: str, db) -> Optional[WorkProductInfo]:
         client=client,
         product=product,
         color=product_obj.paper_color,
-        paper_size=product_obj.paper_size,
+        paper_size=get_product_paper_size(product_obj),
     )
 
 
@@ -93,8 +102,9 @@ def validate_queue_consistency(
         return QueueConsistencyResult(
             ok=False,
             error=WorkValidationError(
-                'Erro',
-                f'Work com Tamanho de Papel diferente dos que estão na lista - Tamanho: {paper_size}',
+                'common.error',
+                'work.paper_size_mismatch',
+                {'size': paper_size},
             ),
         )
     else:
@@ -112,8 +122,9 @@ def validate_queue_consistency(
         return QueueConsistencyResult(
             ok=False,
             error=WorkValidationError(
-                'Erro',
-                f'Work com papel diferente das works da lista - Cor: {color}',
+                'common.error',
+                'work.color_mismatch',
+                {'color': color},
             ),
         )
 
@@ -138,17 +149,17 @@ def load_worklist_file_lines(works_paths: List[str]) -> list:
 
 
 def parse_client_product_from_work_lines(file_lines) -> Tuple[str, str]:
-    """Extrai cliente e produto da primeira linha de um CSV de work."""
+    """Extract client and product from the first line of a work CSV."""
     if not file_lines:
-        raise ValueError('Arquivo de work sem linhas')
+        raise ValueError('work.empty_work_file')
 
     first_row = file_lines[0]
     if len(first_row) < 2 or not first_row[1]:
-        raise ValueError('Formato de linha inválido no CSV')
+        raise ValueError('work.invalid_csv_line')
 
     header_cell = first_row[1][0]
     if '-' not in header_cell:
-        raise ValueError(f'Identificador cliente-produto inválido: {header_cell!r}')
+        raise ValueError(f'work.invalid_client_product:{header_cell!r}')
 
     client, product = header_cell.split('-', 1)
     return client.strip(), product.strip()
@@ -162,10 +173,13 @@ def get_drawings_and_orientations(files_lines, db):
     for file in files_lines:
         client, product = parse_client_product_from_work_lines(file)
 
+        product_obj = db.search_product(client, product)
+        if product_obj is None:
+            raise ProductNotFoundError(client, product)
+
         items = db.consult_drawings_from_product(client, product)
         all_items.append(items)
 
-        product_obj = db.search_product(client, product)
         orientations.append(product_obj.orientation)
         layout_configs.append(getattr(product_obj, 'layout_config', None))
 
@@ -176,7 +190,7 @@ def get_paper_size_from_path(path: str, db) -> Optional[str]:
     client, product = get_product_from_file(path)
     product_obj = db.search_product(client, product)
     if product_obj:
-        return product_obj.paper_size
+        return get_product_paper_size(product_obj)
     return None
 
 
@@ -190,7 +204,7 @@ def build_remake_file_lines(file_utils: FileUtils, filepath: str, position_list:
 
 
 def validate_landscape_batch(orientation_list, layout_config_list=None, backend: Optional[str] = None) -> Optional[str]:
-    """Retorna chave i18n se o lote misturar retrato/paisagem ou backend não suportar."""
+    """Return an i18n key when the batch mixes portrait/landscape or the backend does not support it."""
     from app.services.layout_service import batch_print_orientation, resolve_print_orientation
     from app.utils.printing.base import ORIENTATION_LANDSCAPE
 
@@ -209,7 +223,7 @@ def validate_landscape_batch(orientation_list, layout_config_list=None, backend:
 
 
 def validate_duplex_batch(items_list, backend: str) -> Optional[str]:
-    """Retorna chave i18n se o lote ou backend for incompatível com duplex."""
+    """Return an i18n key when the batch or backend is incompatible with duplex."""
     from app.services.pdf_service import product_requires_duplex
 
     flags = [product_requires_duplex(items) for items in items_list]

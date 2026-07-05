@@ -4,36 +4,50 @@ from tkinter import ttk
 
 import customtkinter as ctk
 
-from app.ui.constants import FONT
+from app.ui.constants import (
+    FONT,
+    THEME_ACCENT,
+    THEME_BG,
+    THEME_CARD_BORDER,
+    THEME_TEXT_SECONDARY,
+)
 
 WORK_QUEUE_WIDTH = 370
-_LIST_BG = '#2b2b2b'
-_LIST_FG = '#DCE4EE'
-_LIST_SELECT_BG = '#1F538D'
-_LIST_BORDER = '#565b5e'
 _LIST_FONT_SIZE = 10
 _SCROLLBAR_STYLE = 'WorkQueue.Vertical.TScrollbar'
+
+
+def _list_colors():
+    return {
+        'bg': THEME_BG,
+        'fg': THEME_TEXT_SECONDARY,
+        'select_bg': THEME_ACCENT,
+        'border': THEME_CARD_BORDER,
+    }
 
 
 class WorkQueueList(ctk.CTkFrame):
     """Lista de WOs na fila de produção — altura fixa, seleção múltipla, path como identificador."""
 
-    def __init__(self, master, width=WORK_QUEUE_WIDTH, height=122, visible_rows=6, **kwargs):
+    def __init__(self, master, width=WORK_QUEUE_WIDTH, height=100, visible_rows=5, **kwargs):
+        colors = _list_colors()
         super().__init__(
             master,
             width=width,
             height=height,
-            corner_radius=0,
-            border_width=2,
-            fg_color=_LIST_BG,
+            corner_radius=8,
+            border_width=1,
+            fg_color=colors['bg'],
+            border_color=colors['border'],
             **kwargs,
         )
         self.grid_propagate(False)
         self.pack_propagate(False)
+        self._colors = colors
 
         self._entries: list[tuple[str, str]] = []
 
-        inner = tkinter.Frame(self, bg=_LIST_BG)
+        inner = tkinter.Frame(self, bg=colors['bg'])
         inner.pack(fill='both', expand=True)
 
         self._configure_scrollbar_style()
@@ -49,9 +63,9 @@ class WorkQueueList(ctk.CTkFrame):
             selectmode=tkinter.EXTENDED,
             exportselection=False,
             yscrollcommand=scrollbar.set,
-            bg=_LIST_BG,
-            fg=_LIST_FG,
-            selectbackground=_LIST_SELECT_BG,
+            bg=colors['bg'],
+            fg=colors['fg'],
+            selectbackground=colors['select_bg'],
             selectforeground='white',
             highlightthickness=0,
             borderwidth=0,
@@ -61,22 +75,23 @@ class WorkQueueList(ctk.CTkFrame):
         scrollbar.config(command=self.listbox.yview)
 
     def _configure_scrollbar_style(self):
+        colors = self._colors
         style = ttk.Style(self)
         style.configure(
             _SCROLLBAR_STYLE,
-            background=_LIST_BORDER,
-            troughcolor=_LIST_BG,
-            bordercolor=_LIST_BG,
-            darkcolor=_LIST_BG,
-            lightcolor=_LIST_BG,
-            arrowcolor=_LIST_FG,
+            background=colors['border'],
+            troughcolor=colors['bg'],
+            bordercolor=colors['bg'],
+            darkcolor=colors['bg'],
+            lightcolor=colors['bg'],
+            arrowcolor=colors['fg'],
             relief='flat',
             gripcount=0,
         )
         style.map(
             _SCROLLBAR_STYLE,
-            background=[('active', _LIST_SELECT_BG), ('!active', _LIST_BORDER)],
-            arrowcolor=[('active', 'white'), ('!active', _LIST_FG)],
+            background=[('active', colors['select_bg']), ('!active', colors['border'])],
+            arrowcolor=[('active', 'white'), ('!active', colors['fg'])],
         )
 
     def _display_line(self, work: str, path: str) -> str:

@@ -117,13 +117,13 @@ class SheetLayout:
 
     def validate(self) -> Optional[str]:
         if self.label_width_mm <= 0 or self.label_height_mm <= 0:
-            return 'Largura e altura da etiqueta devem ser maiores que zero.'
+            return 'label_size'
         if self.page_width_mm <= 0 or self.page_height_mm <= 0:
-            return 'Largura e altura da folha devem ser maiores que zero.'
+            return 'page_size'
         if self.columns < 1 or self.rows < 1:
-            return 'Colunas e linhas devem ser pelo menos 1.'
+            return 'grid_dims'
         if self.columns * self.rows < 1:
-            return 'A grade deve ter pelo menos uma etiqueta.'
+            return 'grid_empty'
 
         grid_w = (
             self.margin_left_mm
@@ -136,9 +136,9 @@ class SheetLayout:
             + max(0, self.rows - 1) * self.gap_y_mm
         )
         if grid_w > self.page_width_mm + 0.01:
-            return 'A grade ultrapassa a largura da folha.'
+            return 'grid_width'
         if grid_h > self.page_height_mm + 0.01:
-            return 'A grade ultrapassa a altura da folha.'
+            return 'grid_height'
         return None
 
     def to_dict(self) -> dict[str, Any]:

@@ -7,7 +7,8 @@ block_cipher = None
 import os
 import shutil
 
-base_dir = os.path.abspath('.')
+# SPECPATH = pasta do .spec (PyInstaller); nao depende do CWD do shell.
+base_dir = os.path.abspath(SPECPATH)
 
 
 def _find_dll():
@@ -74,6 +75,16 @@ a = Analysis(
         'reportlab.graphics.barcode.code93',
         'reportlab.graphics.barcode.code39',
         'reportlab.graphics.barcode.usps',
+        'app.utils.printing.backends.pdftoprinter',
+        'app.utils.printing.backends.ghostscript',
+        'app.utils.printing.backends.win32_devmode',
+        'app.utils.printing.backends.win32_advanced',
+        'app.utils.printing.backends.xps',
+        'app.utils.printing.devmode_gdi_print',
+        'app.utils.printing.pdf_raster',
+        'app.utils.printing.gdi_print',
+        'app.utils.printing.devmode',
+        'app.utils.ghostscript_paths',
     ],
     hookspath=[],
     hooksconfig={},
@@ -194,6 +205,7 @@ _required_in_dist = [
     'app/i18n/locales/pt.json',
     'app/i18n/locales/en.json',
     'app/i18n/locales/fr.json',
+    'app/i18n/locales/es.json',
     'locales/pt.json',
 ]
 for _rel in _required_in_dist:

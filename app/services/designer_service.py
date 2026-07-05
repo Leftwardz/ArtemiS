@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from app import audit
 from app.models.sheet_layout import CUSTOM_ORIENTATION_INDEX
+from app.services.layout_service import get_product_paper_size
 
 
 ORIENTATION_LABELS = [
@@ -16,19 +17,22 @@ ORIENTATION_LABELS = [
 
 
 def validate_product_name(current_name: str, new_name: str, existing_products: List[str]) -> Optional[str]:
+    from app.i18n import t
+    default_name = t('designer.new_product')
     if new_name in existing_products and new_name != current_name:
-        return 'ERROR - Nome de Produto já existente para esse cliente'
-    if new_name == 'Novo Produto':
-        return 'ERROR - Por favor, dar um novo nome ao produto'
+        return 'name_exists'
+    if new_name in (default_name, 'Novo Produto'):
+        return 'rename_default'
     if new_name.strip() == '':
-        return 'ERROR - Nome do Produto não pode ser vazio'
+        return 'name_empty'
     if '-' in new_name.strip():
-        return 'ERROR - Nome do Produto não pode conter traço " - "'
+        return 'name_dash'
     return None
 
 
 def orientation_index_from_label(label: str) -> int:
-    return ORIENTATION_LABELS.index(label)
+    from app.i18n.designer_labels import orientation_index_from_label as _index_from_label
+    return _index_from_label(label)
 
 
 def load_product_drawings(client: str, product_name: str, db):
@@ -70,15 +74,16 @@ def duplicate_product(
     db,
 ) -> Optional[str]:
     if target_product in db.search_products(target_client):
-        return 'Nome de produto já existe'
+        return 'name_exists'
 
     product_obj = db.search_product(source_client, source_product)
+    paper_size = get_product_paper_size(product_obj)
     db.insert_product(
         target_product,
         target_client,
         product_obj.paper_color,
         product_obj.orientation,
-        product_obj.paper_size,
+        paper_size,
         getattr(product_obj, 'layout_config', None),
     )
     items = db.consult_drawings_from_product(source_client, source_product)
@@ -101,7 +106,7 @@ def build_export_payload(client: str, product: str, db) -> dict:
     return {
         'cliente': client,
         'produto': product,
-        'paper_size': product_db.paper_size,
+        'paper_size': get_product_paper_size(product_db),
         'color': db.search_color(client, product),
         'orientation': product_db.orientation,
         'layout_config': getattr(product_db, 'layout_config', None),
@@ -161,7 +166,7 @@ def import_product_with_new_client(
 
 
 def _normalize_drawing_row(row: dict) -> dict:
-    """Normaliza linha do banco/serialização para comparação estável (None → '')."""
+    """Normalize DB/serialization row for stable comparison (None → '')."""
     string_fields = (
         'item_type', 'scope', 'duplex', 'x1', 'x2', 'y1', 'y2',
         'font_name', 'font_size', 'font_style', 'orientation', 'thickness', 'dashed',
@@ -208,7 +213,8 @@ def has_unsaved_changes(
         return True
     if orientation_index != int(product.orientation):
         return True
-    if paper_size != product.paper_size:
+    saved_paper = get_product_paper_size(product)
+    if paper_size != saved_paper:
         return True
     if orientation_index == CUSTOM_ORIENTATION_INDEX:
         saved_layout = getattr(product, 'layout_config', None) or ''

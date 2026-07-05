@@ -2,11 +2,28 @@ import tkinter
 
 import customtkinter as ctk
 
-from app.ui.constants import FONT
+from app.ui.constants import (
+    FONT,
+    THEME_ACCENT,
+    THEME_ACCENT_HOVER,
+    THEME_BG,
+    THEME_CARD,
+    THEME_CARD_BORDER,
+    THEME_NAV_ACTIVE,
+    THEME_NAV_TEXT_ACCENT,
+    THEME_TEXT_SECONDARY,
+)
 
 
 class ListBox(ctk.CTkScrollableFrame):
     def __init__(self, master, items, child=False, on_select=None, **kwargs):
+        kwargs.setdefault('fg_color', THEME_BG)
+        kwargs.setdefault('label_fg_color', THEME_BG)
+        if 'border_width' not in kwargs:
+            kwargs['border_width'] = 0
+        kwargs.setdefault('corner_radius', 8)
+        kwargs.setdefault('scrollbar_button_color', THEME_CARD_BORDER)
+        kwargs.setdefault('scrollbar_button_hover_color', THEME_NAV_ACTIVE)
         super().__init__(master, **kwargs)
         self.radio_list = {}
         self.radio_var = tkinter.StringVar()
@@ -24,16 +41,24 @@ class ListBox(ctk.CTkScrollableFrame):
                 value=item,
                 radiobutton_width=0,
                 command=self.focus,
-                font=(FONT, 14),
-                width=50,
+                font=(FONT, 13),
+                fg_color=THEME_ACCENT,
+                hover_color=THEME_ACCENT_HOVER,
+                text_color=THEME_TEXT_SECONDARY,
+                border_color=THEME_CARD_BORDER,
             )
-            self.radio_list[item].grid(column=0, pady=2)
+            self.radio_list[item].grid(column=0, sticky='ew', padx=4, pady=1)
+
+        if items:
+            self.radio_var.set(items[0])
 
     def focus(self):
-        for item in self.radio_list.values():
-            if item != self.radio_var.get():
-                item.configure(font=(FONT, 14), text_color="white")
-        self.radio_list[self.radio_var.get()].configure(font=(FONT, 14, "bold"), text_color="green")
+        selected = self.radio_var.get()
+        for name, item in self.radio_list.items():
+            if name != selected:
+                item.configure(font=(FONT, 13), text_color=THEME_TEXT_SECONDARY)
+            else:
+                item.configure(font=(FONT, 13, 'bold'), text_color=THEME_NAV_TEXT_ACCENT)
 
         if self.on_select is not None:
             self.on_select(self.child)

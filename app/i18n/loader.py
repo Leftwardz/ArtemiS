@@ -1,4 +1,4 @@
-"""Carregamento de traduções a partir de arquivos JSON."""
+"""Translation loading from JSON files."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ PDF_MODE_SENTINEL = 'Criar PDF'
 
 
 def _candidate_builtin_locale_dirs() -> list[Path]:
-    """Pastas de idiomas embutidos (dev e dist portável)."""
+    """Built-in locale folders (dev and portable dist)."""
     if getattr(sys, 'frozen', False):
         exe_dir = Path(sys.executable).resolve().parent
         dirs = [
