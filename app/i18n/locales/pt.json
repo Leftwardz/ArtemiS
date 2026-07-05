@@ -66,7 +66,8 @@
     "empty_file": "Arquivo encontrado está vazio - Verificar",
     "user_fallback": "Usuário",
     "no_value": "—",
-    "progress_step": "1/2"
+    "progress_step": "1/2",
+    "interactive_virtual_printer_progress": "Aguardando Windows…\n{printer}\nProcure a janela \"Salvar como\" (pode estar atrás).\nPara PDF direto, use \"Criar PDF\"."
   },
   "popup": {
     "close": "Fechar",
@@ -115,6 +116,9 @@
     "manage_groups_btn": "Gerenciar subpastas de busca",
     "print_backend": "Motor de impressão",
     "print_backend_hint": "Ghostscript: papel do produto no job (sem validar preferência)",
+    "ghostscript_ok": "Ghostscript: OK — {path}",
+    "ghostscript_missing": "Ghostscript: não encontrado. Copie vendor/ghostscript/ ao lado de Main.exe (pasta dist/ inteira).",
+    "ghostscript_smoke_failed": "Ghostscript: arquivos em {path}, mas gswin64c não executa (antivírus, rede ou permissão).",
     "save_backend": "Salvar motor",
     "print_groups": "Grupos de busca (subpastas)",
     "print_groups_hint": "Cada grupo é uma subpasta dentro da pasta central.\nAo adicionar um grupo, a subpasta correspondente é criada no disco.",

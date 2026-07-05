@@ -1,5 +1,6 @@
 import os
 import traceback
+from threading import Thread
 
 import customtkinter as ctk
 
@@ -22,11 +23,13 @@ from app.services.production_service import (
     get_work_product_info,
     load_worklist_file_lines,
     is_empty_file as work_is_empty_file,
+    ProductNotFoundError,
     validate_duplex_batch,
     validate_landscape_batch,
 )
 from app.services.print_group_service import normalize_group_flag, resolve_work_search_path
 from app.utils.printing.base import ORIENTATION_PORTRAIT
+from app.utils.printing.virtual_printers import is_interactive_virtual_printer
 from app.ui.components import PopUpWindow, WORK_QUEUE_WIDTH, WorkQueueList
 from app.ui.config_window import ConfigPanel
 from app.ui.constants import (
@@ -255,6 +258,7 @@ class App(ctk.CTk):
         else:
             self.settings_view.grid_remove()
             self.production_view.grid()
+            self.refresh_production_combos()
 
         self._active_view = view
         self._update_nav_active(view)
@@ -630,11 +634,9 @@ class App(ctk.CTk):
         self.lbl_status_empty.configure(text=t('main.status_empty'))
         self.lbl_paper_color_hint.configure(text=t('main.paper_color_hint'))
 
-        current_printer = self._selected_printer_name()
         self.lbl_select_printer.configure(text=t('main.select_printer'))
         self.lbl_select_group.configure(text=t('main.select_group'))
-        self._sync_print_group_combo()
-        self._update_group_search_path_hint()
+        self.refresh_production_combos()
         self.lbl_scan_work.configure(text=t('main.scan_workorders'))
         self.checkbox_remake.configure(text=t('main.enable_remake'))
         if self.checkbox_remake_refazer is not None:
@@ -642,16 +644,6 @@ class App(ctk.CTk):
         self.btn_remove_work.configure(text=t('main.remove'))
         self.btn_clear_works.configure(text=t('main.clear'))
         self.btn_start.configure(text=t('main.start'))
-
-        self.printers_list.configure(values=self._printer_combo_values())
-        if current_printer == PDF_MODE_SENTINEL:
-            self.printers_list.set(pdf_mode_label())
-        elif current_printer:
-            labels, name_map = admin_service.get_printer_combo_options()
-            for label, name in name_map.items():
-                if name == current_printer:
-                    self.printers_list.set(label)
-                    break
 
         if self.defined_color:
             self.lbl_paper_color.configure(text=t('main.paper_color'))
@@ -680,7 +672,14 @@ class App(ctk.CTk):
                 return
 
         lines = self.open_files_from_worklist()
-        items, orientations, layout_configs = self.get_items_and_orientation_from_worklist(lines)
+        try:
+            items, orientations, layout_configs = self.get_items_and_orientation_from_worklist(lines)
+        except ProductNotFoundError as exc:
+            PopUpWindow(
+                self, t('common.error'),
+                t('work.product_missing', client=exc.client, product=exc.product),
+            )
+            return
 
         self.create_pdf(lines, items, orientations, self.checkbox_remake.get(), printer=printer_name,
                         layout_config_list=layout_configs)
@@ -857,22 +856,33 @@ class App(ctk.CTk):
     def open_or_print_pdf(self, pdf_data, file_to_move=[], is_remake=None, printer=None, progress_slot=None,
                           requires_duplex=False, print_orientation=ORIENTATION_PORTRAIT):
         slot = progress_slot if progress_slot is not None else printer
-        try:
-            self.loading_frame.update_progressbar(slot, 1, t('main.printing'))
+        progress_text = t('main.printing')
+        if printer and printer != PDF_MODE_SENTINEL and is_interactive_virtual_printer(printer):
+            progress_text = t('main.interactive_virtual_printer_progress', printer=printer)
+        self.loading_frame.update_progressbar(slot, 1, progress_text)
 
-            exe_index = None
-            if printer != PDF_MODE_SENTINEL:
-                exe_index = self.loading_frame.get_exe_index(slot)
+        exe_index = None
+        if printer != PDF_MODE_SENTINEL:
+            exe_index = self.loading_frame.get_exe_index(slot)
 
-            finish_print_job(
-                pdf_data, file_to_move, is_remake, printer, exe_index,
-                paper_size=self.defined_paper_size or '9',
-                requires_duplex=requires_duplex,
-                orientation=print_orientation or ORIENTATION_PORTRAIT,
-            )
-            self.loading_frame.remove_progressbar(slot)
-        except Exception:
-            self.loading_frame.show_error(slot, traceback.format_exc())
+        paper_size = self.defined_paper_size or '9'
+        orientation = print_orientation or ORIENTATION_PORTRAIT
+
+        def _print_worker():
+            try:
+                finish_print_job(
+                    pdf_data, file_to_move, is_remake, printer, exe_index,
+                    paper_size=paper_size,
+                    requires_duplex=requires_duplex,
+                    orientation=orientation,
+                )
+            except Exception:
+                tb = traceback.format_exc()
+                self.after(0, lambda: self.loading_frame.show_error(slot, tb))
+            else:
+                self.after(0, lambda: self.loading_frame.remove_progressbar(slot))
+
+        Thread(target=_print_worker, daemon=True).start()
 
     def create_progress_bar(self):
         self.progressbar = ctk.CTkProgressBar(
@@ -898,6 +908,27 @@ class App(ctk.CTk):
     @staticmethod
     def verify_directorys():
         ensure_output_directories(get_search_folder())
+
+    def refresh_production_combos(self):
+        """Atualiza combos de impressora e grupo na produção (sem limpar a fila)."""
+        current_printer = self._selected_printer_name()
+        self.printers_list.configure(values=self._printer_combo_values())
+        if current_printer == PDF_MODE_SENTINEL:
+            self.printers_list.set(pdf_mode_label())
+        elif current_printer:
+            _labels, name_map = admin_service.get_printer_combo_options()
+            for label, name in name_map.items():
+                if name == current_printer:
+                    self.printers_list.set(label)
+                    break
+            else:
+                values = self._printer_combo_values()
+                self.printers_list.set(values[0] if values else pdf_mode_label())
+        else:
+            values = self._printer_combo_values()
+            if values:
+                self.printers_list.set(values[0])
+        self._sync_print_group_combo()
 
     def refresh(self, *args):
         self.btn_start.configure(state='disabled')

@@ -42,6 +42,9 @@ def main():
 
     audit.init_audit(config)
 
+    from app.utils.ghostscript_paths import log_ghostscript_startup
+    log_ghostscript_startup()
+
     from app.ui.main_app import App
 
     app = App()

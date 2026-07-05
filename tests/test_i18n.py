@@ -18,10 +18,15 @@ def test_french():
     assert 'imprimante' in t('main.select_printer').lower()
 
 
+def test_spanish():
+    init_i18n({'language': 'es', 'locales_folder': ''})
+    assert t('main.select_printer') == 'Seleccione la impresora:'
+
+
 def test_available_languages():
     init_i18n({'language': 'pt', 'locales_folder': ''})
     codes = {code for code, _ in available_languages()}
-    assert {'pt', 'en', 'fr'}.issubset(codes)
+    assert {'pt', 'en', 'fr', 'es'}.issubset(codes)
 
 
 def test_missing_key_returns_key():

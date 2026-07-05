@@ -9,8 +9,10 @@ Entry point: `Main.py` → `app.bootstrap.main()`. Application code lives under 
 
 ### Windows setup (after clone)
 - `pip install -r requirements.txt` — Ghostscript já vem em `vendor/ghostscript/` (sem script extra).
-- Build: `pyinstaller Main.spec` → pasta `dist/` completa (`Main.exe`, `fontes/`, `theme/`, `img/`, `vendor/ghostscript/`, etc.).
-- Verificar: `.\scripts\verify_dist.ps1` — depois é só copiar `dist/` para os PCs.
+- Build: `.\scripts\build.ps1` (ou `pyinstaller Main.spec`) → pasta `dist/` completa.
+- Verificar: `.\scripts\verify_dist.ps1` — depois copie **`dist/` inteira** para os PCs.
+- No PC destino: `.\scripts\test_ghostscript_dist.ps1` na pasta com `Main.exe`.
+- Use `config.dist.json` como modelo de `config.json` na primeira instalação (caminhos relativos).
 
 ## Cursor Cloud specific instructions
 

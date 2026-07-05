@@ -66,7 +66,8 @@
     "empty_file": "Found file is empty - please verify",
     "user_fallback": "User",
     "no_value": "—",
-    "progress_step": "1/2"
+    "progress_step": "1/2",
+    "interactive_virtual_printer_progress": "Waiting for Windows…\n{printer}\nLook for the \"Save as\" dialog (it may be behind this window).\nFor a direct PDF, use \"Create PDF\"."
   },
   "popup": {
     "close": "Close",
@@ -115,6 +116,9 @@
     "manage_groups_btn": "Manage search subfolders",
     "print_backend": "Print engine",
     "print_backend_hint": "Ghostscript: product paper in job (no preference validation)",
+    "ghostscript_ok": "Ghostscript: OK — {path}",
+    "ghostscript_missing": "Ghostscript: not found. Copy vendor/ghostscript/ next to Main.exe (full dist/ folder).",
+    "ghostscript_smoke_failed": "Ghostscript: files at {path}, but gswin64c failed to run (antivirus, network share, or permissions).",
     "save_backend": "Save engine",
     "print_groups": "Search groups (subfolders)",
     "print_groups_hint": "Each group is a subfolder inside the central folder.\nAdding a group creates the matching folder on disk.",

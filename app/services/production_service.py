@@ -26,6 +26,15 @@ class WorkValidationError:
     message_params: Optional[dict] = None
 
 
+class ProductNotFoundError(Exception):
+    """Cliente/produto do CSV não cadastrado no banco."""
+
+    def __init__(self, client: str, product: str):
+        self.client = client
+        self.product = product
+        super().__init__(client, product)
+
+
 @dataclass
 class QueueConsistencyResult:
     ok: bool
@@ -164,10 +173,13 @@ def get_drawings_and_orientations(files_lines, db):
     for file in files_lines:
         client, product = parse_client_product_from_work_lines(file)
 
+        product_obj = db.search_product(client, product)
+        if product_obj is None:
+            raise ProductNotFoundError(client, product)
+
         items = db.consult_drawings_from_product(client, product)
         all_items.append(items)
 
-        product_obj = db.search_product(client, product)
         orientations.append(product_obj.orientation)
         layout_configs.append(getattr(product_obj, 'layout_config', None))
 

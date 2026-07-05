@@ -66,7 +66,8 @@
     "empty_file": "Le fichier trouvé est vide - veuillez vérifier",
     "user_fallback": "Utilisateur",
     "no_value": "—",
-    "progress_step": "1/2"
+    "progress_step": "1/2",
+    "interactive_virtual_printer_progress": "En attente de Windows…\n{printer}\nCherchez la fenêtre « Enregistrer sous » (elle peut être derrière).\nPour un PDF direct, utilisez « Créer PDF »."
   },
   "popup": {
     "close": "Fermer",
@@ -115,6 +116,9 @@
     "manage_groups_btn": "Gérer les sous-dossiers de recherche",
     "print_backend": "Moteur d'impression",
     "print_backend_hint": "Ghostscript : papier du produit dans le job (sans validation de préférence)",
+    "ghostscript_ok": "Ghostscript : OK — {path}",
+    "ghostscript_missing": "Ghostscript : introuvable. Copiez vendor/ghostscript/ à côté de Main.exe (dossier dist/ complet).",
+    "ghostscript_smoke_failed": "Ghostscript : fichiers dans {path}, mais gswin64c ne s'exécute pas (antivirus, partage réseau ou permissions).",
     "save_backend": "Enregistrer le moteur",
     "print_groups": "Groupes de recherche (sous-dossiers)",
     "print_groups_hint": "Chaque groupe est un sous-dossier du dossier central.\nL'ajout d'un groupe crée le dossier correspondant sur le disque.",

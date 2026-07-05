@@ -49,6 +49,7 @@ from app.ui.constants import (
     THEME_BG,
     THEME_CARD,
     THEME_CARD_BORDER,
+    THEME_ERROR_TEXT,
     THEME_NAV_ACTIVE,
     THEME_NAV_TEXT_ACCENT,
     THEME_TABLE_ROW_A,
@@ -172,6 +173,11 @@ class ConfigPanel(ctk.CTkFrame):
 
         self._apply_search_filter()
         self.bind('<Map>', self._on_panel_mapped, add='+')
+
+    def refresh_production_combos(self):
+        """Propaga atualização dos combos da tela de produção."""
+        if self.app is not None:
+            self.app.refresh_production_combos()
 
     def refresh_layout(self):
         """Recalcula geometria após a view de configurações ficar visível."""
@@ -485,8 +491,14 @@ class ConfigPanel(ctk.CTkFrame):
             body_be, text=t('config.print_backend_hint'), font=(FONT, 10),
             text_color=THEME_TEXT_SECONDARY, justify='left', wraplength=420, anchor='w',
         )
-        self.lbl_print_backend_hint.pack(fill='x', pady=(0, 8))
+        self.lbl_print_backend_hint.pack(fill='x', pady=(0, 4))
         self._register_label(self.lbl_print_backend_hint, 'config.print_backend_hint')
+        self.lbl_ghostscript_status = ctk.CTkLabel(
+            body_be, text='', font=(FONT, 10),
+            text_color=THEME_TEXT_SECONDARY, justify='left', wraplength=420, anchor='w',
+        )
+        self.lbl_ghostscript_status.pack(fill='x', pady=(0, 8))
+        self._refresh_ghostscript_status()
         self.btn_save_print_backend = ctk.CTkButton(
             body_be, text=t('config.save_backend'), width=140, height=32, corner_radius=8,
             fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
@@ -783,6 +795,31 @@ class ConfigPanel(ctk.CTkFrame):
             return
         if result.message:
             PopUpWindow(self, t('common.success'), result.message)
+
+    def _refresh_ghostscript_status(self):
+        from app.utils.ghostscript_paths import (
+            bundled_ghostscript_root,
+            ghostscript_files_present,
+            ghostscript_is_available,
+        )
+        if not hasattr(self, 'lbl_ghostscript_status'):
+            return
+        try:
+            if not self.lbl_ghostscript_status.winfo_exists():
+                return
+        except Exception:
+            return
+        gs_root = bundled_ghostscript_root()
+        if ghostscript_is_available():
+            text = t('config.ghostscript_ok', path=gs_root)
+            color = THEME_TEXT_SECONDARY
+        elif ghostscript_files_present():
+            text = t('config.ghostscript_smoke_failed', path=gs_root)
+            color = THEME_ERROR_TEXT
+        else:
+            text = t('config.ghostscript_missing')
+            color = THEME_ERROR_TEXT
+        self.lbl_ghostscript_status.configure(text=text, text_color=color)
 
     @staticmethod
     def _available_backend_labels():
@@ -1154,6 +1191,7 @@ class ConfigPanel(ctk.CTkFrame):
             else:
                 self.combo_print_backend.set(get_print_backend_label())
 
+        self._refresh_ghostscript_status()
         self._refresh_theme_combo()
         self._apply_search_filter()
         self.after_idle(self.refresh_layout)
@@ -1173,12 +1211,13 @@ class EditRegisteredPrinterWindow(ctk.CTkToplevel):
         self.grab_set()
         self.configure(fg_color=THEME_BG)
 
-        self.geometry(calculate_center_screen_with_monitor(master, 440, 360, get_monitor(master)))
-        self.minsize(440, 360)
-        self.maxsize(440, 360)
+        self.geometry(calculate_center_screen_with_monitor(master, 440, 400, get_monitor(master)))
+        self.minsize(440, 400)
+        self.maxsize(440, 400)
         self.resizable(False, False)
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(1, weight=0)
+        self.grid_rowconfigure(2, weight=0)
 
         header = ctk.CTkFrame(self, fg_color=THEME_CARD, corner_radius=0, height=48)
         header.grid(row=0, column=0, sticky='ew')
@@ -1188,11 +1227,11 @@ class EditRegisteredPrinterWindow(ctk.CTkToplevel):
         ).pack(side='left', padx=16, pady=10)
 
         body = ctk.CTkFrame(self, fg_color='transparent')
-        body.grid(row=1, column=0, sticky='nsew', padx=16, pady=12)
+        body.grid(row=1, column=0, sticky='ew', padx=16, pady=(12, 0))
         body.grid_columnconfigure(0, weight=1)
 
         card, form = _section_card(body, t('printer.edit_form_title'))
-        card.pack(fill='both', expand=True)
+        card.pack(fill='x')
         form.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
@@ -1232,22 +1271,9 @@ class EditRegisteredPrinterWindow(ctk.CTkToplevel):
             if printer.get('notes'):
                 self.entry_notes.insert(0, printer['notes'])
 
-        actions = ctk.CTkFrame(body, fg_color='transparent')
-        actions.pack(fill='x', pady=(10, 0))
-        actions.grid_columnconfigure(0, weight=1)
-        actions.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkButton(
-            actions, text=t('common.save'), width=110,
-            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
-            corner_radius=8, height=32, command=self.save,
-        ).grid(row=0, column=0, padx=(0, 6), sticky='e')
-
-        ctk.CTkButton(
-            actions, text=t('common.cancel'), width=110,
-            fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
-            corner_radius=8, height=32, command=self.destroy,
-        ).grid(row=0, column=1, padx=(6, 0), sticky='w')
+        actions = ctk.CTkFrame(self, fg_color='transparent')
+        actions.grid(row=2, column=0, sticky='ew', padx=16, pady=(12, 16))
+        _dialog_action_row(actions, self, t('common.save'), self.save)
 
     def save(self):
         name = self.entry_name.get().strip()
@@ -1408,6 +1434,8 @@ class ManagePrintersWindow(ctk.CTkToplevel):
                 t('common.yes') if item['enabled'] else t('common.no'),
                 notes,
             ], item_id=item['id'])
+        if hasattr(self.master, 'refresh_production_combos'):
+            self.master.refresh_production_combos()
 
     def _selected_registered(self):
         selected = self.table.get_selected_items()
@@ -1793,6 +1821,8 @@ class ManageGroupWindow(ctk.CTkToplevel):
         self.table.remove_all()
         for i in admin_service.list_print_groups():
             self.table.add_item([i])
+        if hasattr(self.master, 'refresh_production_combos'):
+            self.master.refresh_production_combos()
 
 
 class DuplicateProductWindow(ctk.CTkToplevel):

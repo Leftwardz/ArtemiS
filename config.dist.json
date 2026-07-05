@@ -1,0 +1,12 @@
+{
+    "database_location": "database.db",
+    "search_folder": "C:\\AR",
+    "language": "pt",
+    "print_backend": "pdftoprinter",
+    "ui_theme": "slate",
+    "audit_enabled": true,
+    "audit_central_location": "",
+    "audit_flush_interval_seconds": 180,
+    "audit_retention_days": 180,
+    "locales_folder": ""
+}

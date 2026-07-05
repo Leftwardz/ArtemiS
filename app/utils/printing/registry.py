@@ -9,29 +9,60 @@
 from app.utils.printing.base import PrintBackend, PrintJob, PrintResult
 from app.utils.printing.logger import get_print_logger
 
-# Ordem de exibição na UI. (name, dotted_path, ClassName)
-_BACKEND_SPECS = (
-    ('pdftoprinter', 'app.utils.printing.backends.pdftoprinter', 'PdfToPrinterBackend'),
-    ('ghostscript', 'app.utils.printing.backends.ghostscript', 'GhostscriptBackend'),
-    ('win32_devmode', 'app.utils.printing.backends.win32_devmode', 'Win32DevmodeBackend'),
-    ('win32_advanced', 'app.utils.printing.backends.win32_advanced', 'Win32AdvancedBackend'),
-    ('xps', 'app.utils.printing.backends.xps', 'XpsBackend'),
+# Imports estáticos: PyInstaller não rastreia importlib.import_module em runtime.
+_BACKEND_CLASSES: dict[str, type] = {}
+try:
+    from app.utils.printing.backends.pdftoprinter import PdfToPrinterBackend
+    _BACKEND_CLASSES['pdftoprinter'] = PdfToPrinterBackend
+except Exception:
+    pass
+try:
+    from app.utils.printing.backends.ghostscript import GhostscriptBackend
+    _BACKEND_CLASSES['ghostscript'] = GhostscriptBackend
+except Exception:
+    pass
+try:
+    from app.utils.printing.backends.win32_devmode import Win32DevmodeBackend
+    _BACKEND_CLASSES['win32_devmode'] = Win32DevmodeBackend
+except Exception:
+    pass
+try:
+    from app.utils.printing.backends.win32_advanced import Win32AdvancedBackend
+    _BACKEND_CLASSES['win32_advanced'] = Win32AdvancedBackend
+except Exception:
+    pass
+try:
+    from app.utils.printing.backends.xps import XpsBackend
+    _BACKEND_CLASSES['xps'] = XpsBackend
+except Exception:
+    pass
+
+# Ordem de exibição na UI.
+_BACKEND_ORDER = (
+    'pdftoprinter',
+    'ghostscript',
+    'win32_devmode',
+    'win32_advanced',
+    'xps',
+)
+_BACKEND_SPECS = tuple(
+    (name, cls.__module__, cls.__name__)
+    for name in _BACKEND_ORDER
+    if (cls := _BACKEND_CLASSES.get(name)) is not None
 )
 
 _registry = None
 
 
 def _build_registry():
-    import importlib
-
     registry = {}
     log = get_print_logger()
-    for name, module_path, class_name in _BACKEND_SPECS:
+    for name in _BACKEND_ORDER:
+        backend_cls = _BACKEND_CLASSES.get(name)
+        if backend_cls is None:
+            continue
         try:
-            module = importlib.import_module(module_path)
-            backend_cls = getattr(module, class_name)
-            instance = backend_cls()
-            registry[name] = instance
+            registry[name] = backend_cls()
         except Exception as exc:  # pragma: no cover - depende do ambiente
             log.warning('backend %s indisponível para carregar: %r', name, exc)
     return registry
@@ -53,7 +84,7 @@ def list_backends():
     """Lista [(name, label, available, experimental)] na ordem de exibição."""
     registry = _get_registry()
     items = []
-    for name, _module_path, _class_name in _BACKEND_SPECS:
+    for name in _BACKEND_ORDER:
         backend = registry.get(name)
         if backend is None:
             continue
