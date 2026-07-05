@@ -145,6 +145,7 @@
     "product_exists_confirm": "Produto \"{product}\" já existente na base.\nDeseja substituí-lo?"
   },
   "client": {
+    "add_subtitle": "Novo cliente na base de dados",
     "duplicate_title": "Nome Duplicado",
     "duplicate_body": "Nome Duplicado"
   },
@@ -289,6 +290,8 @@
   },
   "import_export": {
     "export_title": "Exportar Produto",
+    "export_subtitle": "Selecione cliente e produto para salvar em JSON",
+    "duplicate_subtitle": "Cópia do produto para outro cliente ou nome",
     "select_client_product": "Selecione cliente e produto.",
     "exported": "Produto exportado com sucesso!",
     "saved_with_path": "Produto salvo com sucesso!\n{path}",

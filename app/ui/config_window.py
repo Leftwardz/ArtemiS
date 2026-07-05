@@ -101,6 +101,41 @@ def _table_host(parent, height: int):
     return host
 
 
+def _build_dialog_header(parent, title: str, subtitle: str):
+    header = ctk.CTkFrame(parent, fg_color=THEME_CARD, corner_radius=0, height=56)
+    header.grid(row=0, column=0, sticky='ew')
+    header.grid_propagate(False)
+    title_col = ctk.CTkFrame(header, fg_color='transparent')
+    title_col.pack(side='left', padx=16, pady=10)
+    ctk.CTkLabel(
+        title_col, text=title, font=(FONT, 15, 'bold'), text_color='white',
+    ).pack(anchor='w')
+    ctk.CTkLabel(
+        title_col, text=subtitle, font=(FONT, 11), text_color=THEME_TEXT_SECONDARY,
+    ).pack(anchor='w')
+
+
+def _dialog_action_row(parent, window, ok_text: str, ok_command, ok_kwargs=None):
+    actions = ctk.CTkFrame(parent, fg_color='transparent')
+    actions.pack(fill='x', pady=(10, 0))
+    actions.grid_columnconfigure(0, weight=1)
+    actions.grid_columnconfigure(1, weight=1)
+    ok_opts = dict(
+        width=110, fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+        corner_radius=8, height=32, command=ok_command,
+    )
+    if ok_kwargs:
+        ok_opts.update(ok_kwargs)
+    btn_ok = ctk.CTkButton(actions, text=ok_text, **ok_opts)
+    btn_ok.grid(row=0, column=0, padx=(0, 6), sticky='e')
+    ctk.CTkButton(
+        actions, text=t('common.cancel'), width=110,
+        fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
+        corner_radius=8, height=32, command=window.destroy,
+    ).grid(row=0, column=1, padx=(6, 0), sticky='w')
+    return btn_ok
+
+
 class ConfigWindow(ctk.CTkToplevel):
     def __init__(self, master, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1301,7 +1336,7 @@ class ManageAccessWindow(ctk.CTkToplevel):
             t('access.type_group'): 'group',
         }
         self.combo_type = ctk.CTkComboBox(
-            search_row, width=130, values=list(self._type_combo_labels.keys()), **_combo_kwargs(),
+            search_row, width=150, values=list(self._type_combo_labels.keys()), **_combo_kwargs(),
         )
         self.combo_type.set(t('access.type_both'))
         self.combo_type.grid(row=0, column=1, padx=(0, 8))
@@ -1530,10 +1565,11 @@ class DuplicateProductWindow(ctk.CTkToplevel):
     def __init__(self, master, title, original_client, original_product_name, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.iconbitmap(ICON)
+        self.configure(fg_color=THEME_BG)
 
-        self.geometry(calculate_center_screen_with_monitor(master, 400, 220, get_monitor(master)))
-        self.minsize(400, 220)
-        self.maxsize(400, 220)
+        self.geometry(calculate_center_screen_with_monitor(master, 440, 300, get_monitor(master)))
+        self.minsize(440, 300)
+        self.maxsize(440, 300)
         self.resizable(False, False)
         self.title(title)
         self.master = master
@@ -1542,25 +1578,38 @@ class DuplicateProductWindow(ctk.CTkToplevel):
         self.grab_set()
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
-        ctk.CTkLabel(self, text=title, font=('Arial', 18, 'bold')).grid(row=0, column=0, columnspan=2, pady=5, padx=10)
+        _build_dialog_header(self, title, t('import_export.duplicate_subtitle'))
 
-        ctk.CTkLabel(self, text=t('config.client_label')).grid(row=3, column=0, pady=5, padx=10)
-        self.entry_clientname = ctk.CTkComboBox(self, width=140, values=admin_service.list_client_names())
-        self.entry_clientname.grid(row=3, column=1, sticky='W')
+        body = ctk.CTkFrame(self, fg_color='transparent')
+        body.grid(row=1, column=0, sticky='nsew', padx=16, pady=12)
+        body.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(self, text=t('config.product_name')).grid(row=4, column=0, columnspan=2, pady=5, padx=10)
-        self.entry_productname = ctk.CTkEntry(self, width=300)
-        self.entry_productname.grid(row=5, column=0, columnspan=2, padx=10)
+        card, form = _section_card(body, t('import_export.select_client_product'))
+        card.pack(fill='both', expand=True)
+        form.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            form, text=t('config.client_label'), font=(FONT, 11),
+            text_color=THEME_TEXT_SECONDARY, anchor='w',
+        ).grid(row=0, column=0, sticky='ew', pady=(0, 4))
+        self.entry_clientname = ctk.CTkComboBox(
+            form, values=admin_service.list_client_names(), **_combo_kwargs(),
+        )
+        self.entry_clientname.grid(row=1, column=0, sticky='ew', pady=(0, 8))
+        if admin_service.list_client_names():
+            self.entry_clientname.set(original_client)
+
+        ctk.CTkLabel(
+            form, text=t('config.product_name'), font=(FONT, 11),
+            text_color=THEME_TEXT_SECONDARY, anchor='w',
+        ).grid(row=2, column=0, sticky='ew', pady=(0, 4))
+        self.entry_productname = ctk.CTkEntry(form, **_entry_kwargs())
+        self.entry_productname.grid(row=3, column=0, sticky='ew')
         self.entry_productname.insert(0, original_product_name + '(1)')
 
-        self.btn_ok = ctk.CTkButton(self, text=t("common.ok"), width=120, command=self.duplicate_product)
-        self.btn_ok.grid(row=6, column=0, pady=10, padx=20)
-
-        self.btn_cancelar = ctk.CTkButton(self, width=120, text=t("common.cancel"), fg_color=BTN_RED,
-                                          hover_color=BTN_HOVER_RED, command=self.destroy)
-        self.btn_cancelar.grid(row=6, column=1, pady=10, padx=20)
+        _dialog_action_row(body, self, t('common.ok'), self.duplicate_product)
 
     def duplicate_product(self):
         product_name = self.entry_productname.get()
@@ -1588,38 +1637,52 @@ class ExportProductWindow(ctk.CTkToplevel):
     def __init__(self, master, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.iconbitmap(ICON)
+        self.configure(fg_color=THEME_BG)
 
-        self.geometry(calculate_center_screen_with_monitor(master, 400, 220, get_monitor(master)))
-        self.minsize(400, 180)
-        self.maxsize(400, 180)
+        self.geometry(calculate_center_screen_with_monitor(master, 440, 300, get_monitor(master)))
+        self.minsize(440, 300)
+        self.maxsize(440, 300)
         self.resizable(False, False)
         self.title(t('import_export.export_title'))
         self.master = master
         self.grab_set()
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
-        ctk.CTkLabel(self, text=t('import_export.export_title'), font=('Arial', 18, 'bold')). \
-            grid(row=0, column=0, columnspan=2, pady=5, padx=10)
+        _build_dialog_header(self, t('import_export.export_title'), t('import_export.export_subtitle'))
 
-        ctk.CTkLabel(self, text=t('config.client_label')).grid(row=3, column=0, pady=5, padx=10)
-        self.entry_clientname = ctk.CTkComboBox(self, width=140, values=admin_service.list_client_names(),
-                                                command=self.refresh_combobox)
-        self.entry_clientname.grid(row=3, column=1, sticky='W')
+        body = ctk.CTkFrame(self, fg_color='transparent')
+        body.grid(row=1, column=0, sticky='nsew', padx=16, pady=12)
+        body.grid_columnconfigure(0, weight=1)
+
+        card, form = _section_card(body, t('import_export.select_client_product'))
+        card.pack(fill='both', expand=True)
+        form.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            form, text=t('config.client_label'), font=(FONT, 11),
+            text_color=THEME_TEXT_SECONDARY, anchor='w',
+        ).grid(row=0, column=0, sticky='ew', pady=(0, 4))
+        self.entry_clientname = ctk.CTkComboBox(
+            form, values=admin_service.list_client_names(), command=self.refresh_combobox,
+            **_combo_kwargs(),
+        )
+        self.entry_clientname.grid(row=1, column=0, sticky='ew', pady=(0, 8))
         self.entry_clientname.set('')
 
-        ctk.CTkLabel(self, text=t('config.products_label')).grid(row=4, column=0, pady=5, padx=10)
+        ctk.CTkLabel(
+            form, text=t('config.products_label'), font=(FONT, 11),
+            text_color=THEME_TEXT_SECONDARY, anchor='w',
+        ).grid(row=2, column=0, sticky='ew', pady=(0, 4))
+        self.entry_productname = ctk.CTkComboBox(
+            form, state='disabled', command=self.refresh_btn_ok, **_combo_kwargs(),
+        )
+        self.entry_productname.grid(row=3, column=0, sticky='ew')
 
-        self.entry_productname = ctk.CTkComboBox(self, width=140, state='disabled', command=self.refresh_btn_ok)
-        self.entry_productname.grid(row=4, column=1, sticky='W')
-
-        self.btn_ok = ctk.CTkButton(self, text=t("common.save"), width=120, state='disabled', command=self.export_product)
-        self.btn_ok.grid(row=6, column=0, pady=10, padx=20)
-
-        self.btn_cancelar = ctk.CTkButton(self, width=120, text=t("common.cancel"), fg_color=BTN_RED,
-                                          hover_color=BTN_HOVER_RED, command=self.destroy)
-        self.btn_cancelar.grid(row=6, column=1, pady=10, padx=20)
+        self.btn_ok = _dialog_action_row(
+            body, self, t('common.save'), self.export_product, ok_kwargs={'state': 'disabled'},
+        )
 
     def refresh_combobox(self, *args):
         products = admin_service.list_products(self.entry_clientname.get())
@@ -1652,31 +1715,35 @@ class AddClientWindow(ctk.CTkToplevel):
     def __init__(self, master, title, func, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.iconbitmap(ICON)
+        self.configure(fg_color=THEME_BG)
 
-        self.geometry(calculate_center_screen_with_monitor(master, 300, 130, get_monitor(master)))
-        self.minsize(300, 120)
-        self.maxsize(300, 120)
+        self.geometry(calculate_center_screen_with_monitor(master, 380, 220, get_monitor(master)))
+        self.minsize(380, 220)
+        self.maxsize(380, 220)
         self.resizable(False, False)
-        self.title(title)
+        self.title(t('config.add_client'))
         self.master = master
         self.grab_set()
         self.func = func
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
-        lbl_client_name = ctk.CTkLabel(self, text=title, font=('Arial', 18, 'bold'))
-        lbl_client_name.grid(row=0, column=0, columnspan=2, pady=5, padx=10)
+        _build_dialog_header(self, t('config.add_client'), t('client.add_subtitle'))
 
-        self.entry_name = ctk.CTkEntry(self, width=200)
-        self.entry_name.grid(row=2, column=0, columnspan=2, padx=10)
+        body = ctk.CTkFrame(self, fg_color='transparent')
+        body.grid(row=1, column=0, sticky='nsew', padx=16, pady=12)
+        body.grid_columnconfigure(0, weight=1)
 
-        self.btn_ok = ctk.CTkButton(self, text=t("common.ok"), width=120, command=self.add_client)
-        self.btn_ok.grid(row=6, column=0, pady=10, padx=20)
+        card, form = _section_card(body, title)
+        card.pack(fill='both', expand=True)
+        form.grid_columnconfigure(0, weight=1)
 
-        self.btn_cancelar = ctk.CTkButton(self, width=120, text=t("common.cancel"), fg_color=BTN_RED,
-                                          hover_color=BTN_HOVER_RED, command=self.destroy)
-        self.btn_cancelar.grid(row=6, column=1, pady=10, padx=20)
+        self.entry_name = ctk.CTkEntry(form, **_entry_kwargs())
+        self.entry_name.grid(row=0, column=0, sticky='ew')
+        self.entry_name.bind('<Return>', lambda _e: self.add_client())
+
+        _dialog_action_row(body, self, t('common.ok'), self.add_client)
 
     def add_client(self):
         if self.entry_name.get() in admin_service.list_client_names():
