@@ -48,7 +48,7 @@ def search_work_for_queue(
     if not os.path.exists(path):
         return WorkSearchResult(
             status='path_missing',
-            error=WorkValidationError('Erro', f'Caminho "{path}" não existe!'),
+            error=WorkValidationError('common.error', 'work.path_missing', {'path': path}),
         )
 
     full_path = find_work_in_directory(path, work)
@@ -68,8 +68,9 @@ def search_work_for_queue(
             status='product_missing',
             work=work,
             error=WorkValidationError(
-                'Erro',
-                f'Cliente: "{client}" e Produto: "{product}" não existem no banco',
+                'common.error',
+                'work.product_missing',
+                {'client': client, 'product': product},
             ),
         )
 

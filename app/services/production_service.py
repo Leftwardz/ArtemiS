@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 from app.services.print_group_service import (
@@ -21,8 +21,9 @@ class WorkProductInfo:
 
 @dataclass
 class WorkValidationError:
-    title: str
-    message: str
+    title_key: str
+    message_key: str
+    message_params: Optional[dict] = None
 
 
 @dataclass
@@ -92,8 +93,9 @@ def validate_queue_consistency(
         return QueueConsistencyResult(
             ok=False,
             error=WorkValidationError(
-                'Erro',
-                f'Work com Tamanho de Papel diferente dos que estão na lista - Tamanho: {paper_size}',
+                'common.error',
+                'work.paper_size_mismatch',
+                {'size': paper_size},
             ),
         )
     else:
@@ -111,8 +113,9 @@ def validate_queue_consistency(
         return QueueConsistencyResult(
             ok=False,
             error=WorkValidationError(
-                'Erro',
-                f'Work com papel diferente das works da lista - Cor: {color}',
+                'common.error',
+                'work.color_mismatch',
+                {'color': color},
             ),
         )
 
@@ -137,17 +140,17 @@ def load_worklist_file_lines(works_paths: List[str]) -> list:
 
 
 def parse_client_product_from_work_lines(file_lines) -> Tuple[str, str]:
-    """Extrai cliente e produto da primeira linha de um CSV de work."""
+    """Extract client and product from the first line of a work CSV."""
     if not file_lines:
-        raise ValueError('Arquivo de work sem linhas')
+        raise ValueError('work.empty_work_file')
 
     first_row = file_lines[0]
     if len(first_row) < 2 or not first_row[1]:
-        raise ValueError('Formato de linha inválido no CSV')
+        raise ValueError('work.invalid_csv_line')
 
     header_cell = first_row[1][0]
     if '-' not in header_cell:
-        raise ValueError(f'Identificador cliente-produto inválido: {header_cell!r}')
+        raise ValueError(f'work.invalid_client_product:{header_cell!r}')
 
     client, product = header_cell.split('-', 1)
     return client.strip(), product.strip()
@@ -189,7 +192,7 @@ def build_remake_file_lines(file_utils: FileUtils, filepath: str, position_list:
 
 
 def validate_landscape_batch(orientation_list, layout_config_list=None, backend: Optional[str] = None) -> Optional[str]:
-    """Retorna chave i18n se o lote misturar retrato/paisagem ou backend não suportar."""
+    """Return an i18n key when the batch mixes portrait/landscape or the backend does not support it."""
     from app.services.layout_service import batch_print_orientation, resolve_print_orientation
     from app.utils.printing.base import ORIENTATION_LANDSCAPE
 
@@ -208,7 +211,7 @@ def validate_landscape_batch(orientation_list, layout_config_list=None, backend:
 
 
 def validate_duplex_batch(items_list, backend: str) -> Optional[str]:
-    """Retorna chave i18n se o lote ou backend for incompatível com duplex."""
+    """Return an i18n key when the batch or backend is incompatible with duplex."""
     from app.services.pdf_service import product_requires_duplex
 
     flags = [product_requires_duplex(items) for items in items_list]

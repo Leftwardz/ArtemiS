@@ -323,7 +323,7 @@ class EditWindow(ctk.CTkToplevel):
         self._sync_preview_ui()
 
     def apply_language(self):
-        """Atualiza textos do editor após troca de idioma."""
+        """Refresh editor texts after a language change."""
         from app.i18n import paper_color_label
 
         self.lbl_product_name.configure(text=t('designer.product_name'))
@@ -702,7 +702,7 @@ class EditWindow(ctk.CTkToplevel):
             pass
 
     def _render_slot_previews_on_sheet(self, layout: SheetLayout):
-        """Desenha etiquetas (escopo slot) em cada posição da grade — só visualização."""
+        """Draw slot-scope labels at each grid position (preview only)."""
         slot_objects = self.drawing_store.objects_for_scope(SCOPE_SLOT)
         if not slot_objects:
             return
@@ -863,9 +863,12 @@ class EditWindow(ctk.CTkToplevel):
 
     def _canvas_status_text(self, lx, ly, *, medir=False):
         if medir:
-            text = f'X: {lx}  Y: {ly}  ({format_mm(lx)}, {format_mm(ly)})'
+            text = t(
+                'designer.status_xy_mm',
+                x=lx, y=ly, xmm=format_mm(lx), ymm=format_mm(ly),
+            )
         else:
-            text = f'X: {lx}, Y: {ly}'
+            text = t('designer.status_xy_short', x=lx, y=ly)
         if self.preview_file_path and self.preview_file:
             name = os.path.basename(self.preview_file_path)
             line = self.preview_line_idx + 1
@@ -959,7 +962,11 @@ class EditWindow(ctk.CTkToplevel):
             self.exit()
             PopUpWindow(self.master, t('common.success'), t('designer.product_deleted'))
         else:
-            error_msg = f'Não foi possível deletar o produto "{self.product_name}" do cliente "{self.client}"'
+            error_msg = t(
+                'designer.delete_failed_detail',
+                product=self.product_name,
+                client=self.client,
+            )
             PopUpWindow(self, t('designer.delete_failed'), error_msg)
 
     def save_changes(self):
@@ -1032,7 +1039,7 @@ class EditWindow(ctk.CTkToplevel):
         return rows
 
     def _preview_sheet_pagination(self):
-        """Pag/total do grupo da linha selecionada (cabeçalho com {pag}/{total})."""
+        """Page/total for the selected row group (header with {pag}/{total})."""
         if not self.preview_file or not self._is_custom_orientation():
             return 1, 1
         layout = self._build_layout_from_form()
@@ -1149,17 +1156,17 @@ class EditWindow(ctk.CTkToplevel):
             tags.append('wrap')
         return tags
 
-    # ------------------------- Zoom: conversões lógico <-> tela ----------------------
+    # ------------------------- Zoom: logical <-> screen conversion ----------------------
     def _zs(self, value):
-        """Lógico -> tela (multiplica pelo zoom)."""
+        """Logical -> screen (multiply by zoom)."""
         return float(value) * self.zoom
 
     def _zl(self, value):
-        """Tela -> lógico (divide pelo zoom)."""
+        """Screen -> logical (divide by zoom)."""
         return float(value) / self.zoom
 
     def _zfont(self, font_size):
-        """Tamanho de fonte lógico -> tela."""
+        """Logical font size -> screen."""
         try:
             return max(1, int(round(int(float(font_size)) * self.zoom)))
         except (TypeError, ValueError):
@@ -1381,7 +1388,7 @@ class EditWindow(ctk.CTkToplevel):
         )
 
     def selection_measure_lines(self) -> list[str]:
-        """Texto de espaçamento para o painel de multisseleção."""
+        """Spacing text for the multi-selection panel."""
         reps = self.selected_items
         if len(reps) < 2:
             return []
@@ -1432,7 +1439,7 @@ class EditWindow(ctk.CTkToplevel):
             self._render_object(obj)
 
     def _compute_fit_zoom(self):
-        """Zoom para caber a folha inteira na área visível do canvas."""
+        """Zoom to fit the entire sheet in the visible canvas area."""
         self.update_idletasks()
         vw = max(1, self.canvas.winfo_width())
         vh = max(1, self.canvas.winfo_height())
@@ -1509,7 +1516,7 @@ class EditWindow(ctk.CTkToplevel):
         return 'break'
 
     def _event_xy(self, event):
-        """Converte coords do evento (viewport) para coords de conteúdo do canvas (com scroll)."""
+        """Convert event coords (viewport) to canvas content coords (with scroll)."""
         event.x = int(self.canvas.canvasx(event.x))
         event.y = int(self.canvas.canvasy(event.y))
         return event
@@ -1541,7 +1548,7 @@ class EditWindow(ctk.CTkToplevel):
         self.drawing_store._segment_canvas_lines.pop(segment_id, None)
 
     def _rebuild_segment_preview_lines(self, seg: SegmentObject):
-        """Recalcula linhas de preview a partir dos labels (mantém object_id)."""
+        """Rebuild preview lines from labels (preserves object_id)."""
         x, y = int(seg.anchor_x), int(seg.anchor_y)
         dist = int(seg.line_distance or 15)
         new_lines = []
@@ -1561,9 +1568,9 @@ class EditWindow(ctk.CTkToplevel):
         self.drawing_store.register(obj)
         self.drawing_store.bind_canvas(canvas_id, obj.object_id)
 
-    # ------------------------- Seleção (single + múltipla) ---------------------------
+    # ------------------------- Selection (single + multi) ---------------------------
     def _item_at(self, x, y):
-        """Item registrado sob o cursor (topo), ou None se for área vazia."""
+        """Registered item under the cursor (topmost), or None if empty area."""
         items = self.canvas.find_overlapping(x - 2, y - 2, x + 2, y + 2)
         for cid in reversed(items):
             if cid == self.rubber_band:
@@ -1576,7 +1583,7 @@ class EditWindow(ctk.CTkToplevel):
         return None
 
     def _representative_canvas_id(self, canvas_id):
-        """Canvas id 'líder' do objeto (1ª linha do segmento, ou o próprio)."""
+        """Leader canvas id of the object (first segment line, or the object itself)."""
         obj = self.drawing_store.get_by_canvas(canvas_id)
         if isinstance(obj, SegmentObject):
             ids = self.drawing_store.segment_canvas_ids(obj.object_id)
@@ -1647,7 +1654,7 @@ class EditWindow(ctk.CTkToplevel):
         )
 
     def align_selected(self, mode):
-        """Alinha itens selecionados em relação à caixa delimitadora da seleção."""
+        """Align selected items relative to the selection bounding box."""
         if len(self.selected_items) < 2:
             return
         selection = self._selection_bbox()
@@ -1681,7 +1688,7 @@ class EditWindow(ctk.CTkToplevel):
         self.properties_window.refresh()
 
     def distribute_selected(self, mode):
-        """Distribui itens com espaçamento igual entre eles (mantém o primeiro e o último fixos)."""
+        """Distribute items with equal spacing (keeps first and last fixed)."""
         if len(self.selected_items) < 3:
             return
         entries = []
@@ -1745,7 +1752,7 @@ class EditWindow(ctk.CTkToplevel):
         self.properties_window.refresh()
 
     def _clone_object(self, obj, dx, dy):
-        """Clona um DrawingObject com offset; renderiza e retorna o canvas id líder."""
+        """Clone a DrawingObject with offset; render and return the leader canvas id."""
         from dataclasses import replace
 
         if isinstance(obj, SegmentObject):
@@ -1851,7 +1858,7 @@ class EditWindow(ctk.CTkToplevel):
                 if ctrl:
                     self.toggle_select(clicked)
                 elif rep in self.selected_items and len(self.selected_items) > 1:
-                    # mantém multisseleção ao iniciar arraste (Mover)
+                    # keep multi-selection when starting a drag (Move)
                     self.id_selected_item = rep
                 else:
                     self.select_single(clicked)
@@ -2933,7 +2940,9 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
 
     def save_img(self):
         item_id = self.master.id_selected_item
-        path = asksaveasfilename(defaultextension=".png", filetypes=[("Arquivos Imagem", "*.png")],
+        path = asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[(t('designer.image_files_filter'), "*.png")],
                                  initialfile=f'Img_{datetime.today().strftime("%Y%m%d%H%M%S")}')
 
         img = self.master.canvas_dict_images[item_id][2]
@@ -3059,7 +3068,9 @@ class GetTextWindow(ctk.CTkToplevel):
         self.orientation.grid(row=2, column=1, pady=10, padx=10, sticky='W')
 
         self.counter_var = ctk.IntVar()
-        self.counter = ctk.CTkCheckBox(self, text='Counter', command=self.verify_counter, variable=self.counter_var)
+        self.counter = ctk.CTkCheckBox(
+            self, text=t('designer.counter'), command=self.verify_counter, variable=self.counter_var,
+        )
         self.counter.grid(row=3, column=0, padx=30, sticky='E')
 
         self.bold = ctk.CTkCheckBox(self, text=t('designer.font_bold'))

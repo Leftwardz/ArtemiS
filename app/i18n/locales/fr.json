@@ -63,7 +63,10 @@
     "work_duplicate": "L'ordre de travail est déjà dans la liste",
     "work_not_found_title": "Ordre de travail introuvable",
     "work_not_found_body": "L'ordre \"{work}\" est introuvable.\nVeuillez sélectionner le fichier manuellement\nOu contacter PreProd\nChemin : {folder}",
-    "empty_file": "Le fichier trouvé est vide - veuillez vérifier"
+    "empty_file": "Le fichier trouvé est vide - veuillez vérifier",
+    "user_fallback": "Utilisateur",
+    "no_value": "—",
+    "progress_step": "1/2"
   },
   "popup": {
     "close": "Fermer",
@@ -142,7 +145,8 @@
     "products_label": "Produits :",
     "product_name": "Nom du produit",
     "import_file_filter": "Fichiers JSON",
-    "product_exists_confirm": "Le produit \"{product}\" existe déjà dans la base.\nLe remplacer ?"
+    "product_exists_confirm": "Le produit \"{product}\" existe déjà dans la base.\nLe remplacer ?",
+    "audit_db_placeholder": "\\\\serveur\\dossier\\artemis_audit_central.db"
   },
   "client": {
     "add_subtitle": "Nouveau client dans la base de données",
@@ -168,6 +172,7 @@
     "start": "Démarrer",
     "quantity": "Quantité : {count}",
     "not_found": "Enregistrement introuvable",
+    "empty_list": "La liste ne peut pas être vide !",
     "col_id": "ID",
     "col_rankjob": "RankJob",
     "col_ar": "N° AR",
@@ -286,7 +291,9 @@
     "copy_failed": "Impossible de copier dans le presse-papiers.",
     "nothing_to_copy": "Rien à copier.",
     "export_files": "Fichiers",
-    "export_detail": "Détail"
+    "export_detail": "Détail",
+    "status_ok": "OK",
+    "status_fail": "X"
   },
   "import_export": {
     "export_title": "Exporter le produit",
@@ -295,7 +302,8 @@
     "select_client_product": "Sélectionnez client et produit.",
     "exported": "Produit exporté avec succès !",
     "saved_with_path": "Produit enregistré avec succès !\n{path}",
-    "error_title": "ERREUR !"
+    "error_title": "ERREUR !",
+    "export_error_detail": "Échec de l'export : {error}"
   },
   "paper": {
     "Branco": "Blanc",
@@ -322,7 +330,28 @@
     "db_readonly_detail": "Impossible d'écrire dans la base à cet emplacement (lecture seule).\n\nVérifiez que :\n• le fichier .db n'est pas marqué en lecture seule ;\n• le dossier/partage réseau autorise l'écriture pour votre utilisateur ;\n• le chemin ne pointe pas vers un dossier protégé (ex. : Program Files).\n\nDétail technique : {error}",
     "db_validate_error": "Erreur lors de la validation de l'écriture dans la base :\n{error}",
     "db_access_error": "Erreur d'accès à la base à la destination :\n{error}",
-    "db_save_error": "Erreur lors de l'enregistrement de la base de données\n{error}"
+    "db_save_error": "Erreur lors de l'enregistrement de la base de données\n{error}",
+    "backends": {
+      "pdftoprinter": "PDFtoPrinter",
+      "ghostscript": "Ghostscript",
+      "win32_devmode": "Win32 DEVMODE (expérimental)",
+      "win32_advanced": "Win32 Print API avancée (expérimental)",
+      "xps": "XPS Print API (expérimental)"
+    }
+  },
+  "printer_paper": {
+    "message": "L'imprimante n'est pas configurée avec le papier {wording} pour le produit : {paper_size}\nContactez l'équipe de support",
+    "wording_configured": "configuré",
+    "wording_registered": "enregistré"
+  },
+  "work": {
+    "path_missing": "Le chemin \"{path}\" n'existe pas !",
+    "product_missing": "Client : \"{client}\" et produit : \"{product}\" introuvables dans la base",
+    "paper_size_mismatch": "Format de papier différent de la file — Taille : {size}",
+    "color_mismatch": "Couleur de papier différente de la file — Couleur : {color}",
+    "invalid_csv_line": "Format de ligne CSV invalide",
+    "invalid_client_product": "Identifiant client-produit invalide : {value}",
+    "empty_work_file": "Fichier de work sans lignes"
   },
   "designer": {
     "new_product": "Nouveau produit",
@@ -410,6 +439,10 @@
     "delete_product_confirm": "Voulez-vous vraiment supprimer le produit {product} ?",
     "product_deleted": "Produit supprimé avec succès !",
     "delete_failed": "Échec de la suppression",
+    "delete_failed_detail": "Impossible de supprimer le produit \"{product}\" du client \"{client}\"",
+    "counter": "Compteur",
+    "status_xy_mm": "X : {x}  Y : {y}  ({xmm}, {ymm})",
+    "status_xy_short": "X : {x}, Y : {y}",
     "product_saved": "Produit enregistré avec succès !",
     "unsaved_title": "Produit non enregistré",
     "unsaved_body": "Le produit n'est pas enregistré. Continuer ?",

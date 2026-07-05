@@ -7,7 +7,7 @@ DEFAULT_WIDTH = 1000
 DEFAULT_HEIGHT = 640
 SIDEBAR_WIDTH = 200
 
-# Tema roxo-índigo (tela principal)
+# Purple-indigo theme (main screen)
 THEME_SIDEBAR = '#1a1033'
 THEME_BG = '#12151f'
 THEME_CARD = '#1e2433'

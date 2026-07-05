@@ -63,7 +63,10 @@
     "work_duplicate": "Work já está na lista",
     "work_not_found_title": "Work não encontrada",
     "work_not_found_body": "Work \"{work}\" não foi encontrada.\nPor favor selecionar o arquivo manualmente\nOu Contactar PreProd\nCaminho: {folder}",
-    "empty_file": "Arquivo encontrado está vazio - Verificar"
+    "empty_file": "Arquivo encontrado está vazio - Verificar",
+    "user_fallback": "Usuário",
+    "no_value": "—",
+    "progress_step": "1/2"
   },
   "popup": {
     "close": "Fechar",
@@ -142,7 +145,8 @@
     "products_label": "Produtos:",
     "product_name": "Nome do Produto",
     "import_file_filter": "Arquivos JSON",
-    "product_exists_confirm": "Produto \"{product}\" já existente na base.\nDeseja substituí-lo?"
+    "product_exists_confirm": "Produto \"{product}\" já existente na base.\nDeseja substituí-lo?",
+    "audit_db_placeholder": "\\\\servidor\\pasta\\artemis_audit_central.db"
   },
   "client": {
     "add_subtitle": "Novo cliente na base de dados",
@@ -168,6 +172,7 @@
     "start": "Start",
     "quantity": "Quantidade: {count}",
     "not_found": "Registro não encontrado",
+    "empty_list": "Lista não pode estar vazia!",
     "col_id": "ID",
     "col_rankjob": "RankJob",
     "col_ar": "Nª AR",
@@ -286,7 +291,9 @@
     "copy_failed": "Não foi possível copiar para a área de transferência.",
     "nothing_to_copy": "Nada para copiar.",
     "export_files": "Arquivos",
-    "export_detail": "Detalhe"
+    "export_detail": "Detalhe",
+    "status_ok": "OK",
+    "status_fail": "X"
   },
   "import_export": {
     "export_title": "Exportar Produto",
@@ -295,7 +302,8 @@
     "select_client_product": "Selecione cliente e produto.",
     "exported": "Produto exportado com sucesso!",
     "saved_with_path": "Produto salvo com sucesso!\n{path}",
-    "error_title": "ERRO!"
+    "error_title": "ERRO!",
+    "export_error_detail": "Erro ao exportar: {error}"
   },
   "paper": {
     "Branco": "Branco",
@@ -322,7 +330,28 @@
     "db_readonly_detail": "Não é possível gravar no banco neste local (somente leitura).\n\nVerifique se:\n• o arquivo .db não está marcado como \"Somente leitura\";\n• a pasta/compartilhamento de rede permite escrita para o seu usuário;\n• o caminho não aponta para uma pasta protegida (ex.: Arquivos de Programas).\n\nDetalhe técnico: {error}",
     "db_validate_error": "Erro ao validar gravação no banco:\n{error}",
     "db_access_error": "Erro ao acessar o banco no destino:\n{error}",
-    "db_save_error": "Erro ao salvar banco de dados\n{error}"
+    "db_save_error": "Erro ao salvar banco de dados\n{error}",
+    "backends": {
+      "pdftoprinter": "PDFtoPrinter",
+      "ghostscript": "Ghostscript",
+      "win32_devmode": "Win32 DEVMODE (experimental)",
+      "win32_advanced": "Win32 Print API avançada (experimental)",
+      "xps": "XPS Print API (experimental)"
+    }
+  },
+  "printer_paper": {
+    "message": "Impressora não está definida com papel {wording} no produto: {paper_size}\nInformar Equipe de Suporte",
+    "wording_configured": "configurado",
+    "wording_registered": "cadastrado"
+  },
+  "work": {
+    "path_missing": "Caminho \"{path}\" não existe!",
+    "product_missing": "Cliente: \"{client}\" e Produto: \"{product}\" não existem no banco",
+    "paper_size_mismatch": "Work com Tamanho de Papel diferente dos que estão na lista - Tamanho: {size}",
+    "color_mismatch": "Work com papel diferente das works da lista - Cor: {color}",
+    "invalid_csv_line": "Formato de linha inválido no CSV",
+    "invalid_client_product": "Identificador cliente-produto inválido: {value}",
+    "empty_work_file": "Arquivo de work sem linhas"
   },
   "designer": {
     "new_product": "Novo Produto",
@@ -410,6 +439,10 @@
     "delete_product_confirm": "Você realmente deseja deletar o produto {product}?",
     "product_deleted": "Produto deletado com Sucesso!",
     "delete_failed": "Erro ao deletar",
+    "delete_failed_detail": "Não foi possível deletar o produto \"{product}\" do cliente \"{client}\"",
+    "counter": "Contador",
+    "status_xy_mm": "X: {x}  Y: {y}  ({xmm}, {ymm})",
+    "status_xy_short": "X: {x}, Y: {y}",
     "product_saved": "Produto salvo com Sucesso!",
     "unsaved_title": "Produto não salvo",
     "unsaved_body": "O produto não está salvo, você tem certeza?",
@@ -417,7 +450,7 @@
     "csv_filter": "Arquivos CSV",
     "all_files_filter": "Todos",
     "image_filter": "Arquivos Imagem",
-    "image_files_filter": "Image files",
+    "image_files_filter": "Arquivos Imagem",
     "pos_x": "Posição X:",
     "pos_y": "Posição Y:",
     "pos_x1": "Posição X1:",

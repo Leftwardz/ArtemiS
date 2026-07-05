@@ -74,7 +74,7 @@ def duplicate_product(
     db,
 ) -> Optional[str]:
     if target_product in db.search_products(target_client):
-        return 'Nome de produto já existe'
+        return 'name_exists'
 
     product_obj = db.search_product(source_client, source_product)
     paper_size = get_product_paper_size(product_obj)
@@ -166,7 +166,7 @@ def import_product_with_new_client(
 
 
 def _normalize_drawing_row(row: dict) -> dict:
-    """Normaliza linha do banco/serialização para comparação estável (None → '')."""
+    """Normalize DB/serialization row for stable comparison (None → '')."""
     string_fields = (
         'item_type', 'scope', 'duplex', 'x1', 'x2', 'y1', 'y2',
         'font_name', 'font_size', 'font_style', 'orientation', 'thickness', 'dashed',

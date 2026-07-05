@@ -1,4 +1,4 @@
-"""Persistência de config.json e troca de banco."""
+"""Persist config.json and switch database."""
 
 import json
 import os
@@ -46,7 +46,7 @@ def get_audit_central_location():
 
 
 def save_audit_central_location(path: str) -> SettingsSaveResult:
-    """Salva o caminho do banco CENTRAL de logs (vazio = mesma pasta do Database)."""
+    """Save the CENTRAL audit database path (empty = same folder as Database)."""
     path = (path or '').strip()
 
     if path:
@@ -76,8 +76,14 @@ def get_print_backend():
     return backend
 
 
+def localized_backend_label(name: str, fallback: str = '') -> str:
+    key = f'settings.backends.{name}'
+    translated = t(key)
+    return translated if translated != key else (fallback or name)
+
+
 def get_print_backend_label():
-    return PRINT_BACKEND_LABELS.get(get_print_backend(), 'PDFtoPrinter')
+    return localized_backend_label(get_print_backend(), PRINT_BACKEND_LABELS.get(get_print_backend(), 'PDFtoPrinter'))
 
 
 def save_print_backend(backend: str) -> SettingsSaveResult:
@@ -90,7 +96,7 @@ def save_print_backend(backend: str) -> SettingsSaveResult:
         hint = ''
         if backend in ('ghostscript', 'win32_devmode', 'win32_advanced', 'xps'):
             hint = t('settings.backend_hint')
-        label = PRINT_BACKEND_LABELS.get(backend, backend)
+        label = localized_backend_label(backend, PRINT_BACKEND_LABELS.get(backend, backend))
         return SettingsSaveResult(
             ok=False,
             error=t('settings.backend_unavailable', label=label, hint=hint),
@@ -103,7 +109,7 @@ def save_print_backend(backend: str) -> SettingsSaveResult:
     try:
         with open('config.json', 'w') as configfile:
             json.dump(runtime.context.config, configfile, indent=4)
-        label = PRINT_BACKEND_LABELS[backend]
+        label = localized_backend_label(backend, PRINT_BACKEND_LABELS[backend])
         return SettingsSaveResult(ok=True, message=t('settings.backend_saved', label=label))
     except Exception as e:
         return SettingsSaveResult(ok=False, error=t('settings.save_error', error=e))
@@ -126,7 +132,7 @@ def save_search_folder(folder: str) -> SettingsSaveResult:
 
 
 def _clear_readonly_attribute(path: str) -> None:
-    """Remove o atributo somente-leitura de um arquivo .db existente (best-effort)."""
+    """Remove read-only attribute from an existing .db file (best-effort)."""
     if os.path.isfile(path):
         try:
             os.chmod(path, stat.S_IWRITE | stat.S_IREAD)

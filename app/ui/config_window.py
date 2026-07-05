@@ -361,7 +361,7 @@ class ConfigWindow(ctk.CTkToplevel):
         ).pack(fill='x')
         self.inpt_audit_location = ctk.CTkEntry(
             body_audit,
-            placeholder_text=r'\\servidor\pasta\artemis_audit_central.db',
+            placeholder_text=t('config.audit_db_placeholder'),
             **_entry_kwargs(),
         )
         self.btn_save_audit_location = ctk.CTkButton(
@@ -645,15 +645,19 @@ class ConfigWindow(ctk.CTkToplevel):
 
     @staticmethod
     def _available_backend_labels():
-        """Rótulos dos backends disponíveis na máquina (sempre inclui o atual)."""
+        """Labels for print backends available on this machine (always includes current)."""
+        from app.services.settings_service import localized_backend_label
         try:
             from app.utils.printing.registry import list_backends
-            labels = [label for _name, label, available, _exp in list_backends() if available]
+            labels = [
+                localized_backend_label(name, label)
+                for name, label, available, _exp in list_backends() if available
+            ]
         except Exception:
             labels = []
         current = get_print_backend_label()
         if not labels:
-            labels = list(PRINT_BACKEND_LABELS.values())
+            labels = [localized_backend_label(k, v) for k, v in PRINT_BACKEND_LABELS.items()]
         if current not in labels:
             labels.insert(0, current)
         return labels
@@ -1239,7 +1243,8 @@ class ManagePrintersWindow(ctk.CTkToplevel):
         if not selected:
             PopUpWindow(self, t('common.warning'), t('printer.select_discovered'))
             return
-        name = selected[0][0].replace(' (já cadastrada)', '').strip()
+        suffix = t('printer.already_registered_suffix')
+        name = selected[0][0].replace(suffix, '').strip()
         if any(p['name'].lower() == name.lower() for p in self._registered):
             PopUpWindow(self, t('common.warning'), t('printer.already_registered_name', name=name))
             return
@@ -1622,7 +1627,10 @@ class DuplicateProductWindow(ctk.CTkToplevel):
             admin_service.get_db(),
         )
         if error:
-            PopUpWindow(self, t('common.error'), error)
+            if error == 'name_exists':
+                PopUpWindow(self, t('common.error'), t('designer.validation.name_exists'))
+            else:
+                PopUpWindow(self, t('common.error'), error)
             return
 
         self.master.client_list.radio_var.set(client_name)
@@ -1708,7 +1716,7 @@ class ExportProductWindow(ctk.CTkToplevel):
                 self.destroy()
                 PopUpWindow(self.master, t('common.success'), t('import_export.saved_with_path', path=path))
         except Exception as e:
-            PopUpWindow(self.master, t('import_export.error_title'), f'ERROR - {e}')
+            PopUpWindow(self.master, t('import_export.error_title'), t('import_export.export_error_detail', error=e))
 
 
 class AddClientWindow(ctk.CTkToplevel):
@@ -1970,7 +1978,7 @@ class AuditWindow(ctk.CTkToplevel):
         for index, row in enumerate(rows):
             tag = 'rec_a' if index % 2 == 0 else 'rec_b'
             success = row.get('success')
-            ok = '' if success is None else ('OK' if success else 'X')
+            ok = t('audit.status_ok') if success else t('audit.status_fail')
             line1, line2 = self._wrap_two_lines(self._build_info(row))
 
             iid_main = self.table.insert('', 'end', tags=(tag,), values=(
@@ -1998,7 +2006,7 @@ class AuditWindow(ctk.CTkToplevel):
 
     def _record_to_cells(self, row):
         success = row.get('success')
-        ok = '' if success is None else ('OK' if success else 'X')
+        ok = '' if success is None else (t('audit.status_ok') if success else t('audit.status_fail'))
         return [
             self._clean_cell(row.get('ts_local')),
             self._clean_cell(row.get('pc_name')),
@@ -2021,7 +2029,7 @@ class AuditWindow(ctk.CTkToplevel):
         try:
             self.clipboard_clear()
             self.clipboard_append(text)
-            self.update()  # garante que o clipboard persista após fechar a janela
+            self.update()  # ensure clipboard persists after the window closes
             self.lbl_status.configure(text=t('audit.copied_status', count=count))
         except Exception:
             self.lbl_status.configure(text=t('audit.copy_failed'))

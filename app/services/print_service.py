@@ -4,6 +4,7 @@ import traceback
 from threading import Thread
 
 from app import audit, runtime
+from app.i18n import PDF_MODE_SENTINEL, t
 from app.services.settings_service import get_print_backend
 from app.utils.document_delivery import open_path
 from app.utils.printing.base import DUPLEX_LONG_EDGE, DUPLEX_SIMPLEX, ORIENTATION_LANDSCAPE, ORIENTATION_PORTRAIT
@@ -18,20 +19,20 @@ def _delayed_remove_temp_pdf(path: str, delay_seconds: float = 60):
 
 
 def validate_printer_paper(printer_name, paper_size):
-    if printer_name == 'Criar PDF':
+    if printer_name == PDF_MODE_SENTINEL:
         return True
-    # Apenas o PDFtoPrinter depende da preferência de papel já configurada na
-    # impressora. Os demais backends (Ghostscript, Win32 DEVMODE, Win32 avançada
-    # e XPS) definem o papel por JOB, então não precisam dessa validação.
+    # Only PDFtoPrinter relies on the printer's preconfigured paper preference.
+    # Other backends (Ghostscript, Win32 DEVMODE, Win32 advanced, XPS) set paper per job.
     if get_print_backend() != 'pdftoprinter':
         return True
     return is_papersize_a4(printer_name, paper_size)
 
 
-def get_printer_paper_error_message(paper_size, wording='configurado'):
-    return (
-        f'Impressora não está definida com papel {wording} no produto: {paper_size}\n'
-        f'Informar Equipe de Suporte'
+def get_printer_paper_error_message(paper_size, wording_key='printer_paper.wording_configured'):
+    return t(
+        'printer_paper.message',
+        wording=t(wording_key),
+        paper_size=paper_size,
     )
 
 

@@ -1,4 +1,4 @@
-"""Conversão e formatação de medidas do editor (coords lógicas ↔ mm)."""
+"""Editor measure conversion and formatting (logical coords ↔ mm)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from app.models.sheet_layout import CANVAS_SCALE, SheetLayout
 
 
 def logical_to_mm(value: float) -> float:
-    """Coordenada lógica do canvas → milímetros."""
+    """Canvas logical coordinate → millimeters."""
     return SheetLayout.pt_to_mm(float(value) / CANVAS_SCALE)
 
 
@@ -18,7 +18,7 @@ def format_mm(value_logical: float, *, decimals: int = 1) -> str:
 
 
 def format_delta_line(dx: float, dy: float, *, decimals: int = 1) -> str:
-    """Texto compacto para régua ponto-a-ponto."""
+    """Compact text for point-to-point ruler."""
     dist = math.hypot(dx, dy)
     return t(
         'designer.measure.delta',
@@ -30,7 +30,7 @@ def format_delta_line(dx: float, dy: float, *, decimals: int = 1) -> str:
 
 
 def edge_gap(a_min: float, a_max: float, b_min: float, b_max: float) -> float:
-    """Espaço entre bordas de dois intervalos (0 se sobrepõem)."""
+    """Gap between edges of two intervals (0 if overlapping)."""
     if a_max <= b_min:
         return b_min - a_max
     if b_max <= a_min:
@@ -40,7 +40,7 @@ def edge_gap(a_min: float, a_max: float, b_min: float, b_max: float) -> float:
 
 def pair_spacing_lines(ax1: float, ay1: float, ax2: float, ay2: float,
                        bx1: float, by1: float, bx2: float, by2: float) -> list[str]:
-    """Linhas de texto com espaçamento entre duas caixas (coords lógicas)."""
+    """Text lines with spacing between two boxes (logical coords)."""
     h_gap = edge_gap(ax1, ax2, bx1, bx2)
     v_gap = edge_gap(ay1, ay2, by1, by2)
     acx, acy = (ax1 + ax2) / 2, (ay1 + ay2) / 2

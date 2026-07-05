@@ -1,4 +1,4 @@
-"""Serviço de layout de folha — presets, validação e resolução para produção/PDF."""
+"""Sheet layout service — presets, validation, and resolution for production/PDF."""
 
 from __future__ import annotations
 
@@ -21,14 +21,14 @@ PAGE_PRESETS: dict[str, tuple[float, float]] = {
 
 PAGE_PRESET_LABELS = list(PAGE_PRESETS.keys())
 
-# Código DMPAPER (Windows) para validação de impressora — ver PAPER_SIZE_TIP em constants.py
+# Windows DMPAPER code for printer validation — see PAPER_SIZE_TIP in constants.py
 PAGE_PRESET_TO_PAPER_SIZE: dict[str, str] = {
     'A4': '9',
     'A3': '8',
     'Carta': '1',
 }
 
-# Modos legados (3/2/1 AR por folha) imprimem sempre em A4 físico
+# Legacy modes (3/2/1 AR per sheet) always print on physical A4
 LEGACY_ORIENTATION_PAPER_SIZE = '9'
 
 
@@ -102,10 +102,10 @@ def is_landscape_layout(layout: SheetLayout) -> bool:
 
 
 def resolve_print_orientation(orientation, layout_config_json: Optional[str] = None) -> str:
-    """Orientação física da impressora para o job (portrait/landscape).
+    """Physical printer orientation for the job (portrait/landscape).
 
-    Apenas o modo customizado (índice 4) pode exigir paisagem, quando a folha
-    foi definida com largura maior que altura (ex.: A4 invertido 297×210 mm).
+    Only custom mode (index 4) may require landscape when the sheet
+    is defined wider than tall (e.g. inverted A4 297×210 mm).
     """
     if not is_custom_orientation(orientation):
         return ORIENTATION_PORTRAIT
@@ -119,7 +119,7 @@ def batch_print_orientation(
     orientation_list,
     layout_config_list: Optional[list] = None,
 ) -> Optional[str]:
-    """Orientação única do lote, ou None se retrato e paisagem estiverem misturados."""
+    """Single batch orientation, or None when portrait and landscape are mixed."""
     configs = layout_config_list or []
     resolved = []
     for i, product_orientation in enumerate(orientation_list):
@@ -133,7 +133,7 @@ def batch_print_orientation(
 
 
 def resolve_product_paper_size(orientation_index: int, layout_config_json: Optional[str] = None) -> str:
-    """Deriva o código DMPAPER para validação/impressão a partir da orientação do produto."""
+    """Derive the DMPAPER code for validation/printing from product orientation."""
     if not is_custom_orientation(orientation_index):
         return LEGACY_ORIENTATION_PAPER_SIZE
 
@@ -142,7 +142,7 @@ def resolve_product_paper_size(orientation_index: int, layout_config_json: Optio
     if preset in PAGE_PRESET_TO_PAPER_SIZE:
         return PAGE_PRESET_TO_PAPER_SIZE[preset]
 
-    # Personalizado: tenta casar dimensões com um preset conhecido
+    # Custom: try to match dimensions to a known preset
     w, h = sorted((float(layout.page_width_mm), float(layout.page_height_mm)))
     for name, (pw, ph) in PAGE_PRESETS.items():
         if name == 'Personalizado':
@@ -154,7 +154,7 @@ def resolve_product_paper_size(orientation_index: int, layout_config_json: Optio
 
 
 def get_product_paper_size(product) -> str:
-    """Código DMPAPER efetivo de um produto (ignora paper_size legado no banco se inconsistente)."""
+    """Effective DMPAPER code for a product (ignores legacy inconsistent paper_size in DB)."""
     if product is None:
         return LEGACY_ORIENTATION_PAPER_SIZE
     orient = int(product.orientation) if str(product.orientation).isdigit() else 0

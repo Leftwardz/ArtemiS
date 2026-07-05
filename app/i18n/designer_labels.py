@@ -1,4 +1,4 @@
-"""Rótulos traduzíveis do editor de produto."""
+"""Translatable labels for the product editor."""
 
 from __future__ import annotations
 

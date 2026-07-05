@@ -159,9 +159,9 @@ class App(ctk.CTk):
         self.language_combo.set(get_i18n().language_label())
 
         user = admin_service.get_current_windows_user()
-        account = user.split('\\')[-1] if user else 'User'
+        account = user.split('\\')[-1] if user else t('main.user_fallback')
         parts = [p[0].upper() for p in account.replace('_', '.').split('.') if p]
-        initials = ''.join(parts[:2]) or 'U'
+        initials = ''.join(parts[:2]) or t('main.user_fallback')[:1].upper()
         user_row = ctk.CTkFrame(footer, fg_color='transparent')
         user_row.pack(fill='x', pady=(4, 0))
         avatar_img = gradient_ctk_image(28, 28, THEME_ACCENT, THEME_ACCENT_SECONDARY, radius=14)
@@ -378,7 +378,7 @@ class App(ctk.CTk):
         name_col = ctk.CTkFrame(color_row, fg_color='transparent')
         name_col.pack(side='left', padx=(12, 0))
         self.lbl_paper_color_name = ctk.CTkLabel(
-            name_col, text='—', font=(FONT, 16, 'bold'), text_color='white', anchor='w',
+            name_col, text=t('main.no_value'), font=(FONT, 16, 'bold'), text_color='white', anchor='w',
         )
         self.lbl_paper_color_name.pack(anchor='w')
         self.lbl_paper_color_hint = ctk.CTkLabel(
@@ -491,7 +491,7 @@ class App(ctk.CTk):
         self.apply_language()
 
     def apply_language(self):
-        """Atualiza textos da tela principal após troca de idioma."""
+        """Refresh main screen texts after a language change."""
         self._lang_code_by_label = {label: code for code, label in available_languages()}
         self.lbl_language.configure(text=t('main.language'))
         self.language_combo.configure(values=[label for _, label in available_languages()])
@@ -689,7 +689,11 @@ class App(ctk.CTk):
             self.entry_work.delete('0', 'end')
             return
         if result.status == 'path_missing':
-            PopUpWindow(self, result.error.title, result.error.message)
+            err = result.error
+            PopUpWindow(
+                self, t(err.title_key),
+                t(err.message_key, **(err.message_params or {})),
+            )
             return
         if result.status == 'not_found':
             self.entry_work.delete('0', 'end')
@@ -704,11 +708,19 @@ class App(ctk.CTk):
             self.entry_work.delete('0', 'end')
             return
         if result.status == 'product_missing':
-            PopUpWindow(self, t('main.error'), result.error.message)
+            err = result.error
+            PopUpWindow(
+                self, t(err.title_key),
+                t(err.message_key, **(err.message_params or {})),
+            )
             return
         if result.status == 'inconsistent':
             self.entry_work.delete('0', 'end')
-            PopUpWindow(self, result.error.title, result.error.message)
+            err = result.error
+            PopUpWindow(
+                self, t(err.title_key),
+                t(err.message_key, **(err.message_params or {})),
+            )
             return
 
         self.defined_paper_size = result.defined_paper_size
@@ -841,7 +853,7 @@ class LoadingBarFrame(ctk.CTkFrame):
         loadingbar.set(0)
 
         progress_lbl = ctk.CTkLabel(
-            bar_row, text='1/2', font=(FONT, 10, 'bold'),
+            bar_row, text=t('main.progress_step'), font=(FONT, 10, 'bold'),
             text_color='white',
         )
         progress_lbl.place(relx=0.5, rely=0.5, anchor='center')

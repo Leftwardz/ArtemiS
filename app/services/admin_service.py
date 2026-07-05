@@ -1,4 +1,4 @@
-"""Acesso a dados de administração — UI não chama DataBase diretamente."""
+"""Administration data access — UI does not call DataBase directly."""
 
 from app import audit, runtime
 from app.utils import windows_auth

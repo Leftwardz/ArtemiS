@@ -1,4 +1,4 @@
-"""Módulo de tradução (i18n) — arquivos JSON em app/i18n/locales/ e pasta locales/ do app."""
+"""i18n module — JSON files in app/i18n/locales/ and the app locales/ folder."""
 
 from app.i18n.loader import (
     PDF_MODE_SENTINEL,

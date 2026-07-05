@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Optional
 
-from app.services.layout_service import get_product_paper_size
+from app.i18n import PDF_MODE_SENTINEL, t
 from app.services.print_service import get_printer_paper_error_message, validate_printer_paper
 from app.services.production_service import build_remake_file_lines
 from app.utils.file_parser import FileUtils
@@ -31,20 +31,20 @@ def prepare_remake_job(
     if not lines:
         return RemakeJobResult(
             ok=False,
-            error_title='Erro!',
-            error_message='Lista não pode estar vazia!',
+            error_title=t('common.error'),
+            error_message=t('remake.empty_list'),
         )
 
     product_obj = db.search_product(client, product)
     paper_size = get_product_paper_size(product_obj)
-    if printer != 'Criar PDF':
+    if printer != PDF_MODE_SENTINEL:
         if not validate_printer_paper(printer, paper_size):
             return RemakeJobResult(
                 ok=False,
-                error_title='Erro',
+                error_title=t('common.error'),
                 error_message=get_printer_paper_error_message(
                     paper_size,
-                    wording='cadastrado',
+                    wording_key='printer_paper.wording_registered',
                 ),
             )
 
