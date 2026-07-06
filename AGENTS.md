@@ -28,9 +28,10 @@ compatibility layer that does **not** modify any application source.
   as a local administrator so the gear icon (⚙) opens settings without AD/COM.
 
 ### Environment facts (non-obvious)
-- **Python 3.10+** is required (recommended **3.11** or **3.12**); the venv lives at `.venv`.
+- **Python 3.10+** is required (tested on **3.11**, **3.12**, and **3.14**); the venv lives at `.venv`.
 - Install deps from **`requirements-linux.txt`**, not `requirements.txt`. The Windows
   `requirements.txt` includes `pywin32` (no Linux wheel; stubs in `dev_stubs/`).
+- Smoke test (Linux): `./scripts/smoke_test_env.sh python3.14`
 - **Printing is Windows-only** and unavailable here: `pywin32` is replaced by stubs in
   `dev_stubs/` and `PDFtoPrinter.exe` cannot run. Printer enumeration returns empty; print
   actions raise if exercised. Everything else (DB, client/product management, template

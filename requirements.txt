@@ -1,5 +1,5 @@
 # ArtemiS — dependências diretas (Windows: runtime + build no mesmo venv).
-# Python 3.10+ (recomendado 3.11 ou 3.12). Instalar: pip install -r requirements.txt
+# Python 3.10+ (testado em 3.11, 3.12 e 3.14). Instalar: pip install -r requirements.txt
 #
 # Removidos em relação à lista antiga (não importados em app/):
 #   scipy, Eel, gevent*, greenlet, zope.*, fastnumbers, Levenshtein/rapidfuzz,
@@ -15,6 +15,7 @@ reportlab>=4,<5
 PyPDF2>=3.0,<4
 pylibdmtx>=0.1.10
 PyQRCode>=1.2.1
+pypng>=0.20220715.0
 python-barcode>=0.15
 
 # --- dados / sistema ---

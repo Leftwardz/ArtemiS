@@ -1,6 +1,6 @@
 # Linux/Cloud development — mesmo conjunto de runtime que requirements.txt,
 # sem pywin32 (stubs em dev_stubs/) e sem pyinstaller (build é só Windows).
-# Python 3.10+ (recomendado 3.11 ou 3.12).
+# Python 3.10+ (testado em 3.11, 3.12 e 3.14).
 
 customtkinter>=5.2,<7
 Pillow>=10,<13
@@ -8,6 +8,7 @@ reportlab>=4,<5
 PyPDF2>=3.0,<4
 pylibdmtx>=0.1.10
 PyQRCode>=1.2.1
+pypng>=0.20220715.0
 python-barcode>=0.15
 SQLAlchemy>=2.0,<3
 screeninfo>=0.8
