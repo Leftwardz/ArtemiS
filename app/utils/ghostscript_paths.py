@@ -1,5 +1,7 @@
 """Caminhos do Ghostscript empacotado (dev, PyInstaller e override em config.json)."""
 
+from __future__ import annotations
+
 import os
 import subprocess
 import sys
