@@ -2,6 +2,7 @@ import json
 import os
 import textwrap
 import traceback
+from threading import Thread
 
 import customtkinter as ctk
 from tkinter import ttk
@@ -533,6 +534,30 @@ class ConfigPanel(ctk.CTkFrame):
 
         card, body = self._settings_card(scroll, 'config.config_access')
         card.pack(fill='x')
+
+        self.var_block_config = ctk.BooleanVar(
+            value=admin_service.is_config_access_blocked(),
+        )
+        self.chk_block_config = ctk.CTkCheckBox(
+            body,
+            text=t('config.block_config_access'),
+            variable=self.var_block_config,
+            command=self._on_block_config_changed,
+            fg_color=THEME_ACCENT,
+            hover_color=THEME_ACCENT_HOVER,
+            border_color=THEME_CARD_BORDER,
+            text_color='white',
+        )
+        self.chk_block_config.pack(fill='x', pady=(0, 6))
+        self._register_label(self.chk_block_config, 'config.block_config_access')
+
+        self.lbl_access_mode = ctk.CTkLabel(
+            body, text='', font=(FONT, 11),
+            text_color=THEME_TEXT_SECONDARY, justify='left', anchor='w',
+        )
+        self.lbl_access_mode.pack(fill='x', pady=(0, 8))
+        self._update_access_mode_labels()
+
         self.lbl_admin_always_access = ctk.CTkLabel(
             body, text=t('config.admin_always_access'),
             font=(FONT, 11), text_color=THEME_TEXT_SECONDARY, justify='left', anchor='w',
@@ -546,6 +571,43 @@ class ConfigPanel(ctk.CTkFrame):
         )
         self.btn_manage_access.pack(anchor='w', pady=(0, 8))
         self._register_button(self.btn_manage_access, 'config.manage_access')
+
+    def _update_access_mode_labels(self):
+        if not hasattr(self, 'lbl_access_mode'):
+            return
+        if admin_service.is_config_access_blocked():
+            self.lbl_access_mode.configure(text=t('config.access_mode_restricted'))
+        else:
+            self.lbl_access_mode.configure(text=t('config.access_mode_open'))
+
+    def _on_block_config_changed(self):
+        want_block = bool(self.var_block_config.get())
+        if want_block == admin_service.is_config_access_blocked():
+            return
+        if want_block:
+            self.var_block_config.set(False)
+            ConfirmWindow(
+                self,
+                t('config.block_confirm_title'),
+                t('config.block_confirm_body'),
+                self._apply_enable_config_block,
+                has_confirm=False,
+            )
+            return
+        admin_service.disable_config_access_block()
+        self._update_access_mode_labels()
+
+    def _apply_enable_config_block(self):
+        added = admin_service.enable_config_access_block()
+        self.var_block_config.set(True)
+        self._update_access_mode_labels()
+        if added:
+            detail = '\n'.join(f'• {name}' for name in added)
+            PopUpWindow(
+                self,
+                t('common.success'),
+                t('config.block_enabled_success', added=detail),
+            )
 
     def _build_tab_language(self, parent):
         scroll = self._tab_scroll(parent)
@@ -1197,6 +1259,9 @@ class ConfigPanel(ctk.CTkFrame):
 
         self._refresh_ghostscript_status()
         self._refresh_theme_combo()
+        if hasattr(self, 'var_block_config'):
+            self.var_block_config.set(admin_service.is_config_access_blocked())
+            self._update_access_mode_labels()
         self._apply_search_filter()
         self.after_idle(self.refresh_layout)
 
@@ -1607,11 +1672,12 @@ class ManageAccessWindow(ctk.CTkToplevel):
         self.combo_type.set(t('access.type_both'))
         self.combo_type.grid(row=0, column=1, padx=(0, 8))
 
-        ctk.CTkButton(
+        self.btn_search = ctk.CTkButton(
             search_row, text=t('access.search_btn'), width=96,
             fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
             corner_radius=8, height=32, command=self.search_principals,
-        ).grid(row=0, column=2)
+        )
+        self.btn_search.grid(row=0, column=2)
 
         self.results_frame = _table_host(search_body, self._RESULTS_FRAME_H)
         self.results_frame.pack(fill='x', pady=(0, 8))
@@ -1671,7 +1737,21 @@ class ManageAccessWindow(ctk.CTkToplevel):
         if len(query) < 2:
             PopUpWindow(self, t('common.warning'), t('access.search_min_chars'))
             return
-        self._search_results = admin_service.search_windows_principals(query, self._type_filter())
+        principal_type = self._type_filter()
+        self.btn_search.configure(state='disabled', text=t('access.searching'))
+
+        def worker():
+            try:
+                results = admin_service.search_windows_principals(query, principal_type)
+            except Exception:
+                results = []
+            self.after(0, lambda: self._finish_search_principals(results))
+
+        Thread(target=worker, daemon=True).start()
+
+    def _finish_search_principals(self, results):
+        self.btn_search.configure(state='normal', text=t('access.search_btn'))
+        self._search_results = results
         self.results_table.remove_all()
         for item in self._search_results:
             self.results_table.add_item([item['display'], self._type_label(item['type'])])

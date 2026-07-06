@@ -17,6 +17,18 @@ except ImportError:
 # Com UAC, administradores aparecem no token filtrado como "deny-only".
 _LOCAL_ADMIN_GROUP_NAMES = frozenset({'administrators', 'administradores'})
 
+_auth_cache: dict = {}
+
+
+def invalidate_auth_cache() -> None:
+    _auth_cache.clear()
+
+
+def _cache_get(key, factory):
+    if key not in _auth_cache:
+        _auth_cache[key] = factory()
+    return _auth_cache[key]
+
 
 def _normalize_principal(name):
     if not name or '\\' not in name:
@@ -117,7 +129,7 @@ def is_domain_admin():
 
 def is_windows_admin():
     """Administrador local ou de domínio — acesso total à configuração."""
-    return is_local_admin() or is_domain_admin()
+    return _cache_get('is_windows_admin', lambda: is_local_admin() or is_domain_admin())
 
 
 def is_member_of_group(group_principal):
@@ -159,22 +171,54 @@ def user_matches(current, configured):
     return _normalize_principal(current) == _normalize_principal(configured)
 
 
-def can_access_config(allowed_principals):
+def default_admin_group_principals():
+    """Grupos de administrador padrão para liberar ao ativar o bloqueio."""
+    principals = []
+    computer = os.environ.get('COMPUTERNAME', 'LOCAL')
+    for group_name in ('Administrators', 'Administradores'):
+        principals.append(_normalize_principal(f'{computer}\\{group_name}'))
+    dns_domain = os.environ.get('USERDNSDOMAIN')
+    if dns_domain and dns_domain.upper() != computer.upper():
+        principals.append(_normalize_principal(f'{dns_domain}\\Domain Admins'))
+    return principals
+
+
+def can_access_config(allowed_principals, *, block_access=False):
     """
     allowed_principals: lista de dicts {'name': 'DOM\\x', 'type': 'user'|'group'}
-    Administradores Windows sempre têm acesso.
+    block_access=False: qualquer usuário Windows pode abrir configurações.
+    block_access=True: administradores Windows + lista autorizada.
     """
+    if not block_access:
+        return True
+
+    cache_key = (
+        'can_access',
+        True,
+        tuple(sorted((e.get('name', ''), e.get('type', '')) for e in allowed_principals)),
+    )
+    if cache_key in _auth_cache:
+        return _auth_cache[cache_key]
+
     if is_windows_admin():
+        _auth_cache[cache_key] = True
         return True
 
     current = get_current_principal()
-    for entry in allowed_principals:
-        name = entry.get('name', '')
-        ptype = entry.get('type', 'user')
-        if ptype == 'user' and user_matches(current, name):
+    users = [e for e in allowed_principals if e.get('type', 'user') == 'user']
+    groups = [e for e in allowed_principals if e.get('type') == 'group']
+
+    for entry in users:
+        if user_matches(current, entry.get('name', '')):
+            _auth_cache[cache_key] = True
             return True
-        if ptype == 'group' and is_member_of_group(name):
+
+    for entry in groups:
+        if is_member_of_group(entry.get('name', '')):
+            _auth_cache[cache_key] = True
             return True
+
+    _auth_cache[cache_key] = False
     return False
 
 

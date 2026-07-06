@@ -62,6 +62,12 @@ class ConfigAccess(Base):
     principal_type = Column(String)
 
 
+class AppSetting(Base):
+    __tablename__ = 'app_settings'
+    key = Column(String, primary_key=True)
+    value = Column(String)
+
+
 class Drawing(Base):
     __tablename__ = 'drawings'
     id = Column(Integer, primary_key=True, autoincrement=True)
