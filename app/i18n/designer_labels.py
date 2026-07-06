@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from app.i18n import paper_color_label, t
 from app.models.sheet_layout import PACKING_COLUMN_DEPTH, PACKING_SEQUENTIAL
 from app.ui.constants import PAPER_COLOR_LIST
@@ -117,7 +119,7 @@ def column_db_name(index: int) -> str:
     return f'Coluna_{index}'
 
 
-def column_index_from_name(name: str) -> int | None:
+def column_index_from_name(name: str) -> Optional[int]:
     """Converte rótulo de coluna (UI ou banco) no índice 1-based."""
     if not name:
         return None

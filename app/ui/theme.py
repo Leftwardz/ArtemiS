@@ -7,7 +7,7 @@ import sys
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from app.ui import constants
 
@@ -106,7 +106,7 @@ def apply_theme(preset: ThemePreset) -> None:
     )
 
 
-def init_theme_from_config(config: dict | None = None) -> ThemePreset:
+def init_theme_from_config(config: Optional[dict] = None) -> ThemePreset:
     config = config or {}
     default_id, presets = _load_catalog()
     theme_id = (config.get('ui_theme') or default_id).strip()

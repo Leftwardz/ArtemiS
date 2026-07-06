@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 import customtkinter as ctk
 from PIL import Image, ImageDraw
 
@@ -166,8 +168,8 @@ class GradientButton(ctk.CTkButton):
         master,
         color_left: str,
         color_right: str,
-        hover_left: str | None = None,
-        hover_right: str | None = None,
+        hover_left: Optional[str] = None,
+        hover_right: Optional[str] = None,
         corner_radius: int = 10,
         min_height: int = 48,
         **kwargs,
