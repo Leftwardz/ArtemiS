@@ -28,12 +28,10 @@ compatibility layer that does **not** modify any application source.
   as a local administrator so the gear icon (⚙) opens settings without AD/COM.
 
 ### Environment facts (non-obvious)
-- **Python 3.11** is required and the venv lives at `.venv`. The pinned deps (Pillow 9.4.0,
-  Levenshtein, etc.) do **not** build on Python 3.12; use `python3.11`.
-- Install deps from **`requirements-linux.txt`**, not `requirements.txt`. The original
-  `requirements.txt` is the Windows production spec and won't install on Linux (`pywin32`
-  has no Linux wheel; `scipy==1.10.1` has no 3.12 build). `requirements-linux.txt` also adds
-  `PyPDF2` (imported by `app/services/pdf_service.py` but missing from `requirements.txt`).
+- **Python 3.10+** is required (tested on **3.11**, **3.12**, and **3.14**); the venv lives at `.venv`.
+- Install deps from **`requirements-linux.txt`**, not `requirements.txt`. The Windows
+  `requirements.txt` includes `pywin32` (no Linux wheel; stubs in `dev_stubs/`).
+- Smoke test (Linux): `./scripts/smoke_test_env.sh python3.14`
 - **Printing is Windows-only** and unavailable here: `pywin32` is replaced by stubs in
   `dev_stubs/` and `PDFtoPrinter.exe` cannot run. Printer enumeration returns empty; print
   actions raise if exercised. Everything else (DB, client/product management, template

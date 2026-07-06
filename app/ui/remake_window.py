@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from app.services import admin_service
 import customtkinter as ctk
 
