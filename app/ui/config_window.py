@@ -200,12 +200,16 @@ class ConfigPanel(ctk.CTkFrame):
                         pass
 
     def _on_panel_mapped(self, _event=None):
+        if getattr(self, '_restoring_from_editor', False):
+            self._restoring_from_editor = False
+            return
         self.after_idle(self.refresh_layout)
 
     def deiconify(self):
         """Restaura o app após fechar o editor (compatível com EditWindow)."""
+        self._restoring_from_editor = True
         self.app.deiconify()
-        self.app._set_active_view('settings')
+        self.app.focus_set()
 
     def exit(self):
         """Volta à produção (ex.: após salvar database)."""
