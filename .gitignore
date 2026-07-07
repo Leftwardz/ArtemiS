@@ -9,7 +9,7 @@ venv/
 *.egg-info/
 .eggs/
 
-# --- Build (PyInstaller: scripts/build.ps1 → dist/) ---
+# --- Build (PyInstaller: scripts/build.ps1 → dist/; never commit the output) ---
 dist/
 build/
 ArtemiS/
