@@ -1,108 +1,107 @@
-# Arquitetura de impressão (múltiplos backends)
+# Printing architecture (multiple backends)
 
-Documento de referência da camada de impressão desacoplada e relatório
-comparativo dos backends disponíveis.
+Reference document for the decoupled printing layer and a comparative report
+of the available backends.
 
-## Visão geral
+## Overview
 
-Toda impressão passa por uma **interface única** e por um **contrato de
-parâmetros único**:
+All printing goes through a **single interface** and a **single parameter
+contract**:
 
 ```
 print_service.finish_print_job(...)
-   └─ printer_handler.print_pdf_file(...)        # wrapper de compatibilidade
+   └─ printer_handler.print_pdf_file(...)        # compatibility wrapper
         └─ app.utils.printing.dispatch(job, backend_name)
              └─ <PrintBackend>.print_job(PrintJob) -> PrintResult
 ```
 
-### Componentes (`app/utils/printing/`)
+### Components (`app/utils/printing/`)
 
-| Arquivo | Papel |
+| File | Role |
 |---|---|
-| `base.py` | `PrintJob` (parâmetros), `PrintResult`, `PrintBackend` (interface). |
-| `registry.py` | Registra backends (import protegido), disponibilidade e `dispatch()` com logging. |
-| `logger.py` | Log dedicado em `logs/print.log`. |
-| `devmode.py` | DEVMODE por JOB, `DeviceCapabilities`, status do spooler. |
-| `pdf_raster.py` | Rasteriza PDF→PNG via Ghostscript (para backends GDI). |
-| `gdi_print.py` | Desenha páginas em um DC criado com o DEVMODE do job. |
-| `backends/*.py` | Implementações concretas. |
+| `base.py` | `PrintJob` (parameters), `PrintResult`, `PrintBackend` (interface). |
+| `registry.py` | Registers backends (protected import), availability, and `dispatch()` with logging. |
+| `logger.py` | Dedicated log at `logs/print.log`. |
+| `devmode.py` | Per-job DEVMODE, `DeviceCapabilities`, spooler status. |
+| `pdf_raster.py` | Rasterises PDF→PNG via Ghostscript (for GDI backends). |
+| `gdi_print.py` | Draws pages on a DC created with the job DEVMODE. |
+| `backends/*.py` | Concrete implementations. |
 
-### Contrato `PrintJob`
+### `PrintJob` contract
 
 `pdf_path`, `printer`, `copies`, `duplex` (`simplex`/`long_edge`/`short_edge`),
-`orientation` (`portrait`/`landscape`), `paper_size` (código **DMPAPER**, ex.
-`9` = A4), `tray` (código DMBIN ou `None` = bandeja default), `slot_index`
-(só PDFtoPrinter), `config`.
+`orientation` (`portrait`/`landscape`), `paper_size` (**DMPAPER** code, e.g.
+`9` = A4), `tray` (DMBIN code or `None` = default tray), `slot_index`
+(PDFtoPrinter only), `config`.
 
-> **Defaults neutros**: hoje os chamadores passam `copies=1`, `simplex`,
-> `portrait`, `tray=None`. Com isso, PDFtoPrinter e Ghostscript se comportam
-> **exatamente** como antes da refatoração.
+> **Neutral defaults**: callers currently pass `copies=1`, `simplex`,
+> `portrait`, `tray=None`. With that, PDFtoPrinter and Ghostscript behave
+> **exactly** as they did before the refactor.
 
-### Garantias
+### Guarantees
 
-- **Sem alteração permanente da impressora**: nenhum backend usa `SetPrinter`.
-  O DEVMODE é aplicado a um DC/handle temporário (vale só para o JOB) — não
-  exige privilégio de administrador.
-- **Resiliência**: um backend que não importe (dependência ausente) é apenas
-  ignorado no `registry`; o app continua funcionando com os demais. Backends
-  nunca levantam exceção — devolvem `PrintResult(ok=False, ...)`.
-- **Sem fallback automático** (decisão do projeto): se o backend selecionado
-  falhar, o erro é exibido na UI (comportamento atual preservado). Não há
-  reimpressão em outro backend.
+- **No permanent printer changes**: no backend uses `SetPrinter`. DEVMODE is
+  applied to a temporary DC/handle (valid only for the job) — administrator
+  rights are not required.
+- **Resilience**: a backend that fails to import (missing dependency) is
+  simply omitted from the `registry`; the app keeps working with the others.
+  Backends never raise — they return `PrintResult(ok=False, ...)`.
+- **No automatic fallback** (project decision): if the selected backend fails,
+  the error is shown in the UI (current behaviour preserved). There is no
+  retry on another backend.
 
 ### Logging (`logs/print.log`)
 
-Cada job registra: backend escolhido, todos os parâmetros, comando/DEVMODE
-aplicado, capacidades da impressora (backend avançado), status do spooler e
-sucesso/falha com detalhe do erro de driver/GS.
+Each job logs: chosen backend, all parameters, command/DEVMODE applied,
+printer capabilities (advanced backend), spooler status, and success/failure
+with driver/GS error detail.
 
 ---
 
-## Relatório comparativo
+## Comparative report
 
-| Backend | Papel/job | Duplex | Cópias | Bandeja | Orientação | Admin? | Saída | Dependência | Maturidade |
+| Backend | Paper/job | Duplex | Copies | Tray | Orientation | Admin? | Output | Dependency | Maturity |
 |---|---|---|---|---|---|---|---|---|---|
-| **PDFtoPrinter** | ❌ (usa preferência da impressora) | ❌ | ❌ | ❌ | ❌ | Não | Vetorial (driver) | `PDFtoPrinter*.exe` | Estável (produção) |
-| **Ghostscript** | ✅ (`-sPAPERSIZE`) | ⚠️ best-effort | ✅ (`-dNumCopies`) | ❌ | ✅ paisagem (DEVMODE+GDI) | Não | Vetorial (retrato) / raster (paisagem) | Ghostscript empacotado + pywin32 (paisagem) | Estável |
-| **Win32 DEVMODE** | ✅ (`dmPaperSize`) | ✅ (`dmDuplex`) | ✅ (`dmCopies`) | ✅ (`dmDefaultSource`) | ✅ (`dmOrientation`) | Não | **Rasterizada** (GDI) | Ghostscript (só p/ rasterizar) + pywin32 | Experimental |
-| **Win32 avançada** | ✅ | ✅ | ✅ | ✅ | ✅ | Não | **Rasterizada** (GDI) | igual ao DEVMODE | Experimental |
-| **XPS Print API** | ✅ (do PDF) | ⚠️ default do driver | ⚠️ default do driver | ⚠️ default do driver | ✅ (do PDF) | Não | Vetorial (XPS) | Ghostscript (`xpswrite`) + `XpsPrint.dll` | Experimental |
+| **PDFtoPrinter** | ❌ (uses printer preference) | ❌ | ❌ | ❌ | ❌ | No | Vector (driver) | `PDFtoPrinter*.exe` | Stable (production) |
+| **Ghostscript** | ✅ (`-sPAPERSIZE`) | ⚠️ best-effort | ✅ (`-dNumCopies`) | ❌ | ✅ landscape (DEVMODE+GDI) | No | Vector (portrait) / raster (landscape) | Bundled Ghostscript + pywin32 (landscape) | Stable |
+| **Win32 DEVMODE** | ✅ (`dmPaperSize`) | ✅ (`dmDuplex`) | ✅ (`dmCopies`) | ✅ (`dmDefaultSource`) | ✅ (`dmOrientation`) | No | **Rasterised** (GDI) | Ghostscript (rasterise only) + pywin32 | Experimental |
+| **Win32 advanced** | ✅ | ✅ | ✅ | ✅ | ✅ | No | **Rasterised** (GDI) | same as DEVMODE | Experimental |
+| **XPS Print API** | ✅ (from PDF) | ⚠️ driver default | ⚠️ driver default | ⚠️ driver default | ✅ (from PDF) | No | Vector (XPS) | Ghostscript (`xpswrite`) + `XpsPrint.dll` | Experimental |
 
-### PDFtoPrinter (produção)
-- **Vantagens**: simples, rápido (handoff imediato ao spooler), saída vetorial fiel; paralelismo via 5 executáveis (`slot_index`).
-- **Limitações**: não controla papel/duplex/cópias/bandeja por job — depende da preferência já configurada na impressora (por isso `validate_printer_paper` continua exigindo papel correto **apenas** neste backend).
+### PDFtoPrinter (production)
+- **Advantages**: simple, fast (immediate handoff to spooler), faithful vector output; parallelism via five executables (`slot_index`).
+- **Limitations**: does not control paper/duplex/copies/tray per job — relies on whatever is already configured in the Windows printer preferences (which is why `validate_printer_paper` still enforces correct paper **only** for this backend).
 
-### Ghostscript (produção)
-- **Vantagens**: define o **papel por job** (`-sPAPERSIZE`); saída vetorial via `mswinpr2` em retrato; cópias por job; não precisa de admin.
-- **Paisagem**: o dispositivo `mswinpr2` **não controla orientação física** da impressora por job (limitação do Ghostscript no Windows). Jobs em paisagem usam o mesmo caminho do Win32 DEVMODE: rasteriza o PDF via Ghostscript e imprime com `dmOrientation` via GDI.
-- **Limitações**: bandeja não é controlada por job; duplex é *best-effort* (depende do device/driver); processo bloqueia até o GS terminar.
+### Ghostscript (production)
+- **Advantages**: sets **paper per job** (`-sPAPERSIZE`); vector output via `mswinpr2` in portrait; copies per job; no admin required.
+- **Landscape**: the `mswinpr2` device **cannot control physical printer orientation** per job (Ghostscript limitation on Windows). Landscape jobs use the same path as Win32 DEVMODE: rasterise the PDF via Ghostscript and print with `dmOrientation` via GDI.
+- **Limitations**: tray is not controlled per job; duplex is *best-effort* (depends on device/driver); process blocks until GS finishes.
 
-### Win32 DEVMODE por JOB (experimental)
-- **Vantagens**: controle **completo** por job — papel, duplex, cópias, bandeja e orientação — montado em DEVMODE e validado por `DocumentProperties`, **sem admin** e **sem persistir** nada na impressora.
-- **Limitações**: o `win32print`/GDI **não renderiza PDF**; por isso rasterizamos as páginas via Ghostscript (≈300 DPI) e desenhamos por GDI. Saída rasterizada (maior, e a nitidez depende do DPI). Logo, **ainda depende do Ghostscript** para rasterizar.
+### Win32 DEVMODE per job (experimental)
+- **Advantages**: **full** per-job control — paper, duplex, copies, tray, and orientation — built in DEVMODE and validated by `DocumentProperties`, **without admin** and **without persisting** anything on the printer.
+- **Limitations**: `win32print`/GDI **does not render PDF**; pages are rasterised via Ghostscript (≈300 DPI) and drawn via GDI. Rasterised output (larger, sharpness depends on DPI). So it **still depends on Ghostscript** to rasterise.
 
-### Win32 Print API avançada (experimental)
-- **Vantagens**: tudo do DEVMODE **mais** consulta de `DeviceCapabilities` (duplex/cópias/papéis/bandejas) com avisos quando o job pede algo não suportado, e leitura do **status do spooler** (`EnumJobs`) para diagnóstico no log.
-- **Limitações**: mesmas do backend DEVMODE (saída rasterizada, dependência do Ghostscript p/ rasterizar).
+### Win32 Print API advanced (experimental)
+- **Advantages**: everything DEVMODE offers **plus** `DeviceCapabilities` queries (duplex/copies/paper/trays) with warnings when the job requests unsupported options, and **spooler status** (`EnumJobs`) for log diagnostics.
+- **Limitations**: same as the DEVMODE backend (rasterised output, Ghostscript dependency for rasterisation).
 
 ### XPS Print API (experimental)
-- **Vantagens**: pipeline 100% Windows moderno; submete XPS ao spooler via `StartXpsPrintJob`; saída vetorial; papel vem embutido do PDF→XPS.
-- **Limitações**: opções de acabamento (duplex/bandeja/cópias) usam o **PrintTicket padrão** do driver nesta versão (não montamos PrintTicket customizado) — os parâmetros não aplicáveis são registrados em log. Depende de `XpsPrint.dll` e do Ghostscript (`-sDEVICE=xpswrite`). É o backend mais experimental.
+- **Advantages**: fully modern Windows pipeline; submits XPS to the spooler via `StartXpsPrintJob`; vector output; paper embedded from PDF→XPS.
+- **Limitations**: finishing options (duplex/tray/copies) use the driver's **default PrintTicket** in this version (no custom PrintTicket yet) — non-applicable parameters are logged. Depends on `XpsPrint.dll` and Ghostscript (`-sDEVICE=xpswrite`). The most experimental backend.
 
 ---
 
-## Como selecionar o backend
+## How to select the backend
 
-Configuração → **Motor de impressão** (combo lista apenas os backends
-disponíveis na máquina). Persistido em `config.json` → `print_backend`.
-Override opcional de DPI dos backends GDI: `config.json` → `win32_raster_dpi`
-(default 300).
+Settings → **Print engine** (combo lists only backends available on the
+machine). Persisted in `config.json` → `print_backend`. Optional GDI backend
+DPI override: `config.json` → `win32_raster_dpi` (default 300).
 
-## Observações de design (escopo)
+## Design notes (scope)
 
-- A impressão continua ocorrendo na thread Tk (via `after`), como antes. Os
-  backends rasterizados podem demorar mais; mover para worker thread fica como
-  melhoria futura (fora do escopo desta entrega para não alterar o fluxo atual).
-- Os parâmetros novos (cópias/duplex/bandeja) ainda não têm UI: usam defaults
-  neutros. A infraestrutura já os transporta de ponta a ponta, prontos para
-  uma futura tela de opções por produto/impressora.
+- Printing still runs on the Tk thread (via `after`), as before. Rasterised
+  backends may take longer; moving to a worker thread is a future improvement
+  (out of scope for this delivery to avoid changing the current flow).
+- New parameters (copies/duplex/tray) do not have UI yet: they use neutral
+  defaults. The infrastructure already carries them end-to-end, ready for a
+  future per-product/printer options screen.

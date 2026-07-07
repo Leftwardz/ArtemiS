@@ -5,6 +5,53 @@ For development guidelines and architecture decisions, see `docs/AI_CONTEXT.md` 
 
 ---
 
+## First-time setup (Windows)
+
+After cloning the repository, each developer builds the runnable application locally. The `dist/` folder is **not** committed to Git.
+
+1. **Install Python dependencies**
+
+   ```powershell
+   pip install -r requirements.txt
+   ```
+
+   Ghostscript is already bundled under `vendor/ghostscript/` — no extra fetch is needed unless the folder is missing (the build script can run `scripts/fetch_ghostscript.ps1` automatically).
+
+2. **Create local configuration**
+
+   Copy `config.dist.json` to `config.json` and adjust paths if needed:
+
+   - `database_location` — SQLite file (default `database.db` in the project root).
+   - `search_folder` — root folder for CSV work orders (e.g. `C:\AR`).
+
+3. **Build the portable application**
+
+   ```powershell
+   .\scripts\build.ps1
+   ```
+
+   This runs PyInstaller (`Main.spec`), verifies the output, and produces a complete `dist/` folder next to the source tree.
+
+   Alternatively: `pyinstaller Main.spec`, then `.\scripts\verify_dist.ps1`.
+
+4. **Verify before deploy**
+
+   ```powershell
+   .\scripts\verify_dist.ps1
+   ```
+
+   Copy the **entire `dist/` folder** to production PCs (not just `Main.exe`). On a target machine, run `.\scripts\test_ghostscript_dist.ps1` from the install folder to confirm Ghostscript is present.
+
+5. **Run from source (development only)**
+
+   ```powershell
+   python Main.py
+   ```
+
+   For day-to-day production use, prefer the built `dist/Main.exe`.
+
+---
+
 ## What it is
 
 **ArtemiS** is a Windows desktop application (Python) for batch printing of Brazilian postal **Aviso de Recebimento (AR)** forms and related label workflows.
