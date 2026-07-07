@@ -1135,10 +1135,10 @@ class ConfigPanel(ctk.CTkFrame):
 
         client_name = product_file['cliente']
         product_name = product_file['produto']
-        paper_size = resolve_product_paper_size(int(orientation), layout_config)
         color = product_file['color']
         orientation = product_file['orientation']
         layout_config = product_file.get('layout_config')
+        paper_size = resolve_product_paper_size(int(orientation), layout_config)
         items = product_file['items']
 
         if admin_service.list_client_names(client_name):
