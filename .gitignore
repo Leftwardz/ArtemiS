@@ -1,16 +1,65 @@
+# --- Python ---
 __pycache__/
-.idea/
-dist/
-build/
-AR/
-temp/
-database.db
-AR/
-temp/
-ProjetosExternos/
-Teste/
-Errors_Logs.txt
-.venv
-Teste.py
+*.py[cod]
+*$py.class
+*.so
+.Python
 .venv/
 venv/
+*.egg-info/
+.eggs/
+
+# --- Build (PyInstaller: scripts/build.ps1 → dist/; never commit the output) ---
+dist/
+build/
+ArtemiS/
+
+# --- Test / coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# --- IDE / editor / OS ---
+.idea/
+.vscode/
+.cursor/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- Local install config (template: config.dist.json) ---
+config.json
+
+# --- Databases (production / audit; never commit live data) ---
+database.db
+artemis_audit_central.db
+artemis_audit_*.db
+audit_local.db
+*.db-journal
+audit_fallback.jsonl
+
+# --- Logs ---
+logs/
+*.log
+Errors_Logs.txt
+
+# --- Runtime output ---
+temp/
+
+# --- Work-order / operator folders (local or network paths) ---
+AR/
+Old/
+ProjetosExternos/
+Teste/
+
+# --- Local scratch scripts ---
+Teste.py
+
+# --- Linux dev: literal folder when search_folder is C:\AR ---
+C:\AR/

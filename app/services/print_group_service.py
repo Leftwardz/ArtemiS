@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from typing import Optional
 
 DEFAULT_PRINT_GROUP_NAME = 'PADRAO'
 DEFAULT_SEARCH_FOLDER = r'C:\ArtemiS\Workorders'
@@ -38,7 +39,7 @@ def migrate_legacy_group_folder(search_folder: str) -> None:
         os.rename(legacy_path, default_path)
 
 
-def ensure_workorder_directories(search_folder: str, group_names: list[str] | None = None) -> None:
+def ensure_workorder_directories(search_folder: str, group_names: Optional[list[str]] = None) -> None:
     if not search_folder:
         return
     migrate_legacy_group_folder(search_folder)

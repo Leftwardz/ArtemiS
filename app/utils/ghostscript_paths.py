@@ -3,12 +3,13 @@
 import os
 import subprocess
 import sys
+from typing import Optional
 
 _GS_VENDOR = ('vendor', 'ghostscript')
 _GS_EXE_NAME = 'gswin64c.exe'
 _GS_DLL_NAME = 'gsdll64.dll'
 _GS_LIB_MARKER = 'Fontmap.ATB'
-_smoke_test_cache: bool | None = None
+_smoke_test_cache: Optional[bool] = None
 
 
 def _candidate_roots():

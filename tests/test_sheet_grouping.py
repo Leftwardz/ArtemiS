@@ -3,6 +3,7 @@
 from app.services.sheet_grouping import (
     build_sheet_pages,
     extract_sheet_header_group_columns,
+    parse_column_indices,
     record_group_key,
     split_filelines_into_groups,
 )
@@ -72,3 +73,8 @@ def test_no_sheet_segments_keeps_linear_pagination():
     pages = build_sheet_pages(_records(), sheet_items=[], slot_count=2)
     assert len(pages) == 2
     assert pages[0]['group_total'] == 2
+
+
+def test_parse_column_indices_accepts_localized_labels():
+    assert parse_column_indices('Column_5') == [4]
+    assert parse_column_indices('Colonne_2.Coluna_3') == [1, 2]

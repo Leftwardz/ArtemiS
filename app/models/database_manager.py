@@ -6,7 +6,7 @@ import stat
 
 from app.models.schema import (
     Base, Client, Product, PrintingGroup, Printer, RegisteredPrinter,
-    User, ConfigAccess, Drawing,
+    User, ConfigAccess, AppSetting, Drawing,
 )
 
 
@@ -547,3 +547,23 @@ class DataBase:
             return True
         self.session.close()
         return False
+
+    _BLOCK_CONFIG_ACCESS_KEY = 'block_config_access'
+
+    def get_config_access_blocked(self) -> bool:
+        self.connect_to_database('ro')
+        row = self.session.query(AppSetting).filter_by(key=self._BLOCK_CONFIG_ACCESS_KEY).first()
+        blocked = row is not None and row.value == '1'
+        self.session.close()
+        return blocked
+
+    def set_config_access_blocked(self, blocked: bool) -> None:
+        self.connect_to_database('rw')
+        row = self.session.query(AppSetting).filter_by(key=self._BLOCK_CONFIG_ACCESS_KEY).first()
+        value = '1' if blocked else '0'
+        if row:
+            row.value = value
+        else:
+            self.session.add(AppSetting(key=self._BLOCK_CONFIG_ACCESS_KEY, value=value))
+        self.session.commit()
+        self.session.close()

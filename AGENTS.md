@@ -2,7 +2,7 @@
 
 ArtemiS is a **Windows desktop GUI application** (Python + CustomTkinter/Tkinter) for
 batch-generating and printing Brazilian postal *Aviso de Recebimento* (AR) forms from
-CSV work orders. See `docs/PROJECT_OVERVIEW.md` (Portuguese) for full functionality.
+CSV work orders. See `docs/PROJECT_OVERVIEW.md` for features and `docs/DEVELOPER.md` to clone and build.
 
 Entry point: `Main.py` → `app.bootstrap.main()`. Application code lives under `app/`
 (models, services, ui, utils). See `docs/AI_CONTEXT.md` for architecture and refactor status.

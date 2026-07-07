@@ -6,7 +6,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 PDF_MODE_SENTINEL = 'Criar PDF'
 
@@ -35,7 +35,7 @@ class I18n:
         self._locales: dict[str, dict[str, Any]] = {}
         self._locales_folder: str = ''
 
-    def init(self, config: dict | None = None) -> None:
+    def init(self, config: Optional[dict] = None) -> None:
         config = config or {}
         self._locales_folder = (config.get('locales_folder') or '').strip()
         self._discover_locales()
@@ -70,7 +70,7 @@ class I18n:
                 dirs.append(custom)
         return dirs
 
-    def reload_locales(self, locales_folder: str | None = None) -> None:
+    def reload_locales(self, locales_folder: Optional[str] = None) -> None:
         if locales_folder is not None:
             self._locales_folder = (locales_folder or '').strip()
         current = self._language
@@ -98,7 +98,7 @@ class I18n:
             items.append((code, label))
         return sorted(items, key=lambda item: item[1].lower())
 
-    def language_label(self, code: str | None = None) -> str:
+    def language_label(self, code: Optional[str] = None) -> str:
         code = code or self._language
         data = self._locales.get(code, {})
         meta = data.get('meta') or {}
@@ -152,7 +152,7 @@ def get_i18n() -> I18n:
     return _instance
 
 
-def init_i18n(config: dict | None = None) -> None:
+def init_i18n(config: Optional[dict] = None) -> None:
     _instance.init(config)
 
 
@@ -172,7 +172,7 @@ def available_languages() -> list[tuple[str, str]]:
     return _instance.available_languages()
 
 
-def reload_locales(locales_folder: str | None = None) -> None:
+def reload_locales(locales_folder: Optional[str] = None) -> None:
     _instance.reload_locales(locales_folder)
 
 

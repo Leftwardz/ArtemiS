@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 MM_PER_PT = 25.4 / 72.0
 PT_PER_MM = 72.0 / 25.4
@@ -156,7 +156,7 @@ class SheetLayout:
         return cls(**filtered)
 
     @classmethod
-    def from_json(cls, data: Optional[str | dict[str, Any]]) -> SheetLayout:
+    def from_json(cls, data: Optional[Union[str, dict[str, Any]]]) -> SheetLayout:
         if not data:
             return cls()
         if isinstance(data, str):

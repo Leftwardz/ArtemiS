@@ -4,9 +4,52 @@ from app import audit, runtime
 from app.utils import windows_auth
 from app.utils.printer_handler import enumerate_installed_printers, printer_is_available
 
+_block_access_cache = None
+
+
+def _invalidate_access_caches():
+    global _block_access_cache
+    _block_access_cache = None
+    windows_auth.invalidate_auth_cache()
+
 
 def get_db():
     return runtime.context.db
+
+
+def is_config_access_blocked() -> bool:
+    global _block_access_cache
+    if _block_access_cache is None:
+        _block_access_cache = runtime.context.db.get_config_access_blocked()
+    return _block_access_cache
+
+
+def set_config_access_blocked(blocked: bool) -> None:
+    runtime.context.db.set_config_access_blocked(blocked)
+    _invalidate_access_caches()
+    audit.log_cadastro(
+        'access_block_toggle',
+        detail='blocked' if blocked else 'open',
+    )
+
+
+def enable_config_access_block() -> list[str]:
+    """Ativa bloqueio e garante admin + usuário atual na lista."""
+    set_config_access_blocked(True)
+    added: list[str] = []
+    current = windows_auth.get_current_principal()
+    if add_config_access(current, 'user', audit_event=False):
+        added.append(current)
+    for principal in windows_auth.default_admin_group_principals():
+        if add_config_access(principal, 'group', audit_event=False):
+            added.append(principal)
+    if added:
+        audit.log_cadastro('access_block_seed', detail=', '.join(added))
+    return added
+
+
+def disable_config_access_block() -> None:
+    set_config_access_blocked(False)
 
 
 def list_client_names(name=''):
@@ -21,23 +64,28 @@ def list_config_access():
     return runtime.context.db.list_config_access()
 
 
-def add_config_access(principal_name, principal_type):
+def add_config_access(principal_name, principal_type, *, audit_event=True):
     result = runtime.context.db.insert_config_access(principal_name, principal_type)
     if result:
-        audit.log_cadastro('access_add', detail=f'{principal_type}: {principal_name}')
+        _invalidate_access_caches()
+        if audit_event:
+            audit.log_cadastro('access_add', detail=f'{principal_type}: {principal_name}')
     return result
 
 
 def delete_config_access(principal_name):
     result = runtime.context.db.delete_config_access(principal_name)
     if result:
+        _invalidate_access_caches()
         audit.log_cadastro('access_delete', detail=principal_name)
     return result
 
 
 def can_access_config():
+    if not is_config_access_blocked():
+        return True
     allowed = list_config_access()
-    return windows_auth.can_access_config(allowed)
+    return windows_auth.can_access_config(allowed, block_access=True)
 
 
 def get_current_windows_user():

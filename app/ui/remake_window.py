@@ -1,3 +1,5 @@
+from typing import Optional
+
 from app.services import admin_service
 import customtkinter as ctk
 
@@ -49,7 +51,7 @@ def _secondary_btn_kwargs(**extra):
     )
 
 
-def _remake_card(parent, title: str | None = None):
+def _remake_card(parent, title: Optional[str] = None):
     card = ctk.CTkFrame(
         parent, fg_color=THEME_CARD, corner_radius=12,
         border_width=1, border_color=THEME_CARD_BORDER,

@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, Optional
 
 
-def parse_column_indices(file_columns: str | None) -> list[int]:
+def parse_column_indices(file_columns: Optional[str]) -> list[int]:
     """Converte 'Coluna_1.Coluna_3' em índices 0-based [0, 2]."""
     from app.i18n.designer_labels import column_index_from_name
 
@@ -53,7 +53,7 @@ def split_filelines_into_groups(filelines: list, column_indices: list[int]) -> l
         return [list(filelines)]
 
     groups: list[list] = []
-    current_key: tuple[str, ...] | None = None
+    current_key: Optional[tuple[str, ...]] = None
     current_group: list = []
 
     for record in filelines:
