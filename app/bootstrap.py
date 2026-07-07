@@ -18,6 +18,7 @@ def main():
                 "database_location": "database.db",
                 "search_folder": DEFAULT_SEARCH_FOLDER,
                 "print_backend": "pdftoprinter",
+                "win32_raster_dpi": 300,
                 "audit_enabled": True,
                 "audit_central_location": "",
                 "audit_flush_interval_seconds": 180,

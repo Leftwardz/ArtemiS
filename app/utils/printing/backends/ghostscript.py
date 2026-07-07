@@ -15,7 +15,8 @@ mesmo caminho do backend Win32 DEVMODE — que o driver respeita.
 """
 
 import os
-import subprocess
+
+from app.utils.subprocess_hidden import run_hidden
 
 from app.utils.ghostscript_paths import (
     ghostscript_bin_dir,
@@ -104,7 +105,7 @@ class GhostscriptBackend(PrintBackend):
         log.info('comando Ghostscript: %s', command)
         log.info('Ghostscript cwd=%s GS_LIB=%s', bin_dir, env.get('GS_LIB'))
         try:
-            result = subprocess.run(
+            result = run_hidden(
                 command,
                 env=env,
                 capture_output=True,

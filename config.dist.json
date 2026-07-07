@@ -3,6 +3,7 @@
     "search_folder": "C:\\AR",
     "language": "pt",
     "print_backend": "pdftoprinter",
+    "win32_raster_dpi": 300,
     "ui_theme": "slate",
     "audit_enabled": true,
     "audit_central_location": "",

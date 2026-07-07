@@ -1,9 +1,10 @@
 """Caminhos do Ghostscript empacotado (dev, PyInstaller e override em config.json)."""
 
 import os
-import subprocess
 import sys
 from typing import Optional
+
+from app.utils.subprocess_hidden import run_hidden
 
 _GS_VENDOR = ('vendor', 'ghostscript')
 _GS_EXE_NAME = 'gswin64c.exe'
@@ -94,7 +95,7 @@ def ghostscript_smoke_test(*, config=None) -> bool:
 
     bin_dir = ghostscript_bin_dir() or os.path.dirname(gs_exe)
     try:
-        result = subprocess.run(
+        result = run_hidden(
             [gs_exe, '--version'],
             env=ghostscript_env(config),
             capture_output=True,

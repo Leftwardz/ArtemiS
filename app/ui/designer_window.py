@@ -2549,26 +2549,42 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
         self._show_object_info(row=btn_row + 1)
         self._fill_line_values(selected_object)
 
-    def text_properties(self, selected_object):
-        self._prepare_property_grid(self.frame)
+    def _logical_font_tuple(self, selected_object):
+        """Fonte lógica do store — não inferir do canvas (zoom arredonda e distorce o tamanho)."""
+        if self.is_segment and self.segment_obj:
+            seg = self.segment_obj
+            return seg.font_name, str(max(1, int(float(seg.font_size)))), seg.font_style
+        obj = self.selected_object or self.master.drawing_store.get_by_canvas(selected_object)
+        if isinstance(obj, (TextObject, CounterObject, BarcodeTextObject)):
+            return obj.font_name, str(max(1, int(float(obj.font_size)))), obj.font_style
         fonte = self.master.canvas.itemconfig(selected_object, 'font')[4]
         if '{' in fonte:
             fontname = fonte.split('}')[0].replace('{', '')
-            fontsize = fonte.split('}')[1].split()[0]
-            font_style = fonte.split('}')[1].split()[1]
-            fonte = [fontname, fontsize, font_style]
+            rest = fonte.split('}')[1].split()
+            fonte = [fontname, rest[0], rest[1] if len(rest) > 1 else 'normal']
         else:
-            fonte = self.master.canvas.itemconfig(selected_object, 'font')[4].split()
+            fonte = fonte.split()
+        z = self.master.zoom
+        return fonte[0], str(max(1, int(round(int(float(fonte[1])) / z)))), fonte[2]
+
+    def _logical_orientation(self, selected_object):
+        if self.is_segment and self.segment_obj:
+            return str(self.segment_obj.orientation).replace('.0', '')
+        obj = self.selected_object or self.master.drawing_store.get_by_canvas(selected_object)
+        if obj is not None and hasattr(obj, 'orientation'):
+            return str(obj.orientation).replace('.0', '')
+        return self.master.canvas.itemconfig(selected_object, 'angle')[4].replace('.0', '')
+
+    def text_properties(self, selected_object):
+        self._prepare_property_grid(self.frame)
         obj = self.selected_object or self.master.drawing_store.get_by_canvas(selected_object)
         if isinstance(obj, TextObject):
             texto = obj.text
         else:
             texto = self.master.canvas.itemconfig(selected_object, 'text')[4]
-        orientacao = self.master.canvas.itemconfig(selected_object, 'angle')[4].replace('.0', '')
+        font_family, font_size, font_style = self._logical_font_tuple(selected_object)
+        orientacao = self._logical_orientation(selected_object)
         z = self.master.zoom
-        font_family = fonte[0]
-        font_size = str(max(1, int(round(int(float(fonte[1])) / z))))
-        font_style = fonte[2]
 
         if self.is_segment:
             x, y = self.master.canvas.coords(self.segment_itens[0])
@@ -2725,27 +2741,21 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
                 pass
 
     def _fill_text_values(self, selected_object):
-        fonte = self.master.canvas.itemconfig(selected_object, 'font')[4]
-        if '{' in fonte:
-            fontname = fonte.split('}')[0].replace('{', '')
-            rest = fonte.split('}')[1].split()
-            fonte = [fontname, rest[0], rest[1] if len(rest) > 1 else 'normal']
-        else:
-            fonte = fonte.split()
         obj = self.selected_object or self.master.drawing_store.get_by_canvas(selected_object)
         if isinstance(obj, TextObject):
             texto = obj.text
         else:
             texto = self.master.canvas.itemconfig(selected_object, 'text')[4]
-        orientacao = self.master.canvas.itemconfig(selected_object, 'angle')[4].replace('.0', '')
+        font_family, font_size, font_style = self._logical_font_tuple(selected_object)
+        orientacao = self._logical_orientation(selected_object)
         z = self.master.zoom
         if self.is_segment and self.segment_itens:
             x, y = self.master.canvas.coords(self.segment_itens[0])
         else:
             x, y = self.master.canvas.coords(selected_object)
-        self.font_family_combobox.set(fonte[0])
-        self.font_size_combobox.set(str(max(1, int(round(int(float(fonte[1])) / z)))))
-        self.font_style_combobox.set(font_style_label(fonte[2]))
+        self.font_family_combobox.set(font_family)
+        self.font_size_combobox.set(font_size)
+        self.font_style_combobox.set(font_style_label(font_style))
         self.orientation.set(orientacao)
         if self.is_segment and self.segment_obj:
             self.distance.set(self.segment_obj.line_distance)

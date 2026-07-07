@@ -16,9 +16,10 @@ parâmetros não aplicáveis são apenas registrados em log.
 
 import ctypes
 import os
-import subprocess
 import tempfile
 from ctypes import wintypes
+
+from app.utils.subprocess_hidden import run_hidden
 
 from app.utils.ghostscript_paths import (
     ghostscript_env,
@@ -99,7 +100,7 @@ class XpsBackend(PrintBackend):
             job.pdf_path,
         ]
         log.info('comando GS->XPS: %s', command)
-        result = subprocess.run(
+        result = run_hidden(
             command, env=env, capture_output=True, text=True,
             cwd=os.path.dirname(gs_exe) if os.path.isfile(gs_exe) else None,
         )

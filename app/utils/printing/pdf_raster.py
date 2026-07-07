@@ -8,10 +8,10 @@ rasterizador (sem enviar nada para impressora aqui).
 import glob
 import os
 import shutil
-import subprocess
 import tempfile
 
 from app.utils.ghostscript_paths import ghostscript_bin_dir, ghostscript_env, resolve_ghostscript_exe
+from app.utils.subprocess_hidden import run_hidden
 
 DEFAULT_DPI = 300
 
@@ -56,7 +56,7 @@ def rasterize_pdf(pdf_path, dpi=DEFAULT_DPI, config=None):
         pdf_path,
     ]
 
-    result = subprocess.run(
+    result = run_hidden(
         command,
         env=env,
         capture_output=True,

@@ -129,6 +129,16 @@ def test_serialize_all_to_db_keeps_store_font_not_canvas():
     assert text_rows[0]['font_size'] == '14'
 
 
+def test_canvas_roundtrip_would_drift_font_size_at_fractional_zoom():
+    """Documenta por que o painel deve ler font_size do store, não do canvas."""
+    logical = 10
+    zoom = 0.75
+    screen = max(1, int(round(logical * zoom)))
+    assert screen == 8
+    assert max(1, int(round(screen / zoom))) == 11
+    assert str(logical) != str(max(1, int(round(screen / zoom))))
+
+
 def test_preview_sync_preserves_fixed_text_placeholders():
     store = DrawingStore()
     obj = TextObject(
