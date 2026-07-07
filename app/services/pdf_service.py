@@ -22,7 +22,7 @@ from app.utils.barcode_generator import (
 from app.utils.text_utils import break_line
 from app.models.sheet_layout import CUSTOM_ORIENTATION_INDEX, SCOPE_SHEET, SheetLayout
 from app.services.layout_service import batch_print_orientation, resolve_layout_for_orientation
-from app.services.sheet_grouping import build_sheet_pages
+from app.services.sheet_grouping import build_sheet_pages, parse_column_indices
 from app.services.sheet_page_placeholders import apply_sheet_page_placeholders as _apply_sheet_page_placeholders
 
 
@@ -567,8 +567,7 @@ def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offs
         column = None
 
         if item['file_columns'] and not is_test:
-            column = item['file_columns'].split('.')
-            column = [int(i.replace('Coluna_', '')) - 1 for i in column]
+            column = parse_column_indices(item['file_columns'])
 
         if item['item_type'] in ['text', 'counter', 'barcode_text']:
             font_style = '-' + item['font_style'].capitalize() if item['font_style'] == 'bold' else ''
