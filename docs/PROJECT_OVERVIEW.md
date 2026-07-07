@@ -24,6 +24,23 @@ It covers the full production pipeline in one tool: template design, CSV-driven 
 
 **Goal:** standardize AR and label production, replace manual alignment with templates bound to CSV columns, validate print queues, and support partial reprints.
 
+### Work order CSV — first four columns (required structure)
+
+Every WO file is semicolon-delimited. The **first four columns** are fixed by convention — ArtemiS reads them for product selection, WO identification, and **Remake** search. Additional columns are free for template bindings (`Coluna_5`, `Coluna_6`, …).
+
+| Column | Content | Used for |
+|--------|---------|----------|
+| **1** | `client name - product name` | **Product selection.** The first data row must use this exact pattern (client and product separated by ` - `). ArtemiS splits the string to find the registered **client / product** pair and load the correct layout. |
+| **2** | Primary barcode | **Remake — AR / barcode lookup.** Scan or type the main barcode (or AR number) to find the matching row in an archived WO. |
+| **3** | Client or company name | **Remake — name lookup.** Search by recipient name or company name when reprinting selected forms. |
+| **4** | Work code / file ID | **Standardization.** Same work identifier on every row (e.g. batch or file code). Shown in the Remake window and used to align WO files with operator scans; keep it consistent across the batch. |
+
+<div class="note">
+
+**Important:** Do not reorder or repurpose these four columns. Production will not resolve the correct product if column 1 is wrong; Remake filters depend on columns 2 and 3.
+
+</div>
+
 ---
 
 ## Printing features
