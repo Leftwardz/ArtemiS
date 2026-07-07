@@ -17,9 +17,9 @@ The platform is designed as a single tool for the full print pipeline: template 
 - Matches variable data to visual layouts stored per client and product.
 - Generates dynamic PDFs with text, logos, barcodes (Code 128, Code 39), QR codes, and DataMatrix.
 - Imposes **multiple labels on one sheet** using preset AR layouts or a fully custom label grid.
-- Supports **two-sided AR (“depth”)** by placing selected elements on the back of the physical sheet.
-- Supports **column-depth packing** so records fill down each column before moving to the next — a layout choice that simplifies guillotine cutting.
-- Sends batches to Windows printers via `PDFtoPrinter.exe` (up to five parallel queues), Ghostscript, or other selectable print engines; or exports merged PDFs for review.
+- Uses **vertical imposition depth** on *3 per sheet — vertical* and *2 per sheet — vertical* so records stay in CSV order after horizontal cutting.
+- Supports **duplex (back-side)** elements as a separate feature — unrelated to imposition depth.
+- Sends batches to Windows printers via selectable print engines (`PDFtoPrinter`, Ghostscript, Win32 APIs) or exports merged PDFs for review.
 - Provides a visual template editor, Windows-identity-based administration, selective reprint (Remake), and **audit / reporting** across production stations.
 
 **Goal:** standardize and speed up AR and label production, eliminating manual alignment through templates that map CSV columns to layout elements, with queue validation and partial reprint support.
@@ -36,7 +36,7 @@ The platform is designed as a single tool for the full print pipeline: template 
 
 ---
 
-## Printing capabilities in depth
+## Printing capabilities
 
 ### Multiple labels on one sheet
 
@@ -44,9 +44,9 @@ ArtemiS is not limited to one AR per page. Products can use:
 
 | Mode | Description |
 |------|-------------|
-| **3 per sheet — vertical** | Three AR slots stacked on A4 |
+| **3 per sheet — vertical** | Three AR slots stacked on A4; uses **depth imposition** (see below) |
 | **2 per sheet — horizontal** | Two AR slots side by side |
-| **2 per sheet — vertical** | Two AR slots stacked |
+| **2 per sheet — vertical** | Two AR slots stacked on A4; uses **depth imposition** (see below) |
 | **1 per sheet — A4** | Full A4 page per record |
 | **Custom** | Arbitrary sheet size, label size, margins, and grid (columns × rows) |
 
@@ -55,10 +55,41 @@ In **Custom** mode the designer defines:
 - Sheet preset (A4, A3, Letter, landscape variants, or fully custom mm dimensions).
 - Label width and height in millimetres.
 - Grid: number of columns and rows, gaps, and top/left margins.
-- **Fill order** (packing): *Row by row* or *Column by column* (see below).
+- **Fill order** (packing): *Row by row* or *Column by column*.
 - Two editing scopes: **Label** (content inside each slot) and **Header** (sheet-level elements such as group titles and page numbers).
 
 Each CSV record occupies the next free slot on the sheet according to the chosen packing order. When a sheet is full, the next record starts a new physical page.
+
+### Vertical imposition depth (3 and 2 per sheet — vertical only)
+
+**Depth** is an imposition rule used **only** in the two vertical preset modes (*3 per sheet — vertical* and *2 per sheet — vertical*). It has **nothing to do with duplex** (printing on the back of the sheet).
+
+The problem it solves: when several ARs are printed on the same A4 page, one above the other, operators often cut the stack horizontally (guillotine through the horizontal bands). Without depth, records on the same page would not end up in CSV order in each cut pile.
+
+**How it works**
+
+Instead of placing consecutive records top-to-bottom on a single page (record 1 on top, 2 in the middle, 3 on bottom), ArtemiS splits the CSV into parallel streams — one stream per vertical slot:
+
+- **3 vertical:** records are divided into three groups. The first group fills the **top** slot across successive pages, the second group fills the **middle** slot, the third fills the **bottom** slot.
+- **2 vertical:** same idea with two groups — **top** and **bottom**.
+
+Example with nine records (1–9) in **3 per sheet — vertical**:
+
+| Page | Top slot | Middle slot | Bottom slot |
+|------|----------|-------------|-------------|
+| 1 | 1 | 4 | 7 |
+| 2 | 2 | 5 | 8 |
+| 3 | 3 | 6 | 9 |
+
+After printing three pages and cutting horizontally through the stack:
+
+- The **top** pile contains records **1, 2, 3** — already in order.
+- The **middle** pile contains **4, 5, 6**.
+- The **bottom** pile contains **7, 8, 9**.
+
+No manual re-sorting is needed after cutting. This is the production workflow the vertical depth modes are designed for.
+
+The horizontal modes (*2 per sheet — horizontal*) and *1 per sheet — A4* do **not** use this algorithm.
 
 ### Zebra and thermal label sheets
 
@@ -72,54 +103,55 @@ There is no separate ZPL generator. Instead, **Custom** layout mode is the gener
 
 Because output is PDF → Windows spooler, any printer with a working Windows driver (including Zebra) can print the imposed grid. Label dimensions and grid spacing are under full administrator control.
 
-### AR with depth (duplex / back side)
+### Duplex (back side)
 
-Some AR forms need content on **both sides** of the paper (front and back). In the template editor, each element has a **Duplex (back)** option:
+Some layouts need content on **both sides** of the paper. This is separate from vertical imposition depth.
 
-- Elements without the flag are drawn on the **front** of the physical sheet.
-- Elements with **Duplex (back)** are drawn on the **reverse** side, at the same position offsets.
+In the template editor, each element can be marked **Duplex (back)**:
 
-At PDF generation time, ArtemiS renders the front, turns the page, renders back-side elements, and turns again before the next sheet. This gives a true two-sided document without maintaining two separate products.
+- Unmarked elements print on the **front**.
+- Marked elements print on the **reverse**, at the same position offsets.
+
+ArtemiS renders the front, turns the page, renders back-side elements, then starts the next sheet.
 
 **Requirements for duplex jobs:**
 
-- The product must use the same duplex setting consistently across a batch (no mixing duplex and non-duplex products in one queue).
-- The selected print engine must support per-job duplex (Ghostscript or Win32 DEVMODE). PDFtoPrinter does not control duplex per job and will block duplex batches.
+- Do not mix duplex and non-duplex products in the same queue.
+- Use a print engine that supports per-job duplex (Ghostscript or Win32 DEVMODE / Win32 advanced). PDFtoPrinter cannot control duplex per job and will reject duplex batches.
 
-In the editor, back-side elements are shown with a distinct style so the designer can verify front/back alignment on screen.
+Back-side elements are shown with a distinct style in the editor.
 
-### Column depth — packing order for easier cutting
+### Custom layout — fill order
 
-When several labels share one sheet, **fill order** determines which slot receives the next CSV record. This is configured in Custom mode under **Order**:
+In **Custom** mode only, **Order** controls how records fill the grid:
 
-| Packing | Behaviour | Typical use |
-|---------|-----------|-------------|
-| **Row by row** (`sequential`) | Fills left → right along a row, then moves to the next row | Reading order matches visual rows |
-| **Column by column** (`column_depth`) | Fills top → bottom in the first column, then the next column | **Guillotine / strip cutting** |
+| Packing | Behaviour |
+|---------|-----------|
+| **Row by row** | Left → right, then next row |
+| **Column by column** | Top → bottom in each column, then next column |
 
-**Why column depth helps cutting**
-
-With *Column by column*, records 1, 2, 3… stack vertically in column 1 before record 4 moves to the top of column 2. After printing:
-
-1. Cut the sheet **vertically** between columns (guillotine).
-2. Each resulting strip already has its records in top-to-bottom order — no need to re-sort pieces after cutting.
-
-Example on a 3×3 grid with four records:
-
-```
-Row by row:          Column by column:
-[1][2][3]            [1][4][7]
-[4][5][6]            [2][5][8]
-[7][8][9]            [3][6][9]
-```
-
-For hand cutting or stack cutting by column, *Column by column* keeps each strip internally consistent.
+This is independent of vertical depth imposition on the preset AR modes. *Column by column* can help when cutting custom grids into vertical strips, but it is a separate setting from depth on the 3/2 vertical presets.
 
 **Sheet headers and grouping**
 
 In Custom mode, elements in **Header** scope can define grouping keys (via segment columns). Records that share the same header values stay on the same sheet group, with optional `{p}` / `{t}` placeholders for page number and total pages within the group.
 
-Optional cut guides (`show_cut_guides` in layout config) can draw dashed rectangles around each slot on the PDF to assist trimming (currently stored in layout JSON; exposed through the layout model).
+### Print engines
+
+Print engine is selected in **Settings → Printing** and stored in `config.json` (`print_backend`). See `docs/PRINTING_BACKENDS.md` for the full technical comparison.
+
+| Engine | Summary |
+|--------|---------|
+| **PDFtoPrinter** | Default in many deployments. Fast, vector output, up to five parallel executables. **Most tested in production so far** and reliable for **portrait** jobs **without duplex**. Does **not** accept per-job paper size, landscape orientation, duplex, copies, or tray selection — it relies on whatever is already configured in the Windows printer preferences. |
+| **Ghostscript** | **Recommended** when the job needs paper size per job, landscape sheets, copies, or duplex (best-effort). Portrait jobs stay vector; landscape jobs are rasterised via GDI. Does not require administrator rights. |
+| **Win32 DEVMODE / Win32 advanced** | **Recommended** for full per-job control (paper, duplex, copies, tray, orientation) without changing printer defaults permanently. Output is rasterised (Ghostscript renders the PDF first). Marked experimental but provides the most complete Windows API control. |
+| **XPS Print API** | Experimental; vector XPS pipeline. Limited custom finishing options in the current version. |
+
+**Practical guidance**
+
+- **Standard AR batches** (portrait A4, no duplex, presets 3/2/1 vertical or horizontal): **PDFtoPrinter** is the proven choice — provided the printer preferences on that PC are already correct for paper and tray.
+- **Duplex layouts, landscape custom sheets, or strict paper control per job**: switch to **Ghostscript** or **Win32 DEVMODE**.
+- ArtemiS does **not** auto-fallback between engines; if the selected engine fails, the error is shown and the operator or administrator must change the engine in Settings.
 
 ---
 
@@ -206,9 +238,10 @@ Logging is best-effort and never blocks printing. See `docs/AUDIT_LOG.md` for ar
 3. Optionally grant other users/groups under **Manage access**.
 4. Register clients and products.
 5. Open the editor: paper type, orientation (preset or Custom grid), and physical paper colour.
-6. Draw the layout; bind elements to CSV columns (e.g. `Column_2` → address). Mark back-side elements with **Duplex (back)** when needed.
-7. For custom grids, set label size, columns×rows, and packing order (*Column by column* if cutting by column).
-8. Generate a test PDF, verify alignment, and save.
+6. Draw the layout; bind elements to CSV columns (e.g. `Column_2` → address). Use **Duplex (back)** only when the physical form has a reverse side.
+7. For vertical AR presets (3 or 2 per sheet), depth imposition is automatic — no extra setting. For custom grids, configure label size, columns×rows, and fill order.
+8. Choose an appropriate **print engine** in Settings (PDFtoPrinter for standard portrait AR; Ghostscript or Win32 for duplex or landscape).
+9. Generate a test PDF, verify alignment, and save.
 
 ### Operator — production
 
@@ -338,9 +371,12 @@ Settings use the **logged-in Windows identity** on the station. Local (`Administ
 
 ### Print engine constraints
 
-- **PDFtoPrinter**: no per-job duplex, paper size, or orientation control — printer defaults must be correct.
-- **Duplex layouts**: require Ghostscript or Win32 DEVMODE backend.
-- **Mixed duplex products** in one queue are rejected.
+- **PDFtoPrinter** (default): no per-job duplex, landscape orientation, paper size, copies, or tray — printer Windows preferences must already be correct. Most tested engine; reliable for portrait jobs without duplex.
+- **Duplex layouts**: require Ghostscript or Win32 DEVMODE / Win32 advanced; PDFtoPrinter blocks duplex batches.
+- **Landscape custom sheets**: require Ghostscript or Win32 DEVMODE; PDFtoPrinter blocks landscape batches.
+- **Mixed duplex or mixed portrait/landscape products** in one queue are rejected.
+
+See **Print engines** under Printing capabilities and `docs/PRINTING_BACKENDS.md`.
 
 ---
 
@@ -353,8 +389,9 @@ Settings use the **logged-in Windows identity** on the station. Local (`Administ
 | **Client / Product** | Pair identifying layout and print rules in the database |
 | **Print group** | WO search subfolder under `search_folder` |
 | **Custom layout** | User-defined sheet and label grid (mm), including Zebra/thermal stock |
-| **Packing / column depth** | Fill order: row-by-row vs column-by-column for cutting workflow |
+| **Depth (vertical imposition)** | Record ordering on *3 per sheet — vertical* and *2 per sheet — vertical* so horizontal cuts through a page stack yield piles in CSV order. Not related to duplex. |
 | **Duplex (back)** | Element drawn on the reverse side of the physical sheet |
+| **Packing (custom)** | Fill order in Custom mode: row-by-row vs column-by-column |
 | **Label scope** | Template content repeated in each grid slot |
 | **Header scope** | Sheet-level content (titles, group pagination) |
 | **Old/** | Subfolder where processed WOs are archived |
