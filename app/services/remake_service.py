@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from app.i18n import PDF_MODE_SENTINEL, t
+from app.services.layout_service import get_product_paper_size
 from app.services.print_service import get_printer_paper_error_message, validate_printer_paper
 from app.services.production_service import build_remake_file_lines
 from app.utils.file_parser import FileUtils
@@ -36,6 +37,13 @@ def prepare_remake_job(
         )
 
     product_obj = db.search_product(client, product)
+    if product_obj is None:
+        return RemakeJobResult(
+            ok=False,
+            error_title=t('common.error'),
+            error_message=t('work.product_missing', client=client, product=product),
+        )
+
     paper_size = get_product_paper_size(product_obj)
     if printer != PDF_MODE_SENTINEL:
         if not validate_printer_paper(printer, paper_size):
