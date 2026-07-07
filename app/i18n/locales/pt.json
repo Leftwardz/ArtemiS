@@ -538,6 +538,7 @@
     "barcode_39": "Barcode 39",
     "qrcode": "QRCode",
     "matrix": "Matrix",
+    "barcode_cepnet": "CEPNet (Correios)",
     "segment_edit_title": "Editar Segmento",
     "segment_new_title": "Configurar Segmento",
     "segment_fields": "Selecionar campos do arquivo",
@@ -564,5 +565,12 @@
   "landscape": {
     "mixed_batch": "A fila mistura produtos em retrato e paisagem.\nRemova WOs ou use apenas produtos com a mesma orientação de folha.",
     "pdftoprinter_unsupported": "PDFtoPrinter não suporta orientação paisagem por job.\nUse Ghostscript ou Win32 DEVMODE nas configurações, ou defina a folha em retrato."
+  },
+  "cepnet": {
+    "invalid_batch": "CEPNet inválido — lote rejeitado.\n\nArquivo: {file}\nLinha: {line}\nColuna: {column}\nValor: \"{value}\"\n\n{reason}",
+    "invalid_placeholder": "CEP de exemplo inválido para CEPNet:\n{reason}",
+    "reason_empty": "O CEP está vazio.",
+    "reason_letters": "O CEP deve conter apenas 8 dígitos numéricos (sem letras).",
+    "reason_length": "O CEP deve ter exatamente 8 dígitos (encontrados: {count})."
   }
 }

@@ -32,6 +32,9 @@ def create_datamatrix(code, path='temp/dmtx.png'):
     img.save(path)
 
 
+from app.utils.cepnet import create_cepnet, create_cepnet_bytes
+
+
 def create_barcode_bytes(code, width, height) -> io.BytesIO:
     barcode_aux = Code128(code, writer=ImageWriter())
     options = {"module_width": float(width), "module_height": float(height), "write_text": False, "quiet_zone": 0}

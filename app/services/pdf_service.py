@@ -16,9 +16,11 @@ import traceback
 from app.utils.barcode_generator import (
     create_barcode_bytes,
     create_barcode39_bytes,
+    create_cepnet_bytes,
     create_qrcode_bytes,
     create_datamatrix_bytes,
 )
+from app.utils.cepnet import CepNetValidationError, validate_cepnet_batch, validate_cepnet_placeholders
 from app.utils.text_utils import break_line
 from app.models.sheet_layout import CUSTOM_ORIENTATION_INDEX, SCOPE_SHEET, SheetLayout
 from app.services.layout_service import batch_print_orientation, resolve_layout_for_orientation
@@ -167,7 +169,9 @@ def filter_segments(segment_id, item_list, test):
 
 def generate_test_pdf(items=None, path="temp/text.pdf", orientation='Default', layout=None, file_lines=None):
     """Gera PDF de teste. Com file_lines, simula a impressão real (quebras, páginas, agrupamento)."""
+    validate_cepnet_placeholders(items or [])
     if file_lines is not None:
+        validate_cepnet_batch([items], [list(file_lines) + ['preview.csv']])
         _generate_simulated_pdf(items, path, orientation, layout, file_lines)
         return
     _generate_placeholder_test_pdf(items, path, orientation, layout)
@@ -307,6 +311,13 @@ def _report_progress(on_progress, printer, progress, text):
 
 def write_text_to_pdf(items, files_lines, orientation_list, path=None, is_remake=False, printer=None,
                       on_progress=None, on_error=None, on_complete=None, layout_config_list=None):
+    try:
+        validate_cepnet_batch(items, files_lines)
+    except CepNetValidationError as exc:
+        if on_error:
+            on_error(printer, exc.user_message)
+        return
+
     completed_pdfs = []
     files_to_move = []
     total = len(files_lines)
@@ -692,6 +703,19 @@ def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offs
             else:
                 if get_element(file_columns, column[0]):
                     barcode_bytes = create_datamatrix_bytes(file_columns[column[0]].strip())
+                else:
+                    continue
+
+            _draw_oriented_image(pdf_canvas, x1, y1, barcode_bytes, orientation, proportion, page_height=ph)
+
+        elif item['item_type'] == 'barcodeCepnet':
+            if is_test:
+                raw = item.get('text') or ''
+                barcode_bytes = create_cepnet_bytes(raw)
+            else:
+                if get_element(file_columns, column[0]):
+                    raw = file_columns[column[0]].strip()
+                    barcode_bytes = create_cepnet_bytes(raw)
                 else:
                     continue
 

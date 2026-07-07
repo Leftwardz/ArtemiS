@@ -55,7 +55,9 @@ def _legacy_row_from_canvas(canvas, item, canvas_dict_images: dict) -> dict:
         else:
             item_dict['item_type'] = 'text'
     elif canvas.type(item) == 'image':
-        if tag.startswith('barcodeQR'):
+        if tag.startswith('barcodeCepnet'):
+            item_dict['item_type'] = 'barcodeCepnet'
+        elif tag.startswith('barcodeQR'):
             item_dict['item_type'] = 'barcodeQR'
         elif tag.startswith('barcodeMatrix'):
             item_dict['item_type'] = 'barcodeMatrix'
@@ -103,7 +105,7 @@ def _legacy_row_from_canvas(canvas, item, canvas_dict_images: dict) -> dict:
         item_dict['barcode_height'] = tag.split('§')[2]
         item_dict['barcode_width'] = tag.split('§')[1]
 
-    if item_dict['item_type'] in ['barcodeQR', 'barcodeMatrix', 'barcode', 'barcode39']:
+    if item_dict['item_type'] in ['barcodeQR', 'barcodeMatrix', 'barcodeCepnet', 'barcode', 'barcode39']:
         item_dict['proportion'] = str(canvas_dict_images[item][3])
         item_dict['orientation'] = str(canvas_dict_images[item][4])
         item_dict['text'] = tag.split('§')[4]

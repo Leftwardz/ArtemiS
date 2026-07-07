@@ -538,6 +538,7 @@
     "barcode_39": "Code-barres 39",
     "qrcode": "QR Code",
     "matrix": "Data Matrix",
+    "barcode_cepnet": "CEPNet (Correios)",
     "segment_edit_title": "Éditer le segment",
     "segment_new_title": "Configurer le segment",
     "segment_fields": "Sélectionner les champs du fichier",
@@ -564,5 +565,12 @@
   "landscape": {
     "mixed_batch": "La file mélange des produits en portrait et en paysage.\nRetirez des WO ou utilisez uniquement des produits avec la même orientation de feuille.",
     "pdftoprinter_unsupported": "PDFtoPrinter ne prend pas en charge l'orientation paysage par job.\nUtilisez Ghostscript ou Win32 DEVMODE dans les paramètres, ou définissez la feuille en portrait."
+  },
+  "cepnet": {
+    "invalid_batch": "CEPNet invalide — lot rejeté.\n\nFichier : {file}\nLigne : {line}\nColonne : {column}\nValeur : \"{value}\"\n\n{reason}",
+    "invalid_placeholder": "CEP d'exemple invalide pour CEPNet :\n{reason}",
+    "reason_empty": "Le CEP est vide.",
+    "reason_letters": "Le CEP doit contenir exactement 8 chiffres (sans lettres).",
+    "reason_length": "Le CEP doit comporter exactement 8 chiffres (trouvés : {count})."
   }
 }

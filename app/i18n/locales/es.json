@@ -538,6 +538,7 @@
     "barcode_39": "Código de barras 39",
     "qrcode": "Código QR",
     "matrix": "Data Matrix",
+    "barcode_cepnet": "CEPNet (Correios)",
     "segment_edit_title": "Editar segmento",
     "segment_new_title": "Configurar segmento",
     "segment_fields": "Seleccionar campos del archivo",

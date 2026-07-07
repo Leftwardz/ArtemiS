@@ -148,7 +148,13 @@ def column_indices_from_dotted(names: str) -> list[int]:
 
 
 def barcode_model_labels() -> list[str]:
-    return [t('designer.barcode_128'), t('designer.barcode_39'), t('designer.qrcode'), t('designer.matrix')]
+    return [
+        t('designer.barcode_128'),
+        t('designer.barcode_39'),
+        t('designer.qrcode'),
+        t('designer.matrix'),
+        t('designer.barcode_cepnet'),
+    ]
 
 
 def barcode_kind_from_model_label(label: str) -> str:
@@ -157,6 +163,7 @@ def barcode_kind_from_model_label(label: str) -> str:
         t('designer.barcode_39'): 'barcode39',
         t('designer.qrcode'): 'barcodeQR',
         t('designer.matrix'): 'barcodeMatrix',
+        t('designer.barcode_cepnet'): 'barcodeCepnet',
     }
     return mapping.get(label, 'barcode')
 

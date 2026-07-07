@@ -163,7 +163,7 @@ class RectangleObject(DrawingObject):
 
 @dataclass
 class BarcodeObject(DrawingObject):
-    barcode_kind: str = 'barcode'  # barcode | barcode39 | barcodeQR | barcodeMatrix
+    barcode_kind: str = 'barcode'  # barcode | barcode39 | barcodeQR | barcodeMatrix | barcodeCepnet
     placeholder: str = ''
     file_column: str = ''
     barcode_width: str = '0.18'
@@ -185,11 +185,13 @@ class BarcodeObject(DrawingObject):
             return 'barcode39'
         if self.barcode_kind == 'barcodeQR':
             return 'barcodeQR'
+        if self.barcode_kind == 'barcodeCepnet':
+            return 'barcodeCepnet'
         return 'barcodeMatrix'
 
     def legacy_tag(self) -> str:
         ph = self.placeholder.replace(' ', '_')
-        if self.barcode_kind in ('barcodeQR', 'barcodeMatrix'):
+        if self.barcode_kind in ('barcodeQR', 'barcodeMatrix', 'barcodeCepnet'):
             return f'{self.prefix}{self.x}{self.y}§§§{self.file_column}§{ph}'
         return f'{self.prefix}{self.x}{self.y}§{self.barcode_width}§{self.barcode_height}§{self.file_column}§{ph}'
 
@@ -427,7 +429,7 @@ def object_from_db_row(row: dict) -> DrawingObject:
             x=_s(row.get('x1') or '0'),
             y=_s(row.get('y1') or '0'),
         )
-    if item_type in ('barcode', 'barcode39', 'barcodeQR', 'barcodeMatrix'):
+    if item_type in ('barcode', 'barcode39', 'barcodeQR', 'barcodeMatrix', 'barcodeCepnet'):
         parts = _split_tag_fields(tag)
         return BarcodeObject(
             object_id=oid,

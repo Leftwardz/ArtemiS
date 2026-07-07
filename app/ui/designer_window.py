@@ -1,4 +1,5 @@
 import os
+import re
 import traceback
 from datetime import datetime
 
@@ -87,6 +88,7 @@ from app.utils.barcode_generator import (
     change_proportion,
     create_barcode,
     create_barcode39,
+    create_cepnet,
     create_datamatrix,
     create_qrcode,
     get_image,
@@ -1379,6 +1381,9 @@ class EditWindow(ctk.CTkToplevel):
         elif obj.barcode_kind == 'barcodeQR':
             create_qrcode(text)
             img = get_image('temp/qr_code.png')
+        elif obj.barcode_kind == 'barcodeCepnet':
+            create_cepnet(text)
+            img = get_image('temp/cepnet.png')
         else:
             create_datamatrix(text)
             img = get_image('temp/dmtx.png')
@@ -3271,6 +3276,9 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
                 elif obj.barcode_kind == 'barcodeQR':
                     create_qrcode(barcode_text)
                     img = get_image('temp/qr_code.png')
+                elif obj.barcode_kind == 'barcodeCepnet':
+                    create_cepnet(barcode_text)
+                    img = get_image('temp/cepnet.png')
                 else:
                     create_datamatrix(barcode_text)
                     img = get_image('temp/dmtx.png')
@@ -3574,9 +3582,19 @@ class GetBarcodeWindow(ctk.CTkToplevel):
 
     def create_barcode(self):
         if self.text.get():
-            w, h, f = self.entry_width.get(), self.entry_height.get(), self.fields.radio_var.get()
             text = self.text.get()
             kind = barcode_kind_from_model_label(self.entry_model.get())
+            if kind == 'barcodeCepnet':
+                from app.utils.cepnet import CepNetValidationError, normalize_cep_digits
+                try:
+                    normalize_cep_digits(text)
+                except CepNetValidationError as exc:
+                    PopUpWindow(self, t('common.error'), exc.user_message)
+                    return
+                w, h = '0', '0'
+            else:
+                w, h = self.entry_width.get(), self.entry_height.get()
+            f = self.fields.radio_var.get()
             obj = make_barcode_object(
                 kind, int(round(self.master._zl(self.x))), int(round(self.master._zl(self.y))),
                 f, text, w, h,
@@ -3590,12 +3608,17 @@ class GetBarcodeWindow(ctk.CTkToplevel):
             PopUpWindow(self, t('common.error'), t('designer.placeholder_required'))
 
     def enable_disable_config(self, *args):
-        if is_linear_barcode_model(self.entry_model.get()):
+        model = self.entry_model.get()
+        if is_linear_barcode_model(model):
             self.entry_width.configure(state="normal")
             self.entry_height.configure(state="normal")
         else:
             self.entry_width.configure(state="disabled")
             self.entry_height.configure(state="disabled")
+        if barcode_kind_from_model_label(model) == 'barcodeCepnet':
+            if not re.sub(r'\D', '', self.text.get() or ''):
+                self.text.delete(0, 'end')
+                self.text.insert(0, '01310100')
 
     def refresh(self, *args):
         self.btn_ok.configure(state='normal')
