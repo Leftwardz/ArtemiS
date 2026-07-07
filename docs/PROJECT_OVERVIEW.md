@@ -1,279 +1,362 @@
-# ArtemiS — Visão Geral
+# ArtemiS — Project Overview
 
-Documentação funcional e estrutural do projeto na sua forma atual.  
-Para orientações de desenvolvimento e decisões de arquitetura, consulte `docs/AI_CONTEXT.md` e `docs/DECISIONS.md`.
+Functional and structural documentation for the project in its current form.  
+For development guidelines and architecture decisions, see `docs/AI_CONTEXT.md` and `docs/DECISIONS.md`.
 
 ---
 
-## O que é
+## What it is
 
-O **ArtemiS** é uma aplicação desktop em Python para Windows voltada à automação de impressão em lote de formulários de **Aviso de Recebimento (AR)** dos Correios brasileiros.
+**ArtemiS** is a Windows desktop application (Python) for batch printing of Brazilian postal **Aviso de Recebimento (AR)** forms and related label workflows.
 
-O sistema:
+The platform is designed as a single tool for the full print pipeline: template design, CSV-driven variable data, multi-label imposition on a physical sheet, two-sided AR layouts, operational reporting, and dispatch to any Windows printer — including label printers such as Zebra models registered through the standard Windows print driver.
 
-- Lê arquivos CSV de Workorders (WO) em pastas configuráveis, delimitados por ponto e vírgula.
-- Cruza os dados variáveis com layouts visuais cadastrados por cliente e produto.
-- Gera PDFs dinâmicos com textos, logotipos, códigos de barras (Code 128, Code 39), QR Code e DataMatrix.
-- Envia lotes para impressoras Windows via `PDFtoPrinter.exe` (até cinco filas paralelas) ou exporta PDF para visualização.
-- Oferece editor visual de templates, painel administrativo e reimpressão seletiva de itens (modo *Remake*).
+### What the system does
 
-**Objetivo:** padronizar e agilizar a emissão de ARs, eliminando alinhamento manual por meio de templates que mapeiam colunas do CSV, com validação de fila e suporte a reimpressão parcial.
+- Reads semicolon-delimited CSV work-order (WO) files from configurable folders.
+- Matches variable data to visual layouts stored per client and product.
+- Generates dynamic PDFs with text, logos, barcodes (Code 128, Code 39), QR codes, and DataMatrix.
+- Imposes **multiple labels on one sheet** using preset AR layouts or a fully custom label grid.
+- Supports **two-sided AR (“depth”)** by placing selected elements on the back of the physical sheet.
+- Supports **column-depth packing** so records fill down each column before moving to the next — a layout choice that simplifies guillotine cutting.
+- Sends batches to Windows printers via `PDFtoPrinter.exe` (up to five parallel queues), Ghostscript, or other selectable print engines; or exports merged PDFs for review.
+- Provides a visual template editor, Windows-identity-based administration, selective reprint (Remake), and **audit / reporting** across production stations.
+
+**Goal:** standardize and speed up AR and label production, eliminating manual alignment through templates that map CSV columns to layout elements, with queue validation and partial reprint support.
 
 ### Stack
 
-| Camada | Tecnologia |
+| Layer | Technology |
 |--------|------------|
-| Interface | CustomTkinter / Tkinter |
-| Persistência | SQLAlchemy + SQLite |
+| UI | CustomTkinter / Tkinter |
+| Persistence | SQLAlchemy + SQLite |
 | PDF | ReportLab |
-| Impressão Windows | `PDFtoPrinter.exe`, APIs Win32 |
-| Distribuição | PyInstaller (`Main.spec` → executável `.exe`) |
+| Windows printing | `PDFtoPrinter.exe`, Win32 print APIs, Ghostscript |
+| Distribution | PyInstaller (`Main.spec` → `.exe`) |
 
 ---
 
-## Módulos funcionais
+## Printing capabilities in depth
 
-### 1. Produção — tela principal (`App`)
+### Multiple labels on one sheet
 
-Arquivo: `app/ui/main_app.py`
+ArtemiS is not limited to one AR per page. Products can use:
 
-- Seleção de impressora Windows ou opção **Criar PDF**.
-- Filtro por **grupo de impressão** (subpastas de lote cadastradas no banco).
-- Entrada de WO por digitação ou leitor de código de barras.
-- Validação de fila: cliente/produto existentes no banco; mesma cor e tamanho de papel em todas as WOs da fila.
-- Indicador visual da cor de papel do produto (Verde, Azul, Rosa, Amarelo, Marfim, Branco).
-- Geração de PDF e impressão em thread de fundo, com UI responsiva.
-- Painel de progresso (`LoadingBarFrame`) para até cinco impressoras simultâneas.
+| Mode | Description |
+|------|-------------|
+| **3 per sheet — vertical** | Three AR slots stacked on A4 |
+| **2 per sheet — horizontal** | Two AR slots side by side |
+| **2 per sheet — vertical** | Two AR slots stacked |
+| **1 per sheet — A4** | Full A4 page per record |
+| **Custom** | Arbitrary sheet size, label size, margins, and grid (columns × rows) |
 
-Serviços envolvidos: `work_queue_service`, `production_service`, `print_job_coordinator`, `pdf_service`, `print_service`.
+In **Custom** mode the designer defines:
 
-### 2. Designer de templates (`EditWindow`)
+- Sheet preset (A4, A3, Letter, landscape variants, or fully custom mm dimensions).
+- Label width and height in millimetres.
+- Grid: number of columns and rows, gaps, and top/left margins.
+- **Fill order** (packing): *Row by row* or *Column by column* (see below).
+- Two editing scopes: **Label** (content inside each slot) and **Header** (sheet-level elements such as group titles and page numbers).
 
-Arquivo: `app/ui/designer_window.py`
+Each CSV record occupies the next free slot on the sheet according to the chosen packing order. When a sheet is full, the next record starts a new physical page.
 
-- Canvas com gabaritos por orientação: 3 ARs verticais, 2 horizontais, 2 verticais ou folha A4 inteira.
-- Ferramentas: seleção, linha, retângulo, texto fixo, contador, segmento, código de barras e imagem (BLOB no banco).
-- Painel de propriedades (`ListOfPropertiesWindow`): coordenadas, fontes, rotação (0°/90°/180°/270°), colunas CSV e valores default.
-- Atalhos: `Delete`, setas, `Control+Z` (undo, 10 níveis), `Control+C` (duplicação de elementos — segmentos excluídos; ver limitações).
-- Preview PDF de teste (`temp/text.pdf`).
-- Importação e exportação de produtos em JSON (geometrias + imagens em Base64).
+### Zebra and thermal label sheets
 
-Serviços envolvidos: `designer_service`, `pdf_service`; adaptador `designer_canvas_adapter`.
+There is no separate ZPL generator. Instead, **Custom** layout mode is the generic label engine:
 
-### 3. Remake — reimpressão seletiva (`RemakeWindow`)
+1. Measure the physical label (or die-cut area) in millimetres.
+2. Choose a sheet preset that matches the stock loaded in the printer (or define custom mm size).
+3. Set label width/height, grid, and margins to match the label positions on that stock.
+4. Register the Zebra (or any) printer in **Settings → Printing** using its Windows printer name.
+5. Run production as usual — ArtemiS builds a PDF and sends it through the selected print engine.
 
-Arquivo: `app/ui/remake_window.py`
+Because output is PDF → Windows spooler, any printer with a working Windows driver (including Zebra) can print the imposed grid. Label dimensions and grid spacing are under full administrator control.
 
-- Ativado com **Habilitar Remake** ao escanear WO já arquivada em `Old/`.
-- Filtros por intervalo de linhas, RankInJob, número do AR ou nome do destinatário.
-- Montagem de fila parcial e geração de PDF apenas com os registros escolhidos.
+### AR with depth (duplex / back side)
 
-Serviço envolvido: `remake_service`.
+Some AR forms need content on **both sides** of the paper (front and back). In the template editor, each element has a **Duplex (back)** option:
 
-### 4. Configuração e administração (`ConfigWindow`)
+- Elements without the flag are drawn on the **front** of the physical sheet.
+- Elements with **Duplex (back)** are drawn on the **reverse** side, at the same position offsets.
 
-Arquivo: `app/ui/config_window.py`
+At PDF generation time, ArtemiS renders the front, turns the page, renders back-side elements, and turns again before the next sheet. This gives a true two-sided document without maintaining two separate products.
 
-- Acesso via identidade Windows (sem senha do ArtemiS).
-- Administradores locais e de domínio sempre entram; demais usuários/grupos são liberados na configuração.
-- Pesquisa de usuários e grupos no AD e na máquina local.
-- CRUD de clientes e produtos; duplicação; import/export de layouts.
-- Caminhos globais: pasta de busca de WOs e arquivo SQLite (`config.json`).
-- Cadastro de impressoras e grupos de impressão exibidos na tela de produção.
+**Requirements for duplex jobs:**
 
-Serviços envolvidos: `admin_service`, `settings_service`, `app/utils/windows_auth.py`.
+- The product must use the same duplex setting consistently across a batch (no mixing duplex and non-duplex products in one queue).
+- The selected print engine must support per-job duplex (Ghostscript or Win32 DEVMODE). PDFtoPrinter does not control duplex per job and will block duplex batches.
+
+In the editor, back-side elements are shown with a distinct style so the designer can verify front/back alignment on screen.
+
+### Column depth — packing order for easier cutting
+
+When several labels share one sheet, **fill order** determines which slot receives the next CSV record. This is configured in Custom mode under **Order**:
+
+| Packing | Behaviour | Typical use |
+|---------|-----------|-------------|
+| **Row by row** (`sequential`) | Fills left → right along a row, then moves to the next row | Reading order matches visual rows |
+| **Column by column** (`column_depth`) | Fills top → bottom in the first column, then the next column | **Guillotine / strip cutting** |
+
+**Why column depth helps cutting**
+
+With *Column by column*, records 1, 2, 3… stack vertically in column 1 before record 4 moves to the top of column 2. After printing:
+
+1. Cut the sheet **vertically** between columns (guillotine).
+2. Each resulting strip already has its records in top-to-bottom order — no need to re-sort pieces after cutting.
+
+Example on a 3×3 grid with four records:
+
+```
+Row by row:          Column by column:
+[1][2][3]            [1][4][7]
+[4][5][6]            [2][5][8]
+[7][8][9]            [3][6][9]
+```
+
+For hand cutting or stack cutting by column, *Column by column* keeps each strip internally consistent.
+
+**Sheet headers and grouping**
+
+In Custom mode, elements in **Header** scope can define grouping keys (via segment columns). Records that share the same header values stay on the same sheet group, with optional `{p}` / `{t}` placeholders for page number and total pages within the group.
+
+Optional cut guides (`show_cut_guides` in layout config) can draw dashed rectangles around each slot on the PDF to assist trimming (currently stored in layout JSON; exposed through the layout model).
 
 ---
 
-## Fluxos de uso
+## Functional modules
 
-### Administrador — configuração e design
+### 1. Production — main screen (`App`)
 
-1. Abre o ArtemiS; clica no ícone ⚙ (requer ser administrador Windows ou estar liberado na lista de acesso).
-2. Acessa configurações — sem login/senha; o Windows identifica o usuário.
-3. Define pasta de busca (ex.: `C:\AR`) e caminho do banco SQLite.
-4. Libera outros usuários ou grupos da rede em **Gerenciar Acesso** (opcional).
-5. Cadastra cliente e produto.
-6. Abre o editor: tipo de papel, orientação do gabarito e cor física.
-7. Desenha layout e associa elementos às colunas CSV (ex.: `Coluna_2` → endereço).
-8. Gera PDF de teste, valida alinhamento e salva.
+File: `app/ui/main_app.py`
 
-### Operador — produção
+- Windows printer selection or **Create PDF** mode.
+- Filter by **print group** (registered subfolders of the WO search path).
+- WO entry by typing or barcode scanner.
+- Queue validation: client/product must exist; all WOs in a queue must share paper colour and size.
+- Visual indicator of product paper colour (Green, Blue, Pink, Yellow, Ivory, White).
+- Background-thread PDF generation and printing with responsive UI.
+- Progress panel (`LoadingBarFrame`) for up to five simultaneous printers.
 
-1. Seleciona impressora e grupo de impressão.
-2. Escaneia ou digita código da WO; o sistema localiza o CSV na subpasta do grupo.
-3. Identifica cliente/produto na primeira linha e carrega o layout.
-4. Confere a cor de papel indicada e prepara a impressora.
-5. Adiciona WOs à fila; o sistema bloqueia mistura de cor ou tamanho de papel.
-6. Clica **Start**: gera PDFs em `temp/`, unifica em `{search_folder}/PDFs/`.
-7. Imprime via `PDFtoPrinter.exe` ou abre o PDF se **Criar PDF** estiver selecionado.
-8. Move o CSV processado para `Old/` na pasta do lote.
+Services: `work_queue_service`, `production_service`, `print_job_coordinator`, `pdf_service`, `print_service`.
 
-### Operador — remake
+### 2. Template designer (`EditWindow`)
 
-1. Habilita **Habilitar Remake**.
-2. Escaneia WO; busca o arquivo em `Old/`.
-3. Filtra registros com defeito na janela de remake.
-4. Adiciona itens à fila e clica **Start**.
-5. Reimprime apenas as páginas selecionadas; o CSV original permanece em `Old/`.
+File: `app/ui/designer_window.py`
+
+- Canvas with orientation presets or custom sheet grid.
+- Tools: select, line, rectangle, fixed text, counter, segment, barcode, image (BLOB in database).
+- Properties panel: coordinates, fonts, rotation (0°/90°/180°/270°), CSV column binding, default values, duplex flag.
+- Shortcuts: `Delete`, arrow keys, `Ctrl+Z` (undo, 10 levels), `Ctrl+C` (duplicate — segments excluded; see limitations).
+- CSV file preview with per-line data binding and test PDF (`temp/text.pdf`).
+- JSON import/export of products (geometry + Base64 images).
+
+Services: `designer_service`, `pdf_service`; adapter `designer_canvas_adapter`.
+
+### 3. Remake — selective reprint (`RemakeWindow`)
+
+File: `app/ui/remake_window.py`
+
+- Enabled with **Enable Remake** when scanning a WO already archived under `Old/`.
+- Filters by line range, RankInJob, AR number, or recipient name.
+- Builds a partial queue and generates PDF for selected records only.
+
+Service: `remake_service`.
+
+### 4. Settings and administration (`ConfigWindow`)
+
+File: `app/ui/config_window.py`
+
+- Access via Windows identity (no separate ArtemiS password).
+- Local and domain administrators always allowed; other users/groups granted in configuration.
+- AD and local machine user/group search.
+- CRUD for clients and products; duplicate; layout import/export.
+- Global paths: WO search folder and SQLite file (`config.json`).
+- Printer registration, print engine selection, and print groups for the production screen.
+- **Audit / logs** — query centralised production and configuration events (see Reports below).
+
+Services: `admin_service`, `settings_service`, `app/utils/windows_auth.py`, `app/audit/`.
+
+### 5. Reports and audit (`AuditWindow`)
+
+Module: `app/audit/` — UI in `app/ui/config_window.py` (AuditWindow)
+
+Operational reporting without a separate reporting server:
+
+- Every PC writes events to a **local** audit database (`%LOCALAPPDATA%\ArtemiS\audit`).
+- A background aggregator copies unsynced events to a **central** SQLite file on the network (`audit_central_location` in `config.json`).
+- Administrators open **Audit / logs** in Settings to filter by date, user, printer, file, and category.
+
+| Category | Examples |
+|----------|----------|
+| `print` | Job sent, Create PDF, success/failure |
+| `cadastro` | Client/product/printer/access changes |
+| `config_access` | Settings opened (granted/denied) |
+| `error` | Production errors with detail |
+
+Logging is best-effort and never blocks printing. See `docs/AUDIT_LOG.md` for architecture detail.
 
 ---
 
-## Estrutura do repositório
+## Usage flows
+
+### Administrator — setup and design
+
+1. Open ArtemiS; click ⚙ **Settings** (requires Windows admin or entry in access list).
+2. Set WO search folder (e.g. `C:\AR`) and SQLite database path.
+3. Optionally grant other users/groups under **Manage access**.
+4. Register clients and products.
+5. Open the editor: paper type, orientation (preset or Custom grid), and physical paper colour.
+6. Draw the layout; bind elements to CSV columns (e.g. `Column_2` → address). Mark back-side elements with **Duplex (back)** when needed.
+7. For custom grids, set label size, columns×rows, and packing order (*Column by column* if cutting by column).
+8. Generate a test PDF, verify alignment, and save.
+
+### Operator — production
+
+1. Select printer and print group.
+2. Scan or type WO code; system locates CSV in the group subfolder.
+3. First line identifies client/product and loads the layout.
+4. Check indicated paper colour; load matching stock.
+5. Add WOs to queue; system blocks mixed paper colour or size.
+6. Click **Start**: PDFs generated in `temp/`, merged under `{search_folder}/PDFs/`.
+7. Print via selected engine or open PDF if **Create PDF** is selected.
+8. Processed CSV moved to `Old/` under the batch folder.
+
+### Operator — remake
+
+1. Enable **Enable Remake**.
+2. Scan WO; file loaded from `Old/`.
+3. Filter defective lines in the Remake window.
+4. Add to queue and click **Start**.
+5. Only selected pages reprint; original CSV stays in `Old/`.
+
+---
+
+## Repository structure
 
 ```
 ArtemiS/
 ├── Main.py / main.py       # Entry point → app.bootstrap.main()
-├── config.json             # database_location, search_folder
-├── database.db             # SQLite (clientes, produtos, desenhos, usuários, etc.)
+├── config.json             # database_location, search_folder, audit_*, print_backend
+├── database.db             # SQLite (clients, products, drawings, printers, access, …)
 ├── Main.spec               # PyInstaller
-├── azure.tcl               # Tema Azure (Treeviews)
+├── azure.tcl               # Azure theme (Treeviews)
 ├── requirements.txt
-├── PDFtoPrinter.exe        # + _2 … _5 para impressão paralela
-├── fontes/                 # TTF/OTF (canvas e PDF)
-├── theme/                  # Recursos do tema
-├── img/                    # Ícones
-├── temp/                   # Barcodes e PDFs intermediários
+├── PDFtoPrinter.exe        # + _2 … _5 for parallel printing
+├── fontes/                 # TTF/OTF (canvas and PDF)
+├── theme/                  # Theme assets
+├── img/                    # Icons
+├── temp/                   # Barcodes and intermediate PDFs
 └── app/
-    ├── bootstrap.py        # Inicialização: config, banco, App
+    ├── bootstrap.py        # Init: config, database, audit, App
     ├── runtime.py          # ApplicationContext (config + db)
-    ├── application_context.py
+    ├── audit/              # Local-first audit and central aggregation
     ├── models/
     │   ├── schema.py
-    │   └── database_manager.py   # DataBase
+    │   ├── sheet_layout.py # Custom grid / packing model
+    │   └── database_manager.py
     ├── utils/
     │   ├── file_parser.py
     │   ├── barcode_generator.py
-    │   ├── printer_handler.py
-    │   ├── window_geometry.py
-    │   ├── text_utils.py
-    │   └── document_delivery.py
+    │   ├── printing/       # Pluggable print backends
+    │   └── …
     ├── services/
     │   ├── pdf_service.py
     │   ├── print_service.py
     │   ├── production_service.py
-    │   ├── work_queue_service.py
-    │   ├── remake_service.py
-    │   ├── print_job_coordinator.py
-    │   ├── designer_service.py
-    │   ├── admin_service.py
-    │   └── settings_service.py
+    │   ├── layout_service.py
+    │   ├── sheet_grouping.py
+    │   └── …
     └── ui/
-        ├── constants.py
-        ├── components/           # Table, ListBox, SpinBox, Tooltip, popups
         ├── main_app.py
         ├── designer_window.py
-        ├── designer_canvas_adapter.py
         ├── config_window.py
         └── remake_window.py
 ```
 
-### Camadas
+### Layers
 
-| Camada | Responsabilidade |
-|--------|------------------|
-| `app/ui` | Janelas, componentes visuais e interação com o operador |
-| `app/services` | Regras de negócio, orquestração de produção, PDF e impressão |
-| `app/models` | Schema SQLAlchemy e acesso a dados (`DataBase`) |
-| `app/utils` | CSV, códigos de barras, impressora, geometria de janelas |
-| `app/runtime` | Estado compartilhado da aplicação (`ApplicationContext`) |
+| Layer | Responsibility |
+|--------|----------------|
+| `app/ui` | Windows, visual components, operator interaction |
+| `app/services` | Business rules, production/PDF/print orchestration |
+| `app/models` | SQLAlchemy schema, `SheetLayout`, `DataBase` |
+| `app/utils` | CSV, barcodes, printing backends, window geometry |
+| `app/audit` | Operational logging and central report query |
+| `app/runtime` | Shared application state (`ApplicationContext`) |
 
-O bootstrap (`app/bootstrap.py`) carrega `config.json`, instancia `DataBase`, registra o contexto em `runtime.context` e inicia o loop da interface.
-
----
-
-## Deploy em rede (SQLite compartilhado)
-
-### Modelo operacional atual
-
-Na prática, o ArtemiS funciona assim:
-
-| Componente | Onde roda | Observação |
-|------------|-----------|------------|
-| **Executável / app Python** | Local, em cada PC de produção | Um processo por estação; UI, PDF e impressão são locais |
-| **`config.json`** | Local em cada PC (ou imagem padrão) | Aponta caminhos; em rede, `database_location` costuma ser UNC (ex.: `\\servidor\ArtemiS\database.db`) |
-| **`database.db` (SQLite)** | Pasta compartilhada na rede | Vários PCs leem/escrevem o **mesmo arquivo** para layouts, clientes, produtos, grupos de impressão e `config_access` |
-| **Pastas de WO (`search_folder`)** | Rede ou local | CSVs de lote; cada estação pode ter caminho próprio ou compartilhado |
-| **`temp/`** | Local em cada PC | PDFs e barcodes intermediários — não compartilhados |
-
-Ou seja: **identidade e impressão são locais**; **cadastro de layouts e regras de configuração centralizados no SQLite da rede**.
-
-### Auth Windows × banco compartilhado — há conflito?
-
-**Não há conflito lógico** entre o auth Windows (2026-06) e o SQLite compartilhado. As duas camadas são separadas:
-
-1. **Quem pode abrir ⚙ Configurações** — decidido **no PC**, pela sessão Windows (`app/utils/windows_auth.py`): usuário logado, grupos do token, admin local/domínio.
-2. **Quem está liberado na lista** — lido do **SQLite compartilhado** (tabela `config_access`), igual clientes/produtos.
-
-Fluxo ao clicar em ⚙:
-
-```
-PC local                          Pasta compartilhada
-────────                          ───────────────────
-Windows: quem é o usuário?  ──┐
-Windows: é admin?           ──┼──► can_access_config()
-SQLite: config_access       ──┘         │
-                                        ├─ admin Windows → entra
-                                        ├─ usuário/grupo na lista → entra
-                                        └─ senão → acesso negado
-```
-
-**Tela de produção (Start, fila, impressão)** não usa auth Windows — operadores continuam trabalhando normalmente.
-
-### O que funciona bem nesse modelo
-
-- **Lista de acesso centralizada:** liberar `EMPRESA\Grupo Operadores` em um PC vale para todos que apontam para o mesmo `database.db`.
-- **Layouts únicos:** alteração de produto/desenho reflete em todas as estações na próxima leitura do banco.
-- **Sem senha duplicada:** cada PC valida o login Windows que o usuário já fez na estação.
-
-### Cuidados e limitações
-
-| Tópico | Detalhe |
-|--------|---------|
-| **Preferir contas de domínio** | Cadastre `EMPRESA\usuario` ou `EMPRESA\grupo`. Entradas `NOME-DO-PC\usuario` só valem naquele computador. |
-| **Admin local por estação** | Quem é admin **daquele PC** sempre abre config ali, mesmo sem estar em `config_access`. Em rede, isso costuma ser TI — comportamento intencional. |
-| **SQLite multi-acesso** | Vários PCs escrevendo no mesmo `.db` na rede é **arriscado** (lock, corrupção) — risco **pré-existente**, não introduzido pelo auth. Evite editar config/layout simultaneamente em muitas máquinas; preferir um administrador central. |
-| **Tabela `config_access` nova** | Mesmas regras de concorrência das demais tabelas. Escritas são raras (só ao gerenciar acesso). |
-| **Tabela `users` legada** | Login/senha antigo não é mais usado; registros antigos não bloqueiam nem liberam ninguém. |
-| **`config.json` por PC** | Impressoras em `printers` no SQLite são compartilhadas; cada estação ainda imprime na impressora **local** escolhida na combo. |
-| **PC fora do domínio** | Pesquisa AD não funciona; use contas locais ou entrada manual `COMPUTADOR\conta`. |
-
-### Recomendações para TI
-
-1. Apontar `database_location` para UNC estável com backup.
-2. Gerenciar acesso preferencialmente com **grupos de domínio** (ex.: `EMPRESA\ArtemiS-Config`).
-3. Manter PCs de produção no **mesmo domínio** quando possível.
-4. Restringir quem pode abrir config em produção; operadores do dia a dia não precisam estar em `config_access`.
+Bootstrap (`app/bootstrap.py`) loads `config.json`, opens `DataBase`, starts audit workers, registers context in `runtime.context`, and runs the UI loop.
 
 ---
 
-## Limitações conhecidas
+## Network deployment (shared SQLite)
 
-### Duplicação de segmentos no editor
+### Operational model
 
-Em `app/ui/designer_window.py`, o atalho Ctrl+C não duplica blocos do tipo **Segmento** — a ação é ignorada de propósito. Segmentos idênticos precisam ser recriados pelo painel de propriedades.
+| Component | Where it runs | Notes |
+|-----------|---------------|-------|
+| **Executable / Python app** | Local on each production PC | One process per station; UI, PDF, and printing are local |
+| **`config.json`** | Local per PC (or standard image) | Points to paths; `database_location` often UNC (e.g. `\\server\ArtemiS\database.db`) |
+| **`database.db` (SQLite)** | Shared network folder | All PCs read/write the **same file** for layouts, clients, products, print groups, `config_access` |
+| **WO folders (`search_folder`)** | Network or local | Batch CSVs; path may differ per site |
+| **`temp/`** | Local per PC | Intermediate PDFs and barcodes — not shared |
+| **Audit central DB** | Network path (`audit_central_location`) | Aggregated logs for reporting; local audit DB always on each PC |
 
-### Coluna CSV inexistente
+**Identity and printing are local; layout catalogue and configuration rules are centralised in shared SQLite.**
 
-Em `app/services/pdf_service.py`, se uma coluna referenciada no layout não existir no CSV, o campo correspondente é omitido no PDF sem mensagem de erro na interface. Layouts inconsistentes podem gerar documentos incompletos de forma silenciosa.
+### Windows auth × shared database
 
-### Controle de acesso à configuração
+No logical conflict between Windows auth (2026-06) and shared SQLite. Layers are separate:
 
-O acesso às configurações usa a identidade Windows do usuário logado **na estação**. Administradores locais (`Administrators`) e de domínio (`Domain Admins`) sempre têm acesso. Outros usuários ou grupos podem ser liberados em **Gerenciar Acesso**; a lista fica na tabela `config_access` do SQLite (compartilhado se `database_location` for UNC). Ver seção **Deploy em rede** acima. A tabela legada `users` (login/senha SHA-256) permanece no banco mas não é mais utilizada.
+1. **Who may open ⚙ Settings** — decided **on the PC** via Windows session (`app/utils/windows_auth.py`).
+2. **Who is on the allow list** — read from **shared SQLite** (`config_access`), same as clients/products.
 
-### Dependências declaradas não utilizadas
+**Production screen** (Start, queue, print) does not use Windows auth — operators work normally.
 
-Alguns pacotes listados em `requirements.txt` (ex.: `Eel`, `gevent`, `scipy`, `greenlet`) não são importados pelo código em `app/`. Convém revisar a lista antes de builds ou ambientes de produção.
+### Recommendations for IT
+
+1. Point `database_location` to a stable UNC path with backup.
+2. Manage access with **domain groups** (e.g. `COMPANY\ArtemiS-Config`).
+3. Keep production PCs **domain-joined** when possible.
+4. Restrict Settings access; day-to-day operators do not need `config_access`.
+5. Point `audit_central_location` to a network path for cross-station reporting.
 
 ---
 
-## Glossário
+## Known limitations
 
-| Termo | Significado |
-|-------|-------------|
-| **AR** | Aviso de Recebimento (Correios) |
-| **WO** | Workorder — arquivo CSV de lote |
-| **Cliente / Produto** | Par que identifica o layout e regras de impressão no banco |
-| **Grupo de impressão** | Subpasta de busca de WOs dentro de `search_folder` |
-| **Old/** | Subpasta onde WOs processadas são arquivadas |
-| **Remake** | Reimpressão parcial de linhas selecionadas de uma WO já processada |
+### Segment duplication in the editor
+
+In `app/ui/designer_window.py`, `Ctrl+C` does not duplicate **Segment** blocks — the action is intentionally ignored. Identical segments must be recreated via the properties panel.
+
+### Missing CSV column
+
+In `app/services/pdf_service.py`, if a layout references a column that does not exist in the CSV, the corresponding field is omitted from the PDF with no UI error. Inconsistent layouts may produce silently incomplete documents.
+
+### Configuration access
+
+Settings use the **logged-in Windows identity** on the station. Local (`Administrators`) and domain (`Domain Admins`) administrators always have access. Others may be granted in **Manage access** (`config_access` table). Legacy `users` table (SHA-256 login) remains in the database but is unused.
+
+### Print engine constraints
+
+- **PDFtoPrinter**: no per-job duplex, paper size, or orientation control — printer defaults must be correct.
+- **Duplex layouts**: require Ghostscript or Win32 DEVMODE backend.
+- **Mixed duplex products** in one queue are rejected.
+
+---
+
+## Glossary
+
+| Term | Meaning |
+|------|---------|
+| **AR** | Aviso de Recebimento (Brazilian postal receipt notice) |
+| **WO** | Work order — batch CSV file |
+| **Client / Product** | Pair identifying layout and print rules in the database |
+| **Print group** | WO search subfolder under `search_folder` |
+| **Custom layout** | User-defined sheet and label grid (mm), including Zebra/thermal stock |
+| **Packing / column depth** | Fill order: row-by-row vs column-by-column for cutting workflow |
+| **Duplex (back)** | Element drawn on the reverse side of the physical sheet |
+| **Label scope** | Template content repeated in each grid slot |
+| **Header scope** | Sheet-level content (titles, group pagination) |
+| **Old/** | Subfolder where processed WOs are archived |
+| **Remake** | Partial reprint of selected lines from an archived WO |
+| **Audit / reports** | Local-first event log with optional central aggregation for querying |
