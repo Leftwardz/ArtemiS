@@ -53,7 +53,7 @@ def search_work_for_queue(
 
     full_path = find_work_in_directory(path, work)
     if full_path is None:
-        return WorkSearchResult(status='not_found', work=work, search_folder=search_folder)
+        return WorkSearchResult(status='not_found', work=work, search_folder=path)
 
     if full_path in queued_paths:
         return WorkSearchResult(status='duplicate', work=work)

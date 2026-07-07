@@ -817,7 +817,7 @@ class App(ctk.CTk):
             PopUpWindow(
                 self,
                 t('main.work_not_found_title'),
-                t('main.work_not_found_body', work=work, folder=get_search_folder()),
+                t('main.work_not_found_body', work=result.work, folder=result.search_folder),
             )
             return
         if result.status == 'empty_file':
