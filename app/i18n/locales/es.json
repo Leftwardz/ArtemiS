@@ -176,6 +176,8 @@
     "fonts_windows_hint": "Seleccione una fuente instalada en Windows. El .ttf se copiará a la carpeta compartida.",
     "fonts_windows_col_name": "Nombre en Windows",
     "fonts_windows_col_file": "Archivo",
+    "fonts_windows_search": "Buscar",
+    "fonts_windows_search_hint": "Nombre o archivo de la fuente…",
     "fonts_windows_unavailable": "No se pudieron listar fuentes de Windows (solo .ttf).",
     "fonts_import_selected": "Importar seleccionada",
     "edit": "Editar",

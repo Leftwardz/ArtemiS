@@ -176,6 +176,8 @@
     "fonts_windows_hint": "Sélectionnez une police installée sous Windows. Le .ttf sera copié dans le dossier partagé.",
     "fonts_windows_col_name": "Nom Windows",
     "fonts_windows_col_file": "Fichier",
+    "fonts_windows_search": "Rechercher",
+    "fonts_windows_search_hint": "Nom ou fichier de la police…",
     "fonts_windows_unavailable": "Impossible de lister les polices Windows (.ttf uniquement).",
     "fonts_import_selected": "Importer la sélection",
     "edit": "Modifier",

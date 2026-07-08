@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-import tkinter as tk
 from ctypes import Structure, byref, sizeof, wintypes
 from typing import Optional
 
@@ -22,23 +21,11 @@ from app.ui.constants import (
 )
 
 TITLEBAR_HEIGHT = 36
-RESIZE_BORDER = 6
 WIN_ICON_FONT = 'Segoe MDL2 Assets'
 ICON_MINIMIZE = '\uE921'
 ICON_MAXIMIZE = '\uE922'
 ICON_RESTORE = '\uE923'
 ICON_CLOSE = '\uE8BB'
-
-_RESIZE_SPECS = (
-    ('n', {'relx': 0, 'rely': 0, 'relwidth': 1, 'height': RESIZE_BORDER, 'cursor': 'top_side'}),
-    ('s', {'relx': 0, 'rely': 1, 'relwidth': 1, 'height': RESIZE_BORDER, 'anchor': 'sw', 'cursor': 'bottom_side'}),
-    ('e', {'relx': 1, 'rely': 0, 'relheight': 1, 'width': RESIZE_BORDER, 'anchor': 'ne', 'cursor': 'right_side'}),
-    ('w', {'relx': 0, 'rely': 0, 'relheight': 1, 'width': RESIZE_BORDER, 'cursor': 'left_side'}),
-    ('ne', {'relx': 1, 'rely': 0, 'width': RESIZE_BORDER, 'height': RESIZE_BORDER, 'anchor': 'ne', 'cursor': 'top_right_corner'}),
-    ('nw', {'relx': 0, 'rely': 0, 'width': RESIZE_BORDER, 'height': RESIZE_BORDER, 'cursor': 'top_left_corner'}),
-    ('se', {'relx': 1, 'rely': 1, 'width': RESIZE_BORDER, 'height': RESIZE_BORDER, 'anchor': 'se', 'cursor': 'bottom_right_corner'}),
-    ('sw', {'relx': 0, 'rely': 1, 'width': RESIZE_BORDER, 'height': RESIZE_BORDER, 'anchor': 'sw', 'cursor': 'bottom_left_corner'}),
-)
 
 
 class _MONITORINFO(Structure):
@@ -54,53 +41,8 @@ def _is_windows() -> bool:
     return sys.platform == 'win32'
 
 
-def parse_geometry(geometry: str) -> tuple[int, int, int, int]:
-    """Parse ``WxH+X+Y`` into width, height, x, y."""
-    size, _, pos = geometry.partition('+')
-    width_str, _, height_str = size.partition('x')
-    width = int(width_str)
-    height = int(height_str)
-    if not pos:
-        return width, height, 0, 0
-    x_str, _, y_str = pos.partition('+')
-    return width, height, int(x_str), int(y_str)
-
-
 def format_geometry(width: int, height: int, x: int, y: int) -> str:
     return f'{int(width)}x{int(height)}+{int(x)}+{int(y)}'
-
-
-def compute_resized_geometry(
-    start_width: int,
-    start_height: int,
-    start_x: int,
-    start_y: int,
-    dx: int,
-    dy: int,
-    direction: str,
-    min_width: int,
-    min_height: int,
-) -> tuple[int, int, int, int]:
-    """Return width, height, x, y after dragging a resize grip."""
-    width = start_width
-    height = start_height
-    x = start_x
-    y = start_y
-
-    if 'e' in direction:
-        width = max(min_width, start_width + dx)
-    if 'w' in direction:
-        right = start_x + start_width
-        x = min(start_x + dx, right - min_width)
-        width = right - x
-    if 's' in direction:
-        height = max(min_height, start_height + dy)
-    if 'n' in direction:
-        bottom = start_y + start_height
-        y = min(start_y + dy, bottom - min_height)
-        height = bottom - y
-
-    return width, height, x, y
 
 
 def _primary_work_area() -> tuple[int, int, int, int]:
@@ -131,18 +73,6 @@ def _monitor_work_area(window: ctk.CTk) -> tuple[int, int, int, int]:
         return _primary_work_area()
 
 
-def _window_minsize(window: ctk.CTk) -> tuple[int, int]:
-    """Read logical min size without calling CTk ``minsize()`` with no args (that resets to None)."""
-    min_w = getattr(window, '_min_width', None)
-    min_h = getattr(window, '_min_height', None)
-    if min_w is not None and min_h is not None:
-        return int(min_w), int(min_h)
-    try:
-        return window.wm_minsize()
-    except Exception:
-        return 400, 300
-
-
 def _window_hwnd(window: ctk.CTk) -> int:
     window.update_idletasks()
     hwnd = window.winfo_id()
@@ -153,7 +83,7 @@ def _window_hwnd(window: ctk.CTk) -> int:
 
 
 class CustomTitleBar:
-    """Top chrome with drag-to-move, resize grips, and minimize / maximize / close."""
+    """Top chrome with drag-to-move and minimize / maximize / close."""
 
     def __init__(self, window: ctk.CTk, title: str, *, row: int = 0, columnspan: int = 2):
         self.window = window
@@ -163,8 +93,6 @@ class CustomTitleBar:
         self._maximized = False
         self._restore_geometry: Optional[str] = None
         self._enabled = _is_windows()
-        self._resize_grips: list[tuple[str, tk.Frame, dict]] = []
-        self._resize_start: Optional[tuple[int, int, int, int, int, int, str]] = None
 
         self.frame = ctk.CTkFrame(
             window,
@@ -184,7 +112,6 @@ class CustomTitleBar:
         window.overrideredirect(True)
         window.after(10, self._ensure_taskbar_icon)
         window.after(20, self._apply_border)
-        window.after(30, self._install_resize_grips)
 
         drag = ctk.CTkFrame(self.frame, fg_color='transparent', corner_radius=0)
         drag.grid(row=0, column=0, sticky='nsew', padx=(12, 0))
@@ -213,42 +140,6 @@ class CustomTitleBar:
         self.btn_min.pack(side='left')
         self.btn_max.pack(side='left')
         self.btn_close.pack(side='left')
-
-    def _install_resize_grips(self):
-        for direction, place_kwargs in _RESIZE_SPECS:
-            grip = tk.Frame(self.window, bg='', cursor=place_kwargs['cursor'])
-            layout = {k: v for k, v in place_kwargs.items() if k != 'cursor'}
-            grip.place(**layout)
-            grip.bind('<ButtonPress-1>', lambda event, d=direction: self._start_resize(event, d))
-            grip.bind('<B1-Motion>', self._do_resize)
-            grip.lift()
-            self._resize_grips.append((direction, grip, layout))
-
-    def _set_resize_enabled(self, enabled: bool) -> None:
-        for _direction, grip, layout in self._resize_grips:
-            if enabled:
-                grip.place(**layout)
-                grip.lift()
-            else:
-                grip.place_forget()
-
-    def _start_resize(self, event, direction: str):
-        if self._maximized:
-            return
-        width, height, x, y = parse_geometry(self.window.geometry())
-        self._resize_start = (width, height, x, y, event.x_root, event.y_root, direction)
-
-    def _do_resize(self, event):
-        if self._maximized or self._resize_start is None:
-            return
-        start_w, start_h, start_x, start_y, start_x_root, start_y_root, direction = self._resize_start
-        min_w, min_h = _window_minsize(self.window)
-        dx = event.x_root - start_x_root
-        dy = event.y_root - start_y_root
-        width, height, x, y = compute_resized_geometry(
-            start_w, start_h, start_x, start_y, dx, dy, direction, min_w, min_h,
-        )
-        self.window.geometry(format_geometry(width, height, x, y))
 
     def _ensure_taskbar_icon(self):
         try:
@@ -325,7 +216,6 @@ class CustomTitleBar:
         x, y, w, h = _monitor_work_area(self.window)
         self.window.geometry(format_geometry(w, h, x, y))
         self._maximized = True
-        self._set_resize_enabled(False)
         self.btn_max.configure(text=ICON_RESTORE)
 
     def restore(self):
@@ -334,7 +224,6 @@ class CustomTitleBar:
         if self._restore_geometry:
             self.window.geometry(self._restore_geometry)
         self._maximized = False
-        self._set_resize_enabled(True)
         self.btn_max.configure(text=ICON_MAXIMIZE)
 
     def close(self):

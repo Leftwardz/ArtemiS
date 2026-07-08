@@ -1038,19 +1038,22 @@ class ConfigPanel(ctk.CTkFrame):
         )
         self.btn_import_windows_font.pack(side='left', padx=(0, 8))
         self._register_button(self.btn_import_windows_font, 'config.fonts_import_windows')
+
+        btn_row2 = ctk.CTkFrame(body_list, fg_color='transparent')
+        btn_row2.pack(fill='x', pady=(8, 0))
         self.btn_remove_custom_font = ctk.CTkButton(
-            btn_row, text=t('config.fonts_remove_custom'), width=140, height=32, corner_radius=8,
+            btn_row2, text=t('config.fonts_remove_custom'), width=140, height=32, corner_radius=8,
             fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
             command=self.remove_selected_custom_font,
         )
         self.btn_remove_custom_font.pack(side='left', padx=(0, 8))
         self._register_button(self.btn_remove_custom_font, 'config.fonts_remove_custom')
         self.btn_reload_fonts = ctk.CTkButton(
-            btn_row, text=t('config.fonts_reload'), width=120, height=32, corner_radius=8,
+            btn_row2, text=t('config.fonts_reload'), width=120, height=32, corner_radius=8,
             fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
             command=self.reload_font_catalog,
         )
-        self.btn_reload_fonts.pack(side='right')
+        self.btn_reload_fonts.pack(side='left')
         self._register_button(self.btn_reload_fonts, 'config.fonts_reload')
 
         self.lbl_fonts_license = ctk.CTkLabel(
@@ -2659,7 +2662,7 @@ class FontAddWindow(ctk.CTkToplevel):
             fg_color=BTN_RED, hover_color=BTN_HOVER_RED, command=self.destroy,
         ).pack(side='left')
 
-        calculate_center_screen_with_monitor(self, 460, 320)
+        self.geometry(calculate_center_screen_with_monitor(master, 460, 320, get_monitor(master)))
 
     def _pick_regular(self):
         path = askopenfilename(filetypes=[('TrueType Font', '*.ttf'), ('All files', '*.*')])
@@ -2695,12 +2698,15 @@ class FontAddWindow(ctk.CTkToplevel):
 
 
 class WindowsFontImportWindow(ctk.CTkToplevel):
+    _WINDOW_W = 620
+    _WINDOW_H = 520
+
     def __init__(self, master, on_saved=None):
         super().__init__(master)
         self._on_saved = on_saved
-        self._items: list[tuple[str, str]] = []
+        self._all_items: list[tuple[str, str]] = []
         self.title(t('config.fonts_windows_title'))
-        self.geometry('620x480')
+        self.geometry(f'{self._WINDOW_W}x{self._WINDOW_H}')
         self.resizable(False, False)
         self.transient(master)
         self.grab_set()
@@ -2713,7 +2719,17 @@ class WindowsFontImportWindow(ctk.CTkToplevel):
             text_color=THEME_TEXT_SECONDARY, wraplength=560,
         ).pack(fill='x', pady=(0, 8))
 
-        self.table_frame = _table_host(body, 260)
+        search_row = ctk.CTkFrame(body, fg_color='transparent')
+        search_row.pack(fill='x', pady=(0, 8))
+        ctk.CTkLabel(
+            search_row, text=t('config.fonts_windows_search'), anchor='w',
+            text_color=THEME_TEXT_SECONDARY,
+        ).pack(side='left', padx=(0, 8))
+        self.inpt_search = ctk.CTkEntry(search_row, **_entry_kwargs(), placeholder_text=t('config.fonts_windows_search_hint'))
+        self.inpt_search.pack(side='left', fill='x', expand=True)
+        self.inpt_search.bind('<KeyRelease>', self._on_search_changed)
+
+        self.table_frame = _table_host(body, 240)
         self.table_frame.pack(fill='both', expand=True, pady=(0, 8))
         self.table = Table(
             self.table_frame,
@@ -2742,14 +2758,29 @@ class WindowsFontImportWindow(ctk.CTkToplevel):
 
         self.table.bind('<<TreeviewSelect>>', self._on_select)
         self._load_fonts()
-        calculate_center_screen_with_monitor(self, 620, 480)
+        self.geometry(calculate_center_screen_with_monitor(
+            master, self._WINDOW_W, self._WINDOW_H, get_monitor(master),
+        ))
 
     def _load_fonts(self):
-        self._items = list_windows_fonts()
-        if not self._items:
+        self._all_items = list_windows_fonts()
+        if not self._all_items:
             PopUpWindow(self, t('popup.error'), t('config.fonts_windows_unavailable'))
             return
-        for label, filename in self._items:
+        self._apply_filter()
+
+    def _on_search_changed(self, _event=None):
+        self._apply_filter()
+
+    def _apply_filter(self):
+        query = self.inpt_search.get().strip().lower() if hasattr(self, 'inpt_search') else ''
+        for item in self.table.get_children():
+            self.table.delete(item)
+        self._row_map.clear()
+        for label, filename in self._all_items:
+            haystack = f'{label} {filename}'.lower()
+            if query and query not in haystack:
+                continue
             iid = self.table.insert('', 'end', values=(label, filename))
             self._row_map[iid] = (label, filename)
 
