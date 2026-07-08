@@ -53,6 +53,7 @@ from app.ui.constants import (
     THEME_SIDEBAR,
     THEME_TEXT_SECONDARY,
 )
+from app.ui.custom_titlebar import attach_custom_titlebar
 from app.ui.theme_assets import gradient_ctk_image
 from app.ui.remake_window import RemakeWindow
 from app.ui.ttk_theme import apply_azure_dark_theme
@@ -78,8 +79,10 @@ class App(ctk.CTk):
         self.geometry(calculate_center_screen(DEFAULT_WIDTH, DEFAULT_HEIGHT, self))
         self.minsize(DEFAULT_WIDTH, DEFAULT_HEIGHT)
 
+        self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+
+        self.title_bar = attach_custom_titlebar(self, APP_NAME, row=0, columnspan=2)
 
         self.config_panel = None
         self._active_view = 'production'
@@ -106,7 +109,7 @@ class App(ctk.CTk):
 
     def _build_sidebar(self):
         self.sidebar = ctk.CTkFrame(self, width=SIDEBAR_WIDTH, corner_radius=0, fg_color=THEME_SIDEBAR)
-        self.sidebar.grid(row=0, column=0, sticky='nswe')
+        self.sidebar.grid(row=1, column=0, sticky='nswe')
         self.sidebar.grid_propagate(False)
         self.sidebar.grid_rowconfigure(2, weight=1)
 
@@ -335,7 +338,7 @@ class App(ctk.CTk):
 
     def _build_content(self):
         self.content = ctk.CTkFrame(self, fg_color=THEME_BG, corner_radius=0)
-        self.content.grid(row=0, column=1, sticky='nswe', padx=(0, 0), pady=0)
+        self.content.grid(row=1, column=1, sticky='nswe', padx=(0, 0), pady=0)
         self.content.grid_columnconfigure(0, weight=1)
         self.content.grid_rowconfigure(1, weight=1)
 
