@@ -1,4 +1,5 @@
 from app.ui.custom_titlebar import (
+    _window_minsize,
     compute_resized_geometry,
     format_geometry,
     parse_geometry,
@@ -43,3 +44,12 @@ def test_resize_north_respects_min_height():
 def test_resize_corner():
     w, h, x, y = compute_resized_geometry(800, 600, 50, 50, 20, 10, 'se', 400, 300)
     assert (w, h, x, y) == (820, 610, 50, 50)
+
+
+class _FakeWindow:
+    _min_width = 1280
+    _min_height = 720
+
+
+def test_window_minsize_reads_ctk_attributes():
+    assert _window_minsize(_FakeWindow()) == (1280, 720)

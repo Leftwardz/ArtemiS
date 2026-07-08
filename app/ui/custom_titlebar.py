@@ -131,6 +131,18 @@ def _monitor_work_area(window: ctk.CTk) -> tuple[int, int, int, int]:
         return _primary_work_area()
 
 
+def _window_minsize(window: ctk.CTk) -> tuple[int, int]:
+    """Read logical min size without calling CTk ``minsize()`` with no args (that resets to None)."""
+    min_w = getattr(window, '_min_width', None)
+    min_h = getattr(window, '_min_height', None)
+    if min_w is not None and min_h is not None:
+        return int(min_w), int(min_h)
+    try:
+        return window.wm_minsize()
+    except Exception:
+        return 400, 300
+
+
 def _window_hwnd(window: ctk.CTk) -> int:
     window.update_idletasks()
     hwnd = window.winfo_id()
@@ -230,7 +242,7 @@ class CustomTitleBar:
         if self._maximized or self._resize_start is None:
             return
         start_w, start_h, start_x, start_y, start_x_root, start_y_root, direction = self._resize_start
-        min_w, min_h = self.window.minsize()
+        min_w, min_h = _window_minsize(self.window)
         dx = event.x_root - start_x_root
         dy = event.y_root - start_y_root
         width, height, x, y = compute_resized_geometry(
