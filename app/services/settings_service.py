@@ -259,3 +259,32 @@ def save_locales_folder(folder: str) -> SettingsSaveResult:
         return SettingsSaveResult(ok=True, message=t('config.locales_folder_saved'))
     except Exception as e:
         return SettingsSaveResult(ok=False, error=t('settings.save_error', error=e))
+
+
+def get_fonts_folder() -> str:
+    return runtime.context.config.get('fonts_folder', '') or ''
+
+
+def save_fonts_folder(folder: str) -> SettingsSaveResult:
+    folder = (folder or '').strip()
+    if folder and not os.path.isdir(folder):
+        return SettingsSaveResult(ok=False, error=t('settings.path_not_found', path=folder))
+
+    from app.services.font_service import reload_fonts, validate_fonts_folder
+
+    if folder:
+        check = validate_fonts_folder(folder)
+        if not check.ok:
+            return SettingsSaveResult(ok=False, error=check.error)
+
+    if runtime.context.config.get('fonts_folder', '') == folder:
+        return SettingsSaveResult(ok=True)
+
+    runtime.context.config['fonts_folder'] = folder
+    try:
+        with open('config.json', 'w') as configfile:
+            json.dump(runtime.context.config, configfile, indent=4)
+        reload_fonts()
+        return SettingsSaveResult(ok=True, message=t('config.fonts_folder_saved'))
+    except Exception as e:
+        return SettingsSaveResult(ok=False, error=t('settings.save_error', error=e))

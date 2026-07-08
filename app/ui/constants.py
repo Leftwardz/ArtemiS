@@ -73,11 +73,25 @@ PAPER_COLOR_LIST = {
 FONT_LIST = [
     'Arial',
     'Trebuchet MS',
-    'Helvetica',
     'Arial Narrow',
     'Times New Roman',
     'Saira Extracondensed',
+    'Morganite Semibold',
+    'Oswald',
+    'Bahnschrift',
 ]
+
+
+def get_font_list():
+    """Font families from the dynamic catalog (falls back to FONT_LIST before init)."""
+    try:
+        from app.services.font_service import list_font_families
+        families = list_font_families()
+        if families:
+            return families
+    except Exception:
+        pass
+    return list(FONT_LIST)
 
 # Cor no editor para itens marcados como duplex (verso)
 DUPLEX_CANVAS_COLOR = '#AAAAAA'

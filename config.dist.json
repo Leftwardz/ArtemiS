@@ -9,5 +9,6 @@
     "audit_central_location": "",
     "audit_flush_interval_seconds": 180,
     "audit_retention_days": 180,
-    "locales_folder": ""
+    "locales_folder": "",
+    "fonts_folder": ""
 }

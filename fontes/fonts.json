@@ -1,0 +1,60 @@
+{
+  "families": [
+    {
+      "id": "arial",
+      "display_name": "Arial",
+      "regular": "arial.ttf",
+      "bold": "arialbd.ttf",
+      "aliases": ["arial"]
+    },
+    {
+      "id": "trebuchet_ms",
+      "display_name": "Trebuchet MS",
+      "regular": "trebuc.ttf",
+      "bold": "trebucbd.ttf",
+      "aliases": ["Trebuchet ms", "trebuchet ms"]
+    },
+    {
+      "id": "arial_narrow",
+      "display_name": "Arial Narrow",
+      "regular": "ARIALN.TTF",
+      "bold": "ARIALNB.TTF",
+      "aliases": ["Arial narrow", "arial narrow"]
+    },
+    {
+      "id": "times_new_roman",
+      "display_name": "Times New Roman",
+      "regular": "times.ttf",
+      "bold": "timesbd.ttf",
+      "aliases": ["Times new roman", "times new roman"]
+    },
+    {
+      "id": "saira_extracondensed",
+      "display_name": "Saira Extracondensed",
+      "regular": "SairaExtraCondensed-Regular.ttf",
+      "bold": "SairaExtraCondensed-Bold.ttf",
+      "aliases": ["Saira extracondensed", "saira extracondensed"]
+    },
+    {
+      "id": "morganite_semibold",
+      "display_name": "Morganite Semibold",
+      "regular": "Morganite-SemiBold.ttf",
+      "bold": null,
+      "aliases": ["Morganite semibold", "morganite semibold"]
+    },
+    {
+      "id": "oswald",
+      "display_name": "Oswald",
+      "regular": "Oswald-Bold.ttf",
+      "bold": null,
+      "aliases": ["oswald"]
+    },
+    {
+      "id": "bahnschrift",
+      "display_name": "Bahnschrift",
+      "regular": "bahnschrift.ttf",
+      "bold": null,
+      "aliases": ["bahnschrift"]
+    }
+  ]
+}

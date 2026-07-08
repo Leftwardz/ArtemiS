@@ -14,6 +14,7 @@ from app.services import admin_service
 from app.services.settings_service import (
     get_audit_central_location,
     get_database_location,
+    get_fonts_folder,
     get_language,
     get_locales_folder,
     get_print_backend_label,
@@ -21,12 +22,23 @@ from app.services.settings_service import (
     get_ui_theme,
     save_audit_central_location,
     save_database_location,
+    save_fonts_folder,
     save_language,
     save_locales_folder,
     save_print_backend,
     save_search_folder,
     save_ui_theme,
     PRINT_BACKEND_LABELS,
+)
+from app.services.font_service import (
+    custom_fonts_dir,
+    import_font,
+    import_windows_font,
+    list_catalog_rows,
+    list_windows_fonts,
+    reload_fonts,
+    remove_custom_font,
+    validate_fonts_folder,
 )
 from app.services.designer_service import (
     build_export_payload,
@@ -330,19 +342,22 @@ class ConfigPanel(ctk.CTkFrame):
             'config.tab_printing',
             'config.tab_access',
             'config.tab_language',
+            'config.tab_fonts',
         ]
         tab_general = self.tabs.add(t(self._tab_keys[0]))
         tab_printing = self.tabs.add(t(self._tab_keys[1]))
         tab_access = self.tabs.add(t(self._tab_keys[2]))
         tab_language = self.tabs.add(t(self._tab_keys[3]))
+        tab_fonts = self.tabs.add(t(self._tab_keys[4]))
 
-        for tab in (tab_general, tab_printing, tab_access, tab_language):
+        for tab in (tab_general, tab_printing, tab_access, tab_language, tab_fonts):
             tab.configure(fg_color='transparent')
 
         self._build_tab_general(tab_general)
         self._build_tab_printing(tab_printing)
         self._build_tab_access(tab_access)
         self._build_tab_language(tab_language)
+        self._build_tab_fonts(tab_fonts)
 
     def _tab_scroll(self, parent):
         scroll = ctk.CTkScrollableFrame(parent, fg_color='transparent')
@@ -934,6 +949,196 @@ class ConfigPanel(ctk.CTkFrame):
         self._refresh_theme_combo()
         if result.message:
             PopUpWindow(self, t('popup.ok'), result.message)
+
+    def _build_tab_fonts(self, parent):
+        scroll = self._tab_scroll(parent)
+
+        card_folder, body_folder = self._settings_card(scroll, 'config.fonts_folder_section')
+        card_folder.pack(fill='x', pady=(0, 10))
+
+        self.lbl_fonts_folder = ctk.CTkLabel(
+            body_folder, text=t('config.fonts_folder'), anchor='w', text_color=THEME_TEXT_SECONDARY,
+        )
+        self.lbl_fonts_folder.pack(fill='x')
+        self._register_label(self.lbl_fonts_folder, 'config.fonts_folder')
+        row_ff = ctk.CTkFrame(body_folder, fg_color='transparent')
+        row_ff.pack(fill='x', pady=(4, 8))
+        self.inpt_fonts_folder = ctk.CTkEntry(row_ff, **_entry_kwargs())
+        self.inpt_fonts_folder.pack(side='left', fill='x', expand=True, padx=(0, 8))
+        self.btn_browse_fonts_folder = ctk.CTkButton(
+            row_ff, text='…', width=36, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            command=self._browse_fonts_folder,
+        )
+        self.btn_browse_fonts_folder.pack(side='left', padx=(0, 8))
+        self.btn_save_fonts_folder = ctk.CTkButton(
+            row_ff, text=t('config.save'), width=80, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            command=self.save_fonts_folder,
+        )
+        self.btn_save_fonts_folder.pack(side='left', padx=(0, 8))
+        self.btn_test_fonts_folder = ctk.CTkButton(
+            row_ff, text=t('config.fonts_test_folder'), width=96, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            command=self.test_fonts_folder,
+        )
+        self.btn_test_fonts_folder.pack(side='left')
+        self._register_button(self.btn_save_fonts_folder, 'config.save')
+        self._register_button(self.btn_test_fonts_folder, 'config.fonts_test_folder')
+        fonts_folder = get_fonts_folder()
+        if fonts_folder:
+            self.inpt_fonts_folder.insert(0, fonts_folder)
+        self.lbl_fonts_folder_hint = ctk.CTkLabel(
+            body_folder,
+            text=t('config.fonts_folder_hint', path=str(custom_fonts_dir())),
+            font=(FONT, 10), text_color=THEME_TEXT_SECONDARY, justify='left', wraplength=520, anchor='w',
+        )
+        self.lbl_fonts_folder_hint.pack(fill='x', pady=(0, 4))
+        self._register_label(
+            self.lbl_fonts_folder_hint,
+            'config.fonts_folder_hint',
+            formatter=lambda _k: t('config.fonts_folder_hint', path=str(custom_fonts_dir())),
+        )
+
+        card_list, body_list = self._settings_card(scroll, 'config.fonts_catalog_section')
+        card_list.pack(fill='x', pady=(0, 10))
+
+        self.fonts_table_frame = _table_host(body_list, 220)
+        self.fonts_table_frame.pack(fill='x', pady=(0, 8))
+        self.fonts_table = Table(
+            self.fonts_table_frame,
+            [
+                t('config.fonts_col_name'),
+                t('config.fonts_col_regular'),
+                t('config.fonts_col_bold'),
+                t('config.fonts_col_source'),
+            ],
+            show='headings', height=10,
+        )
+        self.fonts_table.column('#1', width=150)
+        self.fonts_table.column('#2', width=180)
+        self.fonts_table.column('#3', width=180)
+        self.fonts_table.column('#4', width=90)
+        self.fonts_table.pack(expand=True, fill='both', padx=4, pady=4)
+        self._font_row_ids: dict = {}
+
+        btn_row = ctk.CTkFrame(body_list, fg_color='transparent')
+        btn_row.pack(fill='x')
+        self.btn_add_font_ttf = ctk.CTkButton(
+            btn_row, text=t('config.fonts_add_ttf'), width=140, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER,
+            command=self.add_font_from_file,
+        )
+        self.btn_add_font_ttf.pack(side='left', padx=(0, 8))
+        self._register_button(self.btn_add_font_ttf, 'config.fonts_add_ttf')
+        self.btn_import_windows_font = ctk.CTkButton(
+            btn_row, text=t('config.fonts_import_windows'), width=180, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            command=self.import_font_from_windows,
+        )
+        self.btn_import_windows_font.pack(side='left', padx=(0, 8))
+        self._register_button(self.btn_import_windows_font, 'config.fonts_import_windows')
+        self.btn_remove_custom_font = ctk.CTkButton(
+            btn_row, text=t('config.fonts_remove_custom'), width=140, height=32, corner_radius=8,
+            fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
+            command=self.remove_selected_custom_font,
+        )
+        self.btn_remove_custom_font.pack(side='left', padx=(0, 8))
+        self._register_button(self.btn_remove_custom_font, 'config.fonts_remove_custom')
+        self.btn_reload_fonts = ctk.CTkButton(
+            btn_row, text=t('config.fonts_reload'), width=120, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            command=self.reload_font_catalog,
+        )
+        self.btn_reload_fonts.pack(side='right')
+        self._register_button(self.btn_reload_fonts, 'config.fonts_reload')
+
+        self.lbl_fonts_license = ctk.CTkLabel(
+            scroll, text=t('config.fonts_license_hint'), font=(FONT, 10),
+            text_color=THEME_TEXT_SECONDARY, justify='left', wraplength=520, anchor='w',
+        )
+        self.lbl_fonts_license.pack(fill='x', pady=(4, 0))
+        self._register_label(self.lbl_fonts_license, 'config.fonts_license_hint')
+
+        self.refresh_fonts_table()
+
+    def _browse_fonts_folder(self):
+        folder = askdirectory()
+        if folder:
+            self.inpt_fonts_folder.delete(0, 'end')
+            self.inpt_fonts_folder.insert(0, folder)
+
+    def save_fonts_folder(self):
+        folder = self.inpt_fonts_folder.get().strip()
+        result = save_fonts_folder(folder)
+        if not result.ok:
+            PopUpWindow(self, t('popup.error'), result.error)
+            return
+        self.lbl_fonts_folder_hint.configure(
+            text=t('config.fonts_folder_hint', path=str(custom_fonts_dir())),
+        )
+        self.refresh_fonts_table()
+        if result.message:
+            PopUpWindow(self, t('popup.ok'), result.message)
+
+    def test_fonts_folder(self):
+        folder = self.inpt_fonts_folder.get().strip() or str(custom_fonts_dir())
+        result = validate_fonts_folder(folder)
+        if result.ok:
+            PopUpWindow(self, t('common.success'), t('config.fonts_folder_ok', path=folder))
+        else:
+            PopUpWindow(self, t('popup.error'), result.error)
+
+    def refresh_fonts_table(self):
+        if not hasattr(self, 'fonts_table'):
+            return
+        for item in self.fonts_table.get_children():
+            self.fonts_table.delete(item)
+        self._font_row_ids.clear()
+        for row in list_catalog_rows():
+            source = t('config.fonts_source_builtin') if row['builtin'] else t('config.fonts_source_custom')
+            iid = self.fonts_table.insert(
+                '', 'end',
+                values=(row['display_name'], row['regular'], row['bold'] or '—', source),
+            )
+            self._font_row_ids[iid] = row
+
+    def reload_font_catalog(self):
+        reload_fonts()
+        self.refresh_fonts_table()
+        PopUpWindow(self, t('common.success'), t('config.fonts_reloaded'))
+
+    def add_font_from_file(self):
+        FontAddWindow(self, on_saved=self.refresh_fonts_table)
+
+    def import_font_from_windows(self):
+        WindowsFontImportWindow(self, on_saved=self.refresh_fonts_table)
+
+    def remove_selected_custom_font(self):
+        selection = self.fonts_table.selection()
+        if not selection:
+            PopUpWindow(self, t('popup.error'), t('config.fonts_select_one'))
+            return
+        row = self._font_row_ids.get(selection[0])
+        if not row or row.get('builtin'):
+            PopUpWindow(self, t('popup.error'), t('config.fonts_builtin_locked'))
+            return
+        ConfirmWindow(
+            self,
+            t('config.fonts_remove_title'),
+            t('config.fonts_remove_confirm', name=row['display_name']),
+            lambda: self._do_remove_custom_font(row['id']),
+            has_confirm=False,
+        )
+
+    def _do_remove_custom_font(self, font_id: str):
+        result = remove_custom_font(font_id)
+        if not result.ok:
+            PopUpWindow(self, t('popup.error'), result.error)
+            return
+        self.refresh_fonts_table()
+        if result.message:
+            PopUpWindow(self, t('common.success'), t('config.fonts_removed', name=result.message))
 
     def save_locales_folder(self):
         folder = self.inpt_locales_folder.get().strip()
@@ -2404,5 +2609,176 @@ class AuditWindow(ctk.CTkToplevel):
             return
         records = [self._rows[i] for i in indexes]
         self._copy_to_clipboard(self._rows_to_tsv(records), len(records))
+
+
+class FontAddWindow(ctk.CTkToplevel):
+    def __init__(self, master, on_saved=None):
+        super().__init__(master)
+        self._on_saved = on_saved
+        self._regular_path = ''
+        self._bold_path = ''
+        self.title(t('config.fonts_add_title'))
+        self.geometry('460x320')
+        self.resizable(False, False)
+        self.transient(master)
+        self.grab_set()
+
+        body = ctk.CTkFrame(self, fg_color=THEME_CARD)
+        body.pack(fill='both', expand=True, padx=16, pady=16)
+
+        ctk.CTkLabel(body, text=t('config.fonts_display_name'), anchor='w').pack(fill='x', pady=(0, 4))
+        self.inpt_name = ctk.CTkEntry(body, **_entry_kwargs())
+        self.inpt_name.pack(fill='x', pady=(0, 12))
+
+        row_reg = ctk.CTkFrame(body, fg_color='transparent')
+        row_reg.pack(fill='x', pady=(0, 8))
+        self.lbl_regular = ctk.CTkLabel(row_reg, text=t('config.fonts_regular_file'), anchor='w')
+        self.lbl_regular.pack(side='left', fill='x', expand=True)
+        ctk.CTkButton(
+            row_reg, text='…', width=36, command=self._pick_regular,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER, corner_radius=8, height=32,
+        ).pack(side='right')
+
+        row_bold = ctk.CTkFrame(body, fg_color='transparent')
+        row_bold.pack(fill='x', pady=(0, 12))
+        self.lbl_bold = ctk.CTkLabel(row_bold, text=t('config.fonts_bold_file_optional'), anchor='w')
+        self.lbl_bold.pack(side='left', fill='x', expand=True)
+        ctk.CTkButton(
+            row_bold, text='…', width=36, command=self._pick_bold,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER, corner_radius=8, height=32,
+        ).pack(side='right')
+
+        actions = ctk.CTkFrame(body, fg_color='transparent')
+        actions.pack(fill='x', pady=(8, 0))
+        ctk.CTkButton(
+            actions, text=t('common.save'), width=110, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER, command=self._save,
+        ).pack(side='left', padx=(0, 8))
+        ctk.CTkButton(
+            actions, text=t('common.cancel'), width=110, height=32, corner_radius=8,
+            fg_color=BTN_RED, hover_color=BTN_HOVER_RED, command=self.destroy,
+        ).pack(side='left')
+
+        calculate_center_screen_with_monitor(self, 460, 320)
+
+    def _pick_regular(self):
+        path = askopenfilename(filetypes=[('TrueType Font', '*.ttf'), ('All files', '*.*')])
+        if path:
+            self._regular_path = path
+            self.lbl_regular.configure(text=os.path.basename(path))
+
+    def _pick_bold(self):
+        path = askopenfilename(filetypes=[('TrueType Font', '*.ttf'), ('All files', '*.*')])
+        if path:
+            self._bold_path = path
+            self.lbl_bold.configure(text=os.path.basename(path))
+
+    def _save(self):
+        if not self._regular_path:
+            PopUpWindow(self, t('popup.error'), t('config.fonts_regular_required'))
+            return
+        display_name = self.inpt_name.get().strip()
+        if not display_name:
+            display_name = os.path.splitext(os.path.basename(self._regular_path))[0]
+        result = import_font(
+            self._regular_path,
+            display_name,
+            self._bold_path or None,
+        )
+        if not result.ok:
+            PopUpWindow(self, t('popup.error'), result.error)
+            return
+        if self._on_saved:
+            self._on_saved()
+        PopUpWindow(self, t('common.success'), t('config.fonts_added', name=result.message))
+        self.destroy()
+
+
+class WindowsFontImportWindow(ctk.CTkToplevel):
+    def __init__(self, master, on_saved=None):
+        super().__init__(master)
+        self._on_saved = on_saved
+        self._items: list[tuple[str, str]] = []
+        self.title(t('config.fonts_windows_title'))
+        self.geometry('620x480')
+        self.resizable(False, False)
+        self.transient(master)
+        self.grab_set()
+
+        body = ctk.CTkFrame(self, fg_color=THEME_CARD)
+        body.pack(fill='both', expand=True, padx=16, pady=16)
+
+        ctk.CTkLabel(
+            body, text=t('config.fonts_windows_hint'), justify='left', anchor='w',
+            text_color=THEME_TEXT_SECONDARY, wraplength=560,
+        ).pack(fill='x', pady=(0, 8))
+
+        self.table_frame = _table_host(body, 260)
+        self.table_frame.pack(fill='both', expand=True, pady=(0, 8))
+        self.table = Table(
+            self.table_frame,
+            [t('config.fonts_windows_col_name'), t('config.fonts_windows_col_file')],
+            show='headings', height=12,
+        )
+        self.table.column('#1', width=320)
+        self.table.column('#2', width=220)
+        self.table.pack(fill='both', expand=True, padx=4, pady=4)
+        self._row_map: dict = {}
+
+        ctk.CTkLabel(body, text=t('config.fonts_display_name'), anchor='w').pack(fill='x', pady=(4, 4))
+        self.inpt_name = ctk.CTkEntry(body, **_entry_kwargs())
+        self.inpt_name.pack(fill='x', pady=(0, 8))
+
+        actions = ctk.CTkFrame(body, fg_color='transparent')
+        actions.pack(fill='x')
+        ctk.CTkButton(
+            actions, text=t('config.fonts_import_selected'), width=160, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER, command=self._import_selected,
+        ).pack(side='left', padx=(0, 8))
+        ctk.CTkButton(
+            actions, text=t('common.cancel'), width=110, height=32, corner_radius=8,
+            fg_color=BTN_RED, hover_color=BTN_HOVER_RED, command=self.destroy,
+        ).pack(side='left')
+
+        self.table.bind('<<TreeviewSelect>>', self._on_select)
+        self._load_fonts()
+        calculate_center_screen_with_monitor(self, 620, 480)
+
+    def _load_fonts(self):
+        self._items = list_windows_fonts()
+        if not self._items:
+            PopUpWindow(self, t('popup.error'), t('config.fonts_windows_unavailable'))
+            return
+        for label, filename in self._items:
+            iid = self.table.insert('', 'end', values=(label, filename))
+            self._row_map[iid] = (label, filename)
+
+    def _on_select(self, _event=None):
+        selection = self.table.selection()
+        if not selection:
+            return
+        label, _filename = self._row_map.get(selection[0], ('', ''))
+        if label and not self.inpt_name.get().strip():
+            from app.services.font_service import windows_display_name
+            self.inpt_name.delete(0, 'end')
+            self.inpt_name.insert(0, windows_display_name(label))
+
+    def _import_selected(self):
+        selection = self.table.selection()
+        if not selection:
+            PopUpWindow(self, t('popup.error'), t('config.fonts_select_one'))
+            return
+        label, filename = self._row_map.get(selection[0], ('', ''))
+        if not filename:
+            return
+        display_name = self.inpt_name.get().strip()
+        result = import_windows_font(label, filename, display_name)
+        if not result.ok:
+            PopUpWindow(self, t('popup.error'), result.error)
+            return
+        if self._on_saved:
+            self._on_saved()
+        PopUpWindow(self, t('common.success'), t('config.fonts_added', name=result.message))
+        self.destroy()
 
 

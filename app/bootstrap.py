@@ -6,6 +6,7 @@ from app.models.database_manager import DataBase
 from app.services.print_group_service import ensure_workorder_directories
 from app.services.print_group_service import DEFAULT_SEARCH_FOLDER
 from app.ui.theme import init_theme_from_config
+from app.services.font_service import init_fonts
 
 
 def main():
@@ -26,12 +27,14 @@ def main():
                 "language": "pt",
                 "locales_folder": "",
                 "ui_theme": "slate",
+                "fonts_folder": "",
             }
             json.dump(config, config_file, indent=4)
 
     init_theme_from_config(config)
 
     runtime.init(config, DataBase(config["database_location"]))
+    init_fonts(config)
     runtime.context.db.create_tables()
     ensure_workorder_directories(
         config["search_folder"],

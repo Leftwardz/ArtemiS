@@ -36,6 +36,7 @@ If access is denied, your Windows account is not authorized. A domain administra
 | **Printing tab** | Registered printers, print engine, search groups |
 | **Access tab** | Who may open Settings |
 | **Language tab** | Default language, themes, extra translations |
+| **Fonts tab** | Shared custom fonts folder, TTF import, Windows font picker |
 
 # General tab — files and paths
 
@@ -151,6 +152,19 @@ On the **Language** tab:
 - **Extra language folder** — optional `.json` translation files.
 - **Color theme** — applies after restarting ArtemiS.
 
+# Fonts (shared catalog)
+
+On the **Fonts** tab administrators can:
+
+1. Set the **shared fonts folder** (network UNC recommended when several PCs use the same `database.db`). Leave empty for automatic placement next to the database or in `fontes/custom` locally.
+2. Review built-in and custom fonts in the catalog table.
+3. **Add TTF** — pick a regular `.ttf` and optional bold `.ttf`; files are copied into the shared folder and registered for PDF output.
+4. **Import from Windows** — choose an installed `.ttf` font; the file is copied from `C:\Windows\Fonts` into the shared folder (same as manual upload).
+5. **Remove custom** — deletes a custom entry (built-in fonts cannot be removed).
+6. **Reload** — refresh the catalog after another PC added fonts.
+
+Custom fonts appear in the template editor font list on all PCs after reload or restart. Verify licensing before copying third-party or Windows fonts.
+
 # Clients and products
 
 Every printable layout belongs to a **client** and **product** pair. The first line of each WO CSV identifies which layout to use.
@@ -239,7 +253,8 @@ Save the layout when alignment is correct. The product is then available the nex
 # Typical setup workflow
 
 1. Set **central workorders folder** and **database path** (General).
-2. Register **printers** and **search groups** (Printing).
+2. Configure the **shared fonts folder** if you need custom typefaces (Fonts).
+3. Register **printers** and **search groups** (Printing).
 3. Grant **access** to layout editors if they are not domain admins (Access).
 4. **Add client** and **add product**.
 5. Design and test the layout in the **template editor**.

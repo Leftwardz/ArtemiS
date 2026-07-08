@@ -72,7 +72,7 @@ from app.ui.constants import (
     BTN_RED,
     DUPLEX_CANVAS_COLOR,
     FONT,
-    FONT_LIST,
+    get_font_list,
     ICON,
     PAPER_COLOR_LIST,
     THEME_ACCENT,
@@ -97,6 +97,7 @@ from app.utils.file_parser import FileUtils
 from app.utils.text_utils import break_line
 from app.utils.window_geometry import calculate_center_screen_with_monitor, get_monitor
 from app.services.pdf_service import _apply_sheet_page_placeholders, generate_test_pdf
+from app.services.font_service import get_canvas_font
 from app.services.sheet_grouping import build_sheet_pages
 from app.utils.document_delivery import open_path
 
@@ -1239,6 +1240,9 @@ class EditWindow(ctk.CTkToplevel):
         except (TypeError, ValueError):
             return font_size
 
+    def _canvas_font(self, font_name, font_size, font_style):
+        return get_canvas_font(self.canvas, font_name, self._zfont(font_size), font_style)
+
     def _editor_ink_color(self, obj) -> str:
         if getattr(obj, 'duplex', False):
             return DUPLEX_CANVAS_COLOR
@@ -1271,7 +1275,7 @@ class EditWindow(ctk.CTkToplevel):
                 self.canvas.itemconfig(cid, fill=color)
 
     def _render_segment(self, seg: SegmentObject, *, offset_x=0, offset_y=0, preview=False):
-        font = (seg.font_name, self._zfont(seg.font_size), seg.font_style)
+        font = self._canvas_font(seg.font_name, seg.font_size, seg.font_style)
         fill = '#999999' if preview else self._editor_ink_color(seg)
         display_texts = self._segment_display_texts(seg) if self._use_file_preview() else None
         for i, line in enumerate(seg.lines):
@@ -1323,7 +1327,7 @@ class EditWindow(ctk.CTkToplevel):
             cid = self.canvas.create_text(
                 self._zs(float(obj.x) + offset_x), self._zs(float(obj.y) + offset_y),
                 text=text,
-                font=(obj.font_name, self._zfont(obj.font_size), obj.font_style),
+                font=self._canvas_font(obj.font_name, obj.font_size, obj.font_style),
                 angle=obj.orientation, anchor='sw', fill=fill,
                 tags=tags,
             )
@@ -1342,7 +1346,7 @@ class EditWindow(ctk.CTkToplevel):
             cid = self.canvas.create_text(
                 self._zs(float(obj.x) + offset_x), self._zs(float(obj.y) + offset_y),
                 text=text,
-                fill=fill, font=(obj.font_name, self._zfont(obj.font_size), obj.font_style),
+                fill=fill, font=self._canvas_font(obj.font_name, obj.font_size, obj.font_style),
                 angle=obj.orientation, anchor='sw',
                 tags=tags,
             )
@@ -2598,7 +2602,7 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
 
         ctk.CTkLabel(self.frame, text=t('designer.font')).grid(row=0, column=0, padx=10, pady=10, sticky="W")
         self.font_family_combobox = ctk.CTkComboBox(
-            self.frame, values=FONT_LIST, width=100, command=self.update_item, **_flat_combo_kwargs(),
+            self.frame, values=get_font_list(), width=100, command=self.update_item, **_flat_combo_kwargs(),
         )
         self.font_family_combobox.grid(row=0, column=1, pady=10, padx=10)
         self.font_family_combobox.set(font_family)
@@ -2925,7 +2929,7 @@ class ListOfPropertiesWindow(ctk.CTkFrame):
         ctk.CTkLabel(self._multi_font_frame, text=t('designer.font')).grid(
             row=0, column=0, padx=(0, 8), pady=4, sticky='w')
         self._multi_font_family = ctk.CTkComboBox(
-            self._multi_font_frame, values=FONT_LIST, width=120,
+            self._multi_font_frame, values=get_font_list(), width=120,
             command=self._apply_multi_common_font, **_flat_combo_kwargs(),
         )
         self._multi_font_family.grid(row=0, column=1, pady=4, sticky='w')
@@ -3430,7 +3434,7 @@ class GetTextWindow(ctk.CTkToplevel):
         self.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(self, text=t('designer.font'), text_color=THEME_TEXT_SECONDARY).grid(row=0, column=0, pady=8, padx=10)
-        self.font_list = ctk.CTkComboBox(self, values=FONT_LIST, **_flat_combo_kwargs())
+        self.font_list = ctk.CTkComboBox(self, values=get_font_list(), **_flat_combo_kwargs())
         self.font_list.grid(row=0, column=1, pady=8, padx=10, sticky='ew')
 
         ctk.CTkLabel(self, text=t('designer.size'), text_color=THEME_TEXT_SECONDARY).grid(row=1, column=0, pady=8, padx=10)
@@ -3709,7 +3713,7 @@ class GetSegmentWindow(ctk.CTkToplevel):
         ctk.CTkLabel(self, text=t('designer.font'), text_color=THEME_TEXT_SECONDARY).grid(
             padx=20, row=4, column=0, sticky='W',
         )
-        self.font = ctk.CTkComboBox(self, width=120, values=FONT_LIST, **_flat_combo_kwargs())
+        self.font = ctk.CTkComboBox(self, width=120, values=get_font_list(), **_flat_combo_kwargs())
         self.font.grid(padx=20, row=4, column=0)
 
         ctk.CTkLabel(self, text=t('designer.size'), text_color=THEME_TEXT_SECONDARY).grid(row=4, column=1, sticky='W')

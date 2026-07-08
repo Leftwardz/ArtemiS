@@ -3,8 +3,6 @@ import os
 import PIL.Image
 import io
 import math
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
@@ -26,6 +24,7 @@ from app.models.sheet_layout import CUSTOM_ORIENTATION_INDEX, SCOPE_SHEET, Sheet
 from app.services.layout_service import batch_print_orientation, resolve_layout_for_orientation
 from app.services.sheet_grouping import build_sheet_pages, parse_column_indices
 from app.services.sheet_page_placeholders import apply_sheet_page_placeholders as _apply_sheet_page_placeholders
+from app.services.font_service import resolve_reportlab_font
 
 
 def partition_drawings_by_scope(items):
@@ -66,29 +65,6 @@ def _close_physical_sheet(pdf, back_items, redraw_fn, guides_fn=None):
         if guides_fn:
             guides_fn()
         pdf.showPage()
-
-# Font registration
-pdfmetrics.registerFont(TTFont('Arial', 'fontes/Arial.ttf'))
-pdfmetrics.registerFont(TTFont('Arial-Bold', 'fontes/arialbd.ttf'))
-pdfmetrics.registerFont(TTFont('Trebuchet ms', 'fontes/trebuc.ttf'))
-pdfmetrics.registerFont(TTFont('Trebuchet MS', 'fontes/trebuc.ttf'))
-pdfmetrics.registerFont(TTFont('Trebuchet ms-Bold', 'fontes/trebucbd.ttf'))
-pdfmetrics.registerFont(TTFont('Trebuchet MS-Bold', 'fontes/trebucbd.ttf'))
-pdfmetrics.registerFont(TTFont('Arial Narrow', 'fontes/arialn.ttf'))
-pdfmetrics.registerFont(TTFont('Arial narrow', 'fontes/arialn.ttf'))
-pdfmetrics.registerFont(TTFont('Arial narrow-Bold', 'fontes/arialnb.ttf'))
-pdfmetrics.registerFont(TTFont('Arial Narrow-Bold', 'fontes/arialnb.ttf'))
-pdfmetrics.registerFont(TTFont('Times New Roman', 'fontes/times.ttf'))
-pdfmetrics.registerFont(TTFont('Times new roman', 'fontes/times.ttf'))
-pdfmetrics.registerFont(TTFont('Times New Roman-Bold', 'fontes/timesbd.ttf'))
-pdfmetrics.registerFont(TTFont('Times new roman-Bold', 'fontes/timesbd.ttf'))
-pdfmetrics.registerFont(TTFont('Saira Extracondensed', 'fontes/SairaExtraCondensed-Regular.ttf'))
-pdfmetrics.registerFont(TTFont('Saira extracondensed', 'fontes/SairaExtraCondensed-Regular.ttf'))
-pdfmetrics.registerFont(TTFont('Saira Extracondensed-Bold', 'fontes/SairaExtraCondensed-Bold.ttf'))
-pdfmetrics.registerFont(TTFont('Saira extracondensed-Bold', 'fontes/SairaExtraCondensed-Bold.ttf'))
-pdfmetrics.registerFont(TTFont('Morganite Semibold', 'fontes/Morganite-Semibold.ttf'))
-pdfmetrics.registerFont(TTFont('Morganite semibold', 'fontes/Morganite-Semibold.ttf'))
-
 
 def join_pdf_buffers(pdf_buffers):
     merger = PyPDF2.PdfMerger()
@@ -581,8 +557,10 @@ def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offs
             column = parse_column_indices(item['file_columns'])
 
         if item['item_type'] in ['text', 'counter', 'barcode_text']:
-            font_style = '-' + item['font_style'].capitalize() if item['font_style'] == 'bold' else ''
-            font = [item['font_name'].capitalize() + font_style, (float(item['font_size']) / 2) * 1.35]
+            font = [
+                resolve_reportlab_font(item['font_name'], item.get('font_style')),
+                (float(item['font_size']) / 2) * 1.35,
+            ]
 
             angle = int(item['orientation'])
 
@@ -631,8 +609,10 @@ def draw_ar(items, pdf_canvas, file_columns=None, counter=None, offset_x=0, offs
             pdf_canvas.setDash([])
 
         elif item['item_type'] == 'segment':
-            font_style = '-' + item['font_style'].capitalize() if item['font_style'] == 'bold' else ''
-            font = [item['font_name'] + font_style, (float(item['font_size']) / 2) * 1.35]
+            font = [
+                resolve_reportlab_font(item['font_name'], item.get('font_style')),
+                (float(item['font_size']) / 2) * 1.35,
+            ]
 
             angle = int(item['orientation'])
             x1, y1 = normalize_rotated_x_y(x1, y1, angle, page_height=ph)

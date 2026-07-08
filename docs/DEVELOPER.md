@@ -75,7 +75,7 @@ ArtemiS/
 ├── requirements-linux.txt  # Linux dev deps
 ├── scripts/                # build.ps1, verify_dist.ps1, …
 ├── vendor/ghostscript/     # Bundled Ghostscript (copied into dist/)
-├── fontes/                 # Fonts for canvas and PDF
+├── fontes/                 # Built-in TTFs + fonts.json catalog
 ├── PDFtoPrinter*.exe       # Print helpers (×5 for parallelism)
 └── app/
     ├── bootstrap.py        # Config, DB, audit, main window
@@ -108,6 +108,7 @@ ArtemiS/
 |------|----------------|
 | Production | `app/ui/main_app.py`, `app/services/production_service.py`, `app/services/work_queue_service.py` |
 | PDF generation | `app/services/pdf_service.py`, `app/utils/barcode_generator.py` |
+| Fonts | `app/services/font_service.py`, `fontes/fonts.json`, shared `fonts.custom.json` |
 | Printing | `app/services/print_service.py`, `app/utils/printing/` |
 | Designer | `app/ui/designer_window.py`, `app/services/designer_service.py` |
 | Remake | `app/ui/remake_window.py`, `app/services/remake_service.py` |
@@ -116,6 +117,14 @@ ArtemiS/
 | Auth (settings) | `app/utils/windows_auth.py` |
 
 Further reading: `docs/PRINTING_BACKENDS.md` (print engines).
+
+### Fonts
+
+- Built-in families are listed in `fontes/fonts.json` (shipped with the app / `dist/fontes/`).
+- Custom fonts are stored in a **shared folder** (`fonts_folder` in `config.json`). When empty, the app uses `fontes/custom` locally, or `{database_folder}/fontes` when `database_location` is a UNC path.
+- `fonts.custom.json` in that folder lists custom families; `.ttf` files are copied there via Settings → **Fonts** (file upload or import from Windows).
+- `font_service.register_all_fonts()` runs at bootstrap; ReportLab names are `{display_name}` and `{display_name}-Bold`.
+- The template editor combobox reads `font_service.list_font_families()`; PDF rendering uses `resolve_reportlab_font()`.
 
 ---
 
