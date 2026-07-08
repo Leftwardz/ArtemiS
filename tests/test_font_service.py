@@ -113,3 +113,40 @@ def test_register_all_fonts_idempotent(font_env, monkeypatch):
     first_count = len(calls)
     font_service.register_all_fonts()
     assert len(calls) == first_count
+
+
+def test_suggest_windows_bold_match():
+    items = [
+        ('Arial (TrueType)', 'arial.ttf'),
+        ('Arial Bold (TrueType)', 'arialbd.ttf'),
+        ('Times New Roman (TrueType)', 'times.ttf'),
+    ]
+    match = font_service.suggest_windows_bold_match(items, 'Arial (TrueType)', 'arial.ttf')
+    assert match == ('Arial Bold (TrueType)', 'arialbd.ttf')
+
+
+def test_update_custom_font_add_bold(font_env, monkeypatch):
+    monkeypatch.setattr(font_service.pdfmetrics, 'registerFont', lambda _font: None)
+
+    def fake_copy(source, dest_dir, prefix):
+        dest = dest_dir / f'{prefix}_{Path(source).name}'
+        dest.write_bytes(b'font-bytes')
+        return dest
+
+    monkeypatch.setattr(font_service, '_copy_ttf', fake_copy)
+
+    source = font_env['tmp_path'] / 'brand.ttf'
+    source.write_bytes(b'brand')
+    import_result = font_service.import_font(str(source), 'Brand New')
+    assert import_result.ok
+
+    bold_source = font_env['tmp_path'] / 'brand_bold.ttf'
+    bold_source.write_bytes(b'brand-bold')
+    update_result = font_service.update_custom_font(
+        'brand_new',
+        bold_path=str(bold_source),
+    )
+    assert update_result.ok
+    entry = font_service.lookup_font('Brand New')
+    assert entry is not None
+    assert entry.has_bold
