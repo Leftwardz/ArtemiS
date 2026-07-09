@@ -234,6 +234,7 @@
     "quantity": "Quantity: {count}",
     "not_found": "Record not found",
     "empty_list": "List cannot be empty!",
+    "start_error": "Failed to start remake. Details saved to Errors_Logs.txt.",
     "col_id": "ID",
     "col_rankjob": "RankJob",
     "col_ar": "AR No.",

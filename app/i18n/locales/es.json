@@ -234,6 +234,8 @@
     "quantity": "Cantidad: {count}",
     "not_found": "Registro no encontrado",
     "empty_list": "¡La lista no puede estar vacía!",
+    "start_error": "Error al iniciar el remake. Detalles guardados en Errors_Logs.txt.",
+    "start_error": "Error al iniciar el remake. Detalles guardados en Errors_Logs.txt.",
     "col_id": "ID",
     "col_rankjob": "RankJob",
     "col_ar": "Nº AR",

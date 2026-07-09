@@ -1,3 +1,4 @@
+import traceback
 from typing import Optional
 
 from app.services import admin_service
@@ -310,35 +311,44 @@ class RemakeWindow(ctk.CTkToplevel):
             return build_remake_file_lines(self.file, self.filepath, position_list)
 
     def btn_start(self):
-        position_list = []
-        items_to_remake = self.table.get_items()
-        for item in items_to_remake:
-            position_list.append(int(item[0]))
+        try:
+            position_list = []
+            items_to_remake = self.table.get_items()
+            for item in items_to_remake:
+                position_list.append(int(item[0]))
 
-        printer_name = admin_service.resolve_printer_name(self.printers_list.get())
+            printer_name = admin_service.resolve_printer_name(self.printers_list.get())
 
-        result = prepare_remake_job(
-            admin_service.get_db(),
-            self.client,
-            self.product,
-            self.file,
-            self.filepath,
-            position_list,
-            printer_name,
-        )
-        if not result.ok:
-            PopUpWindow(self, result.error_title, result.error_message)
-            return
+            result = prepare_remake_job(
+                admin_service.get_db(),
+                self.client,
+                self.product,
+                self.file,
+                self.filepath,
+                position_list,
+                printer_name,
+            )
+            if not result.ok:
+                PopUpWindow(self, result.error_title, result.error_message)
+                return
 
-        self.master.create_pdf(
-            result.lines,
-            result.items,
-            result.orientations,
-            is_remake=True,
-            printer=printer_name,
-            layout_config_list=result.layout_configs,
-        )
-        self.exit()
+            started = self.master.create_pdf(
+                result.lines,
+                result.items,
+                result.orientations,
+                is_remake=True,
+                printer=printer_name,
+                layout_config_list=result.layout_configs,
+                error_parent=self,
+            )
+            if not started:
+                return
+
+            self.exit()
+        except Exception:
+            tb = traceback.format_exc()
+            FileUtils.write_log_file('Errors_Logs.txt', tb)
+            PopUpWindow(self, t('common.error'), t('remake.start_error'))
 
     def btn_remove(self):
         self.table.remove_selected_items()

@@ -234,6 +234,8 @@
     "quantity": "Quantité : {count}",
     "not_found": "Enregistrement introuvable",
     "empty_list": "La liste ne peut pas être vide !",
+    "start_error": "Échec du démarrage du remake. Détails enregistrés dans Errors_Logs.txt.",
+    "start_error": "Échec du démarrage du remake. Détails enregistrés dans Errors_Logs.txt.",
     "col_id": "ID",
     "col_rankjob": "RankJob",
     "col_ar": "N° AR",

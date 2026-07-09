@@ -122,13 +122,18 @@ def is_landscape_layout(layout: SheetLayout) -> bool:
 def resolve_print_orientation(orientation, layout_config_json: Optional[str] = None) -> str:
     """Physical printer orientation for the job (portrait/landscape).
 
-    Only custom mode (index 4) may require landscape when the sheet
-    is defined wider than tall (e.g. inverted A4 297×210 mm).
+    Only custom mode (index 4) may require landscape when the layout matches
+    a known landscape stock preset (e.g. inverted A4 297×210 mm). Arbitrary
+    custom sizes such as Zebra labels (93×35 mm) keep portrait because the
+    PDF page already has the final dimensions.
     """
     if not is_custom_orientation(orientation):
         return ORIENTATION_PORTRAIT
     layout = resolve_layout_for_orientation(orientation, layout_config_json)
-    if layout and is_landscape_layout(layout):
+    if not layout:
+        return ORIENTATION_PORTRAIT
+    preset = infer_page_preset(layout)
+    if preset.endswith('_landscape'):
         return ORIENTATION_LANDSCAPE
     return ORIENTATION_PORTRAIT
 

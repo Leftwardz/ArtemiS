@@ -706,22 +706,24 @@ class App(ctk.CTk):
         self.loading_frame.update_progressbar(progress_slot, progress, text)
         self.update_idletasks()
 
-    def create_pdf(self, lines, items, orientations, is_remake=False, printer=None, layout_config_list=None):
+    def create_pdf(self, lines, items, orientations, is_remake=False, printer=None,
+                   layout_config_list=None, error_parent=None):
+        popup_parent = error_parent or self
         duplex_error = validate_duplex_batch(items, get_print_backend())
         if duplex_error:
-            PopUpWindow(self, t('main.error'), t(duplex_error))
-            return
+            PopUpWindow(popup_parent, t('main.error'), t(duplex_error))
+            return False
         landscape_error = validate_landscape_batch(
             orientations, layout_config_list, get_print_backend(),
         )
         if landscape_error:
-            PopUpWindow(self, t('main.error'), t(landscape_error))
-            return
+            PopUpWindow(popup_parent, t('main.error'), t(landscape_error))
+            return False
         try:
             progress_slot = self.loading_frame.add_progressbar(printer)
         except Exception as e:
-            PopUpWindow(self, t('main.error'), e)
-            return
+            PopUpWindow(popup_parent, t('main.error'), str(e))
+            return False
 
         on_progress, on_error, on_complete = self._build_pdf_callbacks(progress_slot, printer)
 
@@ -737,7 +739,9 @@ class App(ctk.CTk):
             layout_config_list=layout_config_list,
         )
 
-        self.refresh()
+        if not is_remake:
+            self.refresh()
+        return True
 
     def get_items_and_orientation_from_worklist(self, files):
         return get_drawings_and_orientations(files, admin_service.get_db())
