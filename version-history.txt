@@ -1,0 +1,206 @@
+ArtemiS — Histórico de Versões
+==============================
+
+Resumo das principais entregas e mudanças do projeto até 09/07/2026.
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 1.0 — 26/03/2025
+────────────────────────────────────────────────────────────────────────────
+Lançamento inicial no GitHub.
+
+Aplicação desktop Windows (Python + CustomTkinter) para impressão em lote de
+formulários de Aviso de Recebimento (AR) dos Correios a partir de arquivos CSV.
+Incluía editor visual de templates, cadastro de clientes/produtos, geração de
+PDF com códigos de barras e QR Code, fila de trabalho, Remake (reimpressão
+seletiva) e impressão via spooler do Windows.
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 1.0.1 — 10/09/2025
+────────────────────────────────────────────────────────────────────────────
+Ajustes pontuais de interface (largura do combobox de impressoras) e
+atualização do .gitignore.
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 1.0.2 — 04/02/2026
+────────────────────────────────────────────────────────────────────────────
+Ferramenta Segmento: novas colunas disponíveis no editor de templates.
+
+
+════════════════════════════════════════════════════════════════════════════
+Linha 2.x — modernização do produto (a partir de 20/06/2025)
+════════════════════════════════════════════════════════════════════════════
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 2.0 — 20/06/2025
+────────────────────────────────────────────────────────────────────────────
+Refatoração arquitetural completa.
+
+- Código reorganizado em pacote app/ (models, services, ui, utils).
+- Entry point padronizado (Main.py → app/bootstrap.py).
+- Componentes de UI extraídos (tabelas, popups, fila de trabalhos).
+- Serviços dedicados para produção, remake, designer, admin e configurações.
+- Runtime centralizado (config, banco de dados, contexto da aplicação).
+- Documentação inicial de visão geral e plano de refatoração.
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 2.1 — 21/06/2025
+────────────────────────────────────────────────────────────────────────────
+Produção, impressão e governança operacional.
+
+- Fila de ordens de trabalho (WorkQueueList) com validação de papel e cor.
+- Motor de impressão configurável com múltiplos backends (PDFtoPrinter,
+  Ghostscript, Win32 DEVMODE, XPS).
+- Ghostscript empacotado no repositório para build portátil.
+- Autenticação Windows para acesso às configurações (AD/local).
+- Cadastro e descoberta de impressoras na estação.
+- Auditoria local-first com agregação central e visão global de logs.
+- Geração de PDF em thread separada com barra de progresso por impressora.
+- Correção de IndexError no Remake com linhas CSV curtas.
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 2.2 — 21/06/2025 a 28/06/2025
+────────────────────────────────────────────────────────────────────────────
+Editor de templates e modelo de objetos.
+
+- Refatoração do editor para modelo de objetos tipados (texto, imagem, barcode,
+  segmento, etc.) com zoom independente do tamanho lógico da fonte.
+- Ferramenta Medir e espaçamento entre elementos selecionados.
+- Preview de arquivo CSV no editor com preservação de texto de exemplo.
+- Placeholders {p} e {t} para paginação em cabeçalhos de folha.
+- Maximização da janela do editor no Windows.
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 2.3 — 24/06/2025
+────────────────────────────────────────────────────────────────────────────
+Layout customizado de folha e etiquetas.
+
+- Modo Personalizado: folha, etiqueta, margens e grade (colunas × linhas) em mm.
+- Assistente de grade com ordem de preenchimento (linha a linha / coluna a coluna).
+- Escopos Folha e Etiqueta no editor (cabeçalhos de página, paginação {p}/{t}).
+- Guias de corte opcionais e validação de dimensões da grade.
+- Ambiente de desenvolvimento Linux/Cloud para testes sem Windows.
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 2.4 — 28/06/2025
+────────────────────────────────────────────────────────────────────────────
+Internacionalização e empacotamento.
+
+- Sistema i18n com locales JSON (português, inglês e expansão posterior).
+- Tema escuro Azure corrigido no executável PyInstaller.
+- Recursos de build e fontes incluídos corretamente na pasta dist/.
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 2.5 — 30/06/2025
+────────────────────────────────────────────────────────────────────────────
+Duplex e distribuição portátil.
+
+- Elementos marcados como Duplex (verso) no layout, PDF e impressão.
+- Ghostscript versionado no repositório; dist/ completa gerada pelo build.
+- Scripts de verificação e teste do Ghostscript na pasta de distribuição.
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 2.6 — 02/07/2025
+────────────────────────────────────────────────────────────────────────────
+Impressão em paisagem e correções de build.
+
+- Orientação paisagem na impressão para layout customizado com folha invertida
+  (ex.: A4 297×210 mm).
+- Ghostscript: paisagem via DEVMODE+GDI quando mswinpr2 não controla orientação.
+- Correções na detecção do Ghostscript na pasta dist/ do PyInstaller.
+- Traduções JSON incluídas na distribuição; ajustes de compatibilidade UPX.
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 2.7 — 02/07/2025 a 04/07/2025
+────────────────────────────────────────────────────────────────────────────
+Editor de produto e organização de pastas.
+
+- Painel de propriedades como barra lateral; abertura maximizada do editor.
+- Redesign do editor com tema roxo, cards Folha/Etiqueta/Grade e spinboxes temáticos.
+- Tamanho de papel derivado do layout do produto (não mais fixo no cadastro).
+- Grupo padrão PADRAO e subpastas de busca na pasta central de trabalhos.
+- Pasta Old criada dentro de cada grupo (não mais na raiz).
+- Presets de folha em paisagem no editor customizado.
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 2.8 — 05/07/2025
+────────────────────────────────────────────────────────────────────────────
+Redesign visual e configurações integradas.
+
+- Tema roxo aplicado em Remake, popups, auditoria, impressoras, grupos e acesso.
+- Configurações embutidas na janela principal (sem janela separada).
+- Presets de tema de interface (nível 1) via JSON com reinício da aplicação.
+- Locale espanhol; fechamento de lacunas de tradução.
+- Manuais do usuário em inglês com captura de telas e exportação para PDF.
+- Polimento do editor: segmentos, preview e tema slate como padrão.
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 2.9 — 06/07/2025 a 07/07/2025
+────────────────────────────────────────────────────────────────────────────
+Segurança, importação e documentação.
+
+- Controle de acesso às configurações: bloqueio opcional, abertura padrão e cache AD.
+- Correção da importação de produtos e do preview de PDF com rótulos localizados.
+- Compatibilidade com Python 3.9 (sintaxe de tipos).
+- Documentação reescrita em inglês (visão funcional, guia do desenvolvedor,
+  backends de impressão, estrutura das quatro primeiras colunas do CSV).
+- Arquivos readme.txt e readme_developer.txt em texto simples.
+- Remoção do dist/ versionado do repositório; .gitignore ampliado.
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 2.10 — 07/07/2025
+────────────────────────────────────────────────────────────────────────────
+Fontes, CEPNet e barra de título customizada.
+
+- Catálogo dinâmico de fontes com pasta compartilhada e importação nas configurações.
+- Código de barras Correios CEPNet com validação em lote na geração do PDF.
+- Barra de título customizada no Windows (minimizar, maximizar, fechar temáticos).
+- Correção do Start no Remake (import ausente de get_product_paper_size).
+- Mensagem de WO não encontrada exibe caminho resolvido do grupo/remake.
+- Painel de zoom/fonte, console do GS oculto e DPI raster configurável.
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 2.11 — 08/07/2025
+────────────────────────────────────────────────────────────────────────────
+Polimento da barra de título e fontes.
+
+- Redimensionamento e maximização conscientes do monitor na barra customizada.
+- Aba de fontes: layout, centralização de diálogos, seleção de negrito.
+- Edição de fontes customizadas; correção de nome de import no Windows.
+- Janelas de edição abertas no mesmo monitor da aplicação principal.
+
+
+────────────────────────────────────────────────────────────────────────────
+Versão 2.12 — 09/07/2026
+────────────────────────────────────────────────────────────────────────────
+Remake e etiquetas térmicas.
+
+- Remake: erros do Start agora visíveis (popup na janela de remake e registro em
+  Errors_Logs.txt); tela só fecha quando a geração do PDF inicia de fato.
+- Etiquetas largas (ex.: Zebra 93×35 mm): impressão em retrato — o PDF já tem
+  as dimensões finais; paisagem na impressora reservada a presets conhecidos
+  (A4_landscape, folha invertida em papel A4, etc.).
+
+
+────────────────────────────────────────────────────────────────────────────
+Notas
+────────────────────────────────────────────────────────────────────────────
+- Versões 1.x: produto original estável em produção.
+- Versões 2.x: evolução com nova arquitetura, layout customizado, múltiplos
+  motores de impressão, i18n, redesign de interface e documentação ampliada.
+- Impressão física permanece exclusiva do Windows; desenvolvimento e testes de
+  PDF/layout podem ser feitos em ambiente Linux conforme AGENTS.md.
