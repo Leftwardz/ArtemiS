@@ -37,6 +37,7 @@ def get_printer_paper_error_message(paper_size, wording_key='printer_paper.wordi
 
 
 def finish_print_job(pdf_data, files_to_move, is_remake, printer_name, exe_index=None, paper_size='9',
+                   paper_width_mm=None, paper_height_mm=None,
                    requires_duplex=False, orientation=ORIENTATION_PORTRAIT):
     """
     Imprime ou abre o PDF unificado e arquiva os CSVs de origem.
@@ -74,6 +75,8 @@ def finish_print_job(pdf_data, files_to_move, is_remake, printer_name, exe_index
                 printer_name,
                 exe_index=exe_index,
                 paper_size=paper_size,
+                paper_width_mm=paper_width_mm,
+                paper_height_mm=paper_height_mm,
                 backend=backend,
                 config=runtime.context.config,
                 duplex=duplex_mode,

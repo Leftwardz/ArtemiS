@@ -407,6 +407,97 @@ def windows_display_name(registry_label: str) -> str:
     return name.strip() or registry_label
 
 
+def suggest_windows_bold_match(
+    items: List[Tuple[str, str]],
+    registry_label: str,
+    filename: str,
+) -> Optional[Tuple[str, str]]:
+    """Guess the matching bold face for a Windows regular font."""
+    base = windows_display_name(registry_label).casefold()
+    stem = Path(filename).stem.lower()
+
+    exact: Optional[Tuple[str, str]] = None
+    fallback: Optional[Tuple[str, str]] = None
+    for label, fn in items:
+        if label == registry_label and fn == filename:
+            continue
+        display = windows_display_name(label).casefold()
+        fn_stem = Path(fn).stem.lower()
+        if display == f'{base} bold':
+            return label, fn
+        if display.startswith(f'{base} ') and 'bold' in display:
+            exact = exact or (label, fn)
+        elif stem and (
+            fn_stem.endswith('bd')
+            or fn_stem.endswith('bold')
+            or ('bold' in fn_stem and stem[:4] in fn_stem)
+        ):
+            fallback = fallback or (label, fn)
+    return exact or fallback
+
+
+def _delete_font_file(folder: Path, filename: Optional[str]) -> None:
+    if not filename:
+        return
+    path = folder / filename
+    if path.is_file():
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
+def update_custom_font(
+    font_id: str,
+    *,
+    display_name: Optional[str] = None,
+    regular_path: Optional[str] = None,
+    bold_path: Optional[str] = None,
+    remove_bold: bool = False,
+) -> FontImportResult:
+    families = _load_custom_families()
+    target = None
+    for family in families:
+        if family.get('id') == font_id:
+            target = family
+            break
+    if target is None:
+        return FontImportResult(ok=False, error='Fonte customizada não encontrada.')
+
+    new_display = (display_name if display_name is not None else target.get('display_name', '')).strip()
+    if not new_display:
+        return FontImportResult(ok=False, error='Nome de exibição obrigatório.')
+
+    folder = custom_fonts_dir()
+    target['display_name'] = new_display
+
+    try:
+        if regular_path:
+            new_regular = _copy_ttf(regular_path, folder, font_id)
+            _delete_font_file(folder, target.get('regular'))
+            target['regular'] = new_regular.name
+
+        if remove_bold:
+            _delete_font_file(folder, target.get('bold'))
+            target['bold'] = None
+        elif bold_path:
+            new_bold = _copy_ttf(bold_path, folder, f'{font_id}_bold')
+            _delete_font_file(folder, target.get('bold'))
+            target['bold'] = new_bold.name
+    except (ValueError, FileNotFoundError) as exc:
+        return FontImportResult(ok=False, error=str(exc))
+    except OSError as exc:
+        return FontImportResult(ok=False, error=str(exc))
+
+    try:
+        _save_custom_catalog(families)
+    except OSError as exc:
+        return FontImportResult(ok=False, error=str(exc))
+
+    reload_fonts()
+    return FontImportResult(ok=True, message=new_display)
+
+
 def get_canvas_font(widget, font_name: str, size: int, font_style: str):
     """Return a Tk font object or tuple for canvas preview."""
     import tkinter

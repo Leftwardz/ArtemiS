@@ -1,0 +1,206 @@
+ArtemiS — Version History
+==========================
+
+Summary of major deliveries and project changes through July 9, 2026.
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 1.0 — March 26, 2025
+────────────────────────────────────────────────────────────────────────────
+Initial GitHub release.
+
+Windows desktop application (Python + CustomTkinter) for batch printing of
+Brazilian postal Aviso de Recebimento (AR) forms from CSV work-order files.
+Included a visual template editor, client/product registration, PDF generation
+with barcodes and QR codes, work queue, Remake (selective reprint), and printing
+via the Windows spooler.
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 1.0.1 — September 10, 2025
+────────────────────────────────────────────────────────────────────────────
+Minor UI adjustments (printer combobox width) and .gitignore updates.
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 1.0.2 — February 4, 2026
+────────────────────────────────────────────────────────────────────────────
+Segment tool: additional columns available in the template editor.
+
+
+════════════════════════════════════════════════════════════════════════════
+2.x line — product modernization (from June 20, 2025)
+════════════════════════════════════════════════════════════════════════════
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 2.0 — June 20, 2025
+────────────────────────────────────────────────────────────────────────────
+Full architectural refactor.
+
+- Code reorganized into the app/ package (models, services, ui, utils).
+- Standardized entry point (Main.py → app/bootstrap.py).
+- Extracted UI components (tables, popups, work queue).
+- Dedicated services for production, remake, designer, admin, and settings.
+- Centralized runtime (config, database, application context).
+- Initial overview documentation and refactor plan.
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 2.1 — June 21, 2025
+────────────────────────────────────────────────────────────────────────────
+Production, printing, and operational governance.
+
+- Work-order queue (WorkQueueList) with paper size and color validation.
+- Configurable print engine with multiple backends (PDFtoPrinter, Ghostscript,
+  Win32 DEVMODE, XPS).
+- Ghostscript bundled in the repository for portable builds.
+- Windows authentication for settings access (AD/local).
+- Printer registration and discovery on the workstation.
+- Local-first audit with central aggregation and global log view.
+- PDF generation on a separate thread with per-printer progress bars.
+- Fixed IndexError in Remake when CSV rows were too short.
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 2.2 — June 21–28, 2025
+────────────────────────────────────────────────────────────────────────────
+Template editor and object model.
+
+- Editor refactored to a typed object model (text, image, barcode, segment, etc.)
+  with zoom independent of logical font size.
+- Measure tool and spacing between selected elements.
+- CSV file preview in the editor with sample text preservation.
+- {p} and {t} placeholders for pagination in sheet headers.
+- Editor window maximization on Windows.
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 2.3 — June 24, 2025
+────────────────────────────────────────────────────────────────────────────
+Custom sheet and label layout.
+
+- Custom mode: sheet, label, margins, and grid (columns × rows) in mm.
+- Grid assistant with fill order (row by row / column by column).
+- Sheet and Label scopes in the editor (page headers, {p}/{t} pagination).
+- Optional cut guides and grid dimension validation.
+- Linux/Cloud development environment for testing without Windows.
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 2.4 — June 28, 2025
+────────────────────────────────────────────────────────────────────────────
+Internationalization and packaging.
+
+- i18n system with JSON locales (Portuguese, English, and later expansion).
+- Azure dark theme fixed in the PyInstaller executable.
+- Build resources and fonts correctly included in the dist/ folder.
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 2.5 — June 30, 2025
+────────────────────────────────────────────────────────────────────────────
+Duplex and portable distribution.
+
+- Elements marked as Duplex (back) in layout, PDF, and printing.
+- Ghostscript versioned in the repository; full dist/ produced by the build.
+- Ghostscript verification and test scripts in the distribution folder.
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 2.6 — July 2, 2025
+────────────────────────────────────────────────────────────────────────────
+Landscape printing and build fixes.
+
+- Landscape orientation for custom layouts with an inverted sheet (e.g. A4
+  297×210 mm).
+- Ghostscript: landscape via DEVMODE+GDI when mswinpr2 cannot control
+  orientation.
+- Fixed Ghostscript detection in the PyInstaller dist/ folder.
+- JSON translations included in the distribution; UPX compatibility adjustments.
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 2.7 — July 2–4, 2025
+────────────────────────────────────────────────────────────────────────────
+Product editor and folder organization.
+
+- Properties panel as a sidebar; editor opens maximized.
+- Editor redesign with purple theme, Sheet/Label/Grid cards, and themed spinboxes.
+- Paper size derived from the product layout (no longer fixed at registration).
+- Default PADRAO group and search subfolders in the central work folder.
+- Old folder created inside each group (no longer at the root).
+- Landscape sheet presets in the custom editor.
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 2.8 — July 5, 2025
+────────────────────────────────────────────────────────────────────────────
+Visual redesign and integrated settings.
+
+- Purple theme applied to Remake, popups, audit, printers, groups, and access.
+- Settings embedded in the main window (no separate window).
+- Level-1 UI theme presets via JSON with application restart.
+- Spanish locale; translation gaps closed.
+- English user manuals with screenshot capture and PDF export.
+- Editor polish: segments, preview, and slate theme as default.
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 2.9 — July 6–7, 2025
+────────────────────────────────────────────────────────────────────────────
+Security, import, and documentation.
+
+- Settings access control: optional lock, open-by-default, and AD cache.
+- Fixed product import and PDF preview with localized column labels.
+- Python 3.9 compatibility (type syntax).
+- Documentation rewritten in English (functional overview, developer guide,
+  printing backends, structure of the first four CSV columns).
+- Plain-text readme.txt and readme_developer.txt files.
+- Committed dist/ removed from the repository; expanded .gitignore.
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 2.10 — July 7, 2025
+────────────────────────────────────────────────────────────────────────────
+Fonts, CEPNet, and custom title bar.
+
+- Dynamic font catalog with shared folder and import in settings.
+- Correios CEPNet barcode with batch validation during PDF generation.
+- Custom title bar on Windows (themed minimize, maximize, close).
+- Fixed Remake Start (missing get_product_paper_size import).
+- Work-not-found message shows the resolved group/remake path.
+- Zoom/font panel, hidden GS console, and configurable raster DPI.
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 2.11 — July 8, 2025
+────────────────────────────────────────────────────────────────────────────
+Title bar and font polish.
+
+- Monitor-aware resize and maximize on the custom title bar.
+- Fonts tab: layout, dialog centering, bold selection.
+- Custom font editing; fixed Windows import name.
+- Edit windows open on the same monitor as the main application.
+
+
+────────────────────────────────────────────────────────────────────────────
+Version 2.12 — July 9, 2026
+────────────────────────────────────────────────────────────────────────────
+Remake and thermal labels.
+
+- Remake: Start errors are now visible (popup on the remake window and log in
+  Errors_Logs.txt); the screen only closes when PDF generation actually starts.
+- Wide labels (e.g. Zebra 93×35 mm): portrait printing — the PDF already has
+  the final dimensions; printer landscape is reserved for known presets
+  (A4_landscape, inverted sheet on A4 stock, etc.).
+
+
+────────────────────────────────────────────────────────────────────────────
+Notes
+────────────────────────────────────────────────────────────────────────────
+- 1.x versions: original stable product in production.
+- 2.x versions: evolution with new architecture, custom layout, multiple print
+  engines, i18n, UI redesign, and expanded documentation.
+- Physical printing remains Windows-only; PDF/layout development and testing can
+  be done on Linux as described in AGENTS.md.

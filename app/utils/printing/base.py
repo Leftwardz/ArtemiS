@@ -50,6 +50,8 @@ class PrintJob:
     duplex: str = DUPLEX_SIMPLEX
     orientation: str = ORIENTATION_PORTRAIT
     paper_size: str = '9'
+    paper_width_mm: Optional[float] = None
+    paper_height_mm: Optional[float] = None
     tray: Optional[int] = None          # None = bandeja default do driver
     slot_index: Optional[int] = None    # usado só pelo PDFtoPrinter
     config: Optional[dict] = field(default=None)
@@ -61,6 +63,8 @@ class PrintJob:
             'duplex': self.duplex,
             'orientation': self.orientation,
             'paper_size': self.paper_size,
+            'paper_width_mm': self.paper_width_mm,
+            'paper_height_mm': self.paper_height_mm,
             'tray': self.tray if self.tray is not None else 'auto',
             'slot_index': self.slot_index,
             'pdf_path': self.pdf_path,

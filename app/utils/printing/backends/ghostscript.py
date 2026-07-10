@@ -12,6 +12,9 @@ preservando 100% o comportamento atual quando os defaults são usados):
 Paisagem: o mswinpr2 não controla dmOrientation por job (limitação do
 dispositivo Ghostscript no Windows). Jobs em paisagem usam DEVMODE+GDI, o
 mesmo caminho do backend Win32 DEVMODE — que o driver respeita.
+
+Etiquetas com dimensões custom (mm) também usam DEVMODE+GDI em retrato, com
+dmPaperWidth/dmPaperLength no DEVMODE do job.
 """
 
 import os
@@ -36,8 +39,15 @@ from app.utils.printing.base import (
 
 
 def uses_devmode_gdi_for_job(job: PrintJob) -> bool:
-    """True quando o job deve usar DEVMODE+GDI em vez de mswinpr2."""
-    return job.orientation == ORIENTATION_LANDSCAPE
+    """True when the job must use DEVMODE+GDI instead of mswinpr2."""
+    if job.orientation == ORIENTATION_LANDSCAPE:
+        return True
+    try:
+        width_mm = float(job.paper_width_mm)
+        height_mm = float(job.paper_height_mm)
+    except (TypeError, ValueError):
+        return False
+    return width_mm > 0 and height_mm > 0
 
 
 def build_ghostscript_command(gs_exe: str, job: PrintJob) -> list[str]:
@@ -133,8 +143,8 @@ class GhostscriptBackend(PrintBackend):
                 'Use o motor Win32 DEVMODE nas configurações.',
             )
         log.info(
-            'paisagem: mswinpr2 não controla orientação por job; '
-            'usando DEVMODE+GDI (Ghostscript rasteriza, GDI imprime)',
+            'DEVMODE+GDI: mswinpr2 não cobre este job (paisagem ou etiqueta custom); '
+            'raster GS + GDI com dmPaperWidth/dmPaperLength',
         )
         try:
             from app.utils.printing.devmode_gdi_print import print_job_via_devmode_gdi

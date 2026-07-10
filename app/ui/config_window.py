@@ -38,7 +38,11 @@ from app.services.font_service import (
     list_windows_fonts,
     reload_fonts,
     remove_custom_font,
+    suggest_windows_bold_match,
+    update_custom_font,
     validate_fonts_folder,
+    windows_display_name,
+    WINDOWS_FONTS_DIR,
 )
 from app.services.designer_service import (
     build_export_payload,
@@ -1038,20 +1042,30 @@ class ConfigPanel(ctk.CTkFrame):
         )
         self.btn_import_windows_font.pack(side='left', padx=(0, 8))
         self._register_button(self.btn_import_windows_font, 'config.fonts_import_windows')
+
+        btn_row2 = ctk.CTkFrame(body_list, fg_color='transparent')
+        btn_row2.pack(fill='x', pady=(8, 0))
         self.btn_remove_custom_font = ctk.CTkButton(
-            btn_row, text=t('config.fonts_remove_custom'), width=140, height=32, corner_radius=8,
+            btn_row2, text=t('config.fonts_remove_custom'), width=140, height=32, corner_radius=8,
             fg_color=BTN_RED, hover_color=BTN_HOVER_RED,
             command=self.remove_selected_custom_font,
         )
         self.btn_remove_custom_font.pack(side='left', padx=(0, 8))
         self._register_button(self.btn_remove_custom_font, 'config.fonts_remove_custom')
         self.btn_reload_fonts = ctk.CTkButton(
-            btn_row, text=t('config.fonts_reload'), width=120, height=32, corner_radius=8,
+            btn_row2, text=t('config.fonts_reload'), width=180, height=32, corner_radius=8,
             fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
             command=self.reload_font_catalog,
         )
-        self.btn_reload_fonts.pack(side='right')
+        self.btn_reload_fonts.pack(side='left', padx=(0, 8))
         self._register_button(self.btn_reload_fonts, 'config.fonts_reload')
+        self.btn_edit_custom_font = ctk.CTkButton(
+            btn_row2, text=t('config.fonts_edit_custom'), width=140, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER,
+            command=self.edit_selected_custom_font,
+        )
+        self.btn_edit_custom_font.pack(side='left')
+        self._register_button(self.btn_edit_custom_font, 'config.fonts_edit_custom')
 
         self.lbl_fonts_license = ctk.CTkLabel(
             scroll, text=t('config.fonts_license_hint'), font=(FONT, 10),
@@ -1113,6 +1127,17 @@ class ConfigPanel(ctk.CTkFrame):
 
     def import_font_from_windows(self):
         WindowsFontImportWindow(self, on_saved=self.refresh_fonts_table)
+
+    def edit_selected_custom_font(self):
+        selection = self.fonts_table.selection()
+        if not selection:
+            PopUpWindow(self, t('popup.error'), t('config.fonts_select_one'))
+            return
+        row = self._font_row_ids.get(selection[0])
+        if not row or row.get('builtin'):
+            PopUpWindow(self, t('popup.error'), t('config.fonts_builtin_locked'))
+            return
+        FontEditWindow(self, row, on_saved=self.refresh_fonts_table)
 
     def remove_selected_custom_font(self):
         selection = self.fonts_table.selection()
@@ -2611,6 +2636,91 @@ class AuditWindow(ctk.CTkToplevel):
         self._copy_to_clipboard(self._rows_to_tsv(records), len(records))
 
 
+class WindowsFontPickerDialog(ctk.CTkToplevel):
+    _WINDOW_W = 520
+    _WINDOW_H = 420
+
+    def __init__(self, master, *, title: str, on_select):
+        super().__init__(master)
+        self._on_select = on_select
+        self._all_items: list[tuple[str, str]] = list_windows_fonts()
+        self.title(title)
+        self.geometry(f'{self._WINDOW_W}x{self._WINDOW_H}')
+        self.resizable(False, False)
+        self.transient(master)
+        self.grab_set()
+
+        body = ctk.CTkFrame(self, fg_color=THEME_CARD)
+        body.pack(fill='both', expand=True, padx=16, pady=16)
+
+        search_row = ctk.CTkFrame(body, fg_color='transparent')
+        search_row.pack(fill='x', pady=(0, 8))
+        ctk.CTkLabel(
+            search_row, text=t('config.fonts_windows_search'), anchor='w',
+            text_color=THEME_TEXT_SECONDARY,
+        ).pack(side='left', padx=(0, 8))
+        self.inpt_search = ctk.CTkEntry(
+            search_row, **_entry_kwargs(), placeholder_text=t('config.fonts_windows_search_hint'),
+        )
+        self.inpt_search.pack(side='left', fill='x', expand=True)
+        self.inpt_search.bind('<KeyRelease>', self._on_search_changed)
+
+        self.table_frame = _table_host(body, 220)
+        self.table_frame.pack(fill='both', expand=True, pady=(0, 8))
+        self.table = Table(
+            self.table_frame,
+            [t('config.fonts_windows_col_name'), t('config.fonts_windows_col_file')],
+            show='headings', height=10,
+        )
+        self.table.column('#1', width=260)
+        self.table.column('#2', width=180)
+        self.table.pack(fill='both', expand=True, padx=4, pady=4)
+        self._row_map: dict = {}
+
+        actions = ctk.CTkFrame(body, fg_color='transparent')
+        actions.pack(fill='x')
+        ctk.CTkButton(
+            actions, text=t('config.fonts_choose'), width=110, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER, command=self._confirm_select,
+        ).pack(side='left', padx=(0, 8))
+        ctk.CTkButton(
+            actions, text=t('common.cancel'), width=110, height=32, corner_radius=8,
+            fg_color=BTN_RED, hover_color=BTN_HOVER_RED, command=self.destroy,
+        ).pack(side='left')
+
+        self.table.bind('<Double-1>', lambda _e: self._confirm_select())
+        self._apply_filter()
+        self.geometry(calculate_center_screen_with_monitor(
+            master, self._WINDOW_W, self._WINDOW_H, get_monitor(master),
+        ))
+
+    def _on_search_changed(self, _event=None):
+        self._apply_filter()
+
+    def _apply_filter(self):
+        query = self.inpt_search.get().strip().lower()
+        for item in self.table.get_children():
+            self.table.delete(item)
+        self._row_map.clear()
+        for label, filename in self._all_items:
+            haystack = f'{label} {filename}'.lower()
+            if query and query not in haystack:
+                continue
+            iid = self.table.insert('', 'end', values=(label, filename))
+            self._row_map[iid] = (label, filename)
+
+    def _confirm_select(self):
+        selection = self.table.selection()
+        if not selection:
+            PopUpWindow(self, t('popup.error'), t('config.fonts_select_one'))
+            return
+        label, filename = self._row_map.get(selection[0], ('', ''))
+        if not filename:
+            return
+        self._on_select(label, filename)
+        self.destroy()
+
+
 class FontAddWindow(ctk.CTkToplevel):
     def __init__(self, master, on_saved=None):
         super().__init__(master)
@@ -2659,7 +2769,7 @@ class FontAddWindow(ctk.CTkToplevel):
             fg_color=BTN_RED, hover_color=BTN_HOVER_RED, command=self.destroy,
         ).pack(side='left')
 
-        calculate_center_screen_with_monitor(self, 460, 320)
+        self.geometry(calculate_center_screen_with_monitor(master, 460, 320, get_monitor(master)))
 
     def _pick_regular(self):
         path = askopenfilename(filetypes=[('TrueType Font', '*.ttf'), ('All files', '*.*')])
@@ -2695,12 +2805,19 @@ class FontAddWindow(ctk.CTkToplevel):
 
 
 class WindowsFontImportWindow(ctk.CTkToplevel):
+    _WINDOW_W = 620
+    _WINDOW_H = 560
+
     def __init__(self, master, on_saved=None):
         super().__init__(master)
         self._on_saved = on_saved
-        self._items: list[tuple[str, str]] = []
+        self._all_items: list[tuple[str, str]] = []
+        self._regular_label = ''
+        self._regular_filename = ''
+        self._bold_label = ''
+        self._bold_filename = ''
         self.title(t('config.fonts_windows_title'))
-        self.geometry('620x480')
+        self.geometry(f'{self._WINDOW_W}x{self._WINDOW_H}')
         self.resizable(False, False)
         self.transient(master)
         self.grab_set()
@@ -2713,12 +2830,22 @@ class WindowsFontImportWindow(ctk.CTkToplevel):
             text_color=THEME_TEXT_SECONDARY, wraplength=560,
         ).pack(fill='x', pady=(0, 8))
 
-        self.table_frame = _table_host(body, 260)
+        search_row = ctk.CTkFrame(body, fg_color='transparent')
+        search_row.pack(fill='x', pady=(0, 8))
+        ctk.CTkLabel(
+            search_row, text=t('config.fonts_windows_search'), anchor='w',
+            text_color=THEME_TEXT_SECONDARY,
+        ).pack(side='left', padx=(0, 8))
+        self.inpt_search = ctk.CTkEntry(search_row, **_entry_kwargs(), placeholder_text=t('config.fonts_windows_search_hint'))
+        self.inpt_search.pack(side='left', fill='x', expand=True)
+        self.inpt_search.bind('<KeyRelease>', self._on_search_changed)
+
+        self.table_frame = _table_host(body, 200)
         self.table_frame.pack(fill='both', expand=True, pady=(0, 8))
         self.table = Table(
             self.table_frame,
             [t('config.fonts_windows_col_name'), t('config.fonts_windows_col_file')],
-            show='headings', height=12,
+            show='headings', height=10,
         )
         self.table.column('#1', width=320)
         self.table.column('#2', width=220)
@@ -2728,6 +2855,25 @@ class WindowsFontImportWindow(ctk.CTkToplevel):
         ctk.CTkLabel(body, text=t('config.fonts_display_name'), anchor='w').pack(fill='x', pady=(4, 4))
         self.inpt_name = ctk.CTkEntry(body, **_entry_kwargs())
         self.inpt_name.pack(fill='x', pady=(0, 8))
+
+        bold_row = ctk.CTkFrame(body, fg_color='transparent')
+        bold_row.pack(fill='x', pady=(0, 8))
+        ctk.CTkLabel(
+            bold_row, text=t('config.fonts_bold_file_optional'), anchor='w',
+            text_color=THEME_TEXT_SECONDARY,
+        ).pack(side='left', padx=(0, 8))
+        self.lbl_bold = ctk.CTkLabel(
+            bold_row, text=t('config.fonts_windows_bold_none'), anchor='w',
+        )
+        self.lbl_bold.pack(side='left', fill='x', expand=True)
+        ctk.CTkButton(
+            bold_row, text=t('config.fonts_choose'), width=90, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER, command=self._pick_bold,
+        ).pack(side='right', padx=(8, 0))
+        ctk.CTkButton(
+            bold_row, text=t('common.clear'), width=72, height=32, corner_radius=8,
+            fg_color=BTN_RED, hover_color=BTN_HOVER_RED, command=self._clear_bold,
+        ).pack(side='right')
 
         actions = ctk.CTkFrame(body, fg_color='transparent')
         actions.pack(fill='x')
@@ -2742,43 +2888,210 @@ class WindowsFontImportWindow(ctk.CTkToplevel):
 
         self.table.bind('<<TreeviewSelect>>', self._on_select)
         self._load_fonts()
-        calculate_center_screen_with_monitor(self, 620, 480)
+        self.geometry(calculate_center_screen_with_monitor(
+            master, self._WINDOW_W, self._WINDOW_H, get_monitor(master),
+        ))
 
     def _load_fonts(self):
-        self._items = list_windows_fonts()
-        if not self._items:
+        self._all_items = list_windows_fonts()
+        if not self._all_items:
             PopUpWindow(self, t('popup.error'), t('config.fonts_windows_unavailable'))
             return
-        for label, filename in self._items:
+        self._apply_filter()
+
+    def _on_search_changed(self, _event=None):
+        self._apply_filter()
+
+    def _apply_filter(self):
+        query = self.inpt_search.get().strip().lower() if hasattr(self, 'inpt_search') else ''
+        for item in self.table.get_children():
+            self.table.delete(item)
+        self._row_map.clear()
+        for label, filename in self._all_items:
+            haystack = f'{label} {filename}'.lower()
+            if query and query not in haystack:
+                continue
             iid = self.table.insert('', 'end', values=(label, filename))
             self._row_map[iid] = (label, filename)
+
+    def _set_bold(self, label: str, filename: str):
+        self._bold_label = label
+        self._bold_filename = filename
+        self.lbl_bold.configure(text=windows_display_name(label))
+
+    def _clear_bold(self):
+        self._bold_label = ''
+        self._bold_filename = ''
+        self.lbl_bold.configure(text=t('config.fonts_windows_bold_none'))
+
+    def _pick_bold(self):
+        WindowsFontPickerDialog(
+            self,
+            title=t('config.fonts_windows_bold_title'),
+            on_select=self._set_bold,
+        )
 
     def _on_select(self, _event=None):
         selection = self.table.selection()
         if not selection:
             return
-        label, _filename = self._row_map.get(selection[0], ('', ''))
-        if label and not self.inpt_name.get().strip():
-            from app.services.font_service import windows_display_name
-            self.inpt_name.delete(0, 'end')
-            self.inpt_name.insert(0, windows_display_name(label))
+        label, filename = self._row_map.get(selection[0], ('', ''))
+        if not label:
+            return
+        self._regular_label = label
+        self._regular_filename = filename
+        self.inpt_name.delete(0, 'end')
+        self.inpt_name.insert(0, windows_display_name(label))
+        match = suggest_windows_bold_match(self._all_items, label, filename)
+        if match:
+            self._set_bold(*match)
+        else:
+            self._clear_bold()
 
     def _import_selected(self):
-        selection = self.table.selection()
-        if not selection:
-            PopUpWindow(self, t('popup.error'), t('config.fonts_select_one'))
-            return
-        label, filename = self._row_map.get(selection[0], ('', ''))
-        if not filename:
-            return
+        if not self._regular_filename:
+            selection = self.table.selection()
+            if not selection:
+                PopUpWindow(self, t('popup.error'), t('config.fonts_select_one'))
+                return
+            label, filename = self._row_map.get(selection[0], ('', ''))
+            if not filename:
+                return
+            self._regular_label = label
+            self._regular_filename = filename
         display_name = self.inpt_name.get().strip()
-        result = import_windows_font(label, filename, display_name)
+        result = import_windows_font(
+            self._regular_label,
+            self._regular_filename,
+            display_name,
+            self._bold_filename or None,
+        )
         if not result.ok:
             PopUpWindow(self, t('popup.error'), result.error)
             return
         if self._on_saved:
             self._on_saved()
         PopUpWindow(self, t('common.success'), t('config.fonts_added', name=result.message))
+        self.destroy()
+
+
+class FontEditWindow(ctk.CTkToplevel):
+    def __init__(self, master, font_row: dict, on_saved=None):
+        super().__init__(master)
+        self._on_saved = on_saved
+        self._font_id = font_row['id']
+        self._regular_path = ''
+        self._bold_path = ''
+        self._remove_bold = False
+        self.title(t('config.fonts_edit_title'))
+        self.geometry('460x380')
+        self.resizable(False, False)
+        self.transient(master)
+        self.grab_set()
+
+        body = ctk.CTkFrame(self, fg_color=THEME_CARD)
+        body.pack(fill='both', expand=True, padx=16, pady=16)
+
+        ctk.CTkLabel(body, text=t('config.fonts_display_name'), anchor='w').pack(fill='x', pady=(0, 4))
+        self.inpt_name = ctk.CTkEntry(body, **_entry_kwargs())
+        self.inpt_name.pack(fill='x', pady=(0, 12))
+        self.inpt_name.insert(0, font_row['display_name'])
+
+        row_reg = ctk.CTkFrame(body, fg_color='transparent')
+        row_reg.pack(fill='x', pady=(0, 8))
+        ctk.CTkLabel(row_reg, text=t('config.fonts_regular_file'), anchor='w', text_color=THEME_TEXT_SECONDARY).pack(
+            anchor='w',
+        )
+        reg_actions = ctk.CTkFrame(row_reg, fg_color='transparent')
+        reg_actions.pack(fill='x', pady=(4, 0))
+        self.lbl_regular = ctk.CTkLabel(reg_actions, text=font_row['regular'], anchor='w')
+        self.lbl_regular.pack(side='left', fill='x', expand=True)
+        ctk.CTkButton(
+            reg_actions, text=t('config.fonts_replace_file'), width=90, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER, command=self._pick_regular,
+        ).pack(side='right')
+
+        row_bold = ctk.CTkFrame(body, fg_color='transparent')
+        row_bold.pack(fill='x', pady=(0, 12))
+        ctk.CTkLabel(row_bold, text=t('config.fonts_bold_file_optional'), anchor='w', text_color=THEME_TEXT_SECONDARY).pack(
+            anchor='w',
+        )
+        bold_actions = ctk.CTkFrame(row_bold, fg_color='transparent')
+        bold_actions.pack(fill='x', pady=(4, 0))
+        bold_initial = font_row['bold'] or t('config.fonts_windows_bold_none')
+        self.lbl_bold = ctk.CTkLabel(bold_actions, text=bold_initial, anchor='w')
+        self.lbl_bold.pack(side='left', fill='x', expand=True)
+        ctk.CTkButton(
+            bold_actions, text=t('config.fonts_choose'), width=90, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER, command=self._pick_bold_file,
+        ).pack(side='right', padx=(8, 0))
+        ctk.CTkButton(
+            bold_actions, text=t('config.fonts_from_windows'), width=120, height=32, corner_radius=8,
+            fg_color=THEME_NAV_ACTIVE, hover_color=THEME_CARD_BORDER, command=self._pick_bold_windows,
+        ).pack(side='right', padx=(8, 0))
+        ctk.CTkButton(
+            bold_actions, text=t('common.clear'), width=72, height=32, corner_radius=8,
+            fg_color=BTN_RED, hover_color=BTN_HOVER_RED, command=self._clear_bold,
+        ).pack(side='right')
+
+        actions = ctk.CTkFrame(body, fg_color='transparent')
+        actions.pack(fill='x', pady=(8, 0))
+        ctk.CTkButton(
+            actions, text=t('common.save'), width=110, height=32, corner_radius=8,
+            fg_color=THEME_ACCENT, hover_color=THEME_ACCENT_HOVER, command=self._save,
+        ).pack(side='left', padx=(0, 8))
+        ctk.CTkButton(
+            actions, text=t('common.cancel'), width=110, height=32, corner_radius=8,
+            fg_color=BTN_RED, hover_color=BTN_HOVER_RED, command=self.destroy,
+        ).pack(side='left')
+
+        self.geometry(calculate_center_screen_with_monitor(master, 460, 380, get_monitor(master)))
+
+    def _pick_regular(self):
+        path = askopenfilename(filetypes=[('TrueType Font', '*.ttf'), ('All files', '*.*')])
+        if path:
+            self._regular_path = path
+            self.lbl_regular.configure(text=os.path.basename(path))
+
+    def _pick_bold_file(self):
+        path = askopenfilename(filetypes=[('TrueType Font', '*.ttf'), ('All files', '*.*')])
+        if path:
+            self._bold_path = path
+            self._remove_bold = False
+            self.lbl_bold.configure(text=os.path.basename(path))
+
+    def _pick_bold_windows(self):
+        def on_select(label, filename):
+            self._bold_path = str(WINDOWS_FONTS_DIR / filename)
+            self._remove_bold = False
+            self.lbl_bold.configure(text=windows_display_name(label))
+
+        WindowsFontPickerDialog(
+            self,
+            title=t('config.fonts_windows_bold_title'),
+            on_select=on_select,
+        )
+
+    def _clear_bold(self):
+        self._bold_path = ''
+        self._remove_bold = True
+        self.lbl_bold.configure(text=t('config.fonts_windows_bold_none'))
+
+    def _save(self):
+        display_name = self.inpt_name.get().strip()
+        result = update_custom_font(
+            self._font_id,
+            display_name=display_name,
+            regular_path=self._regular_path or None,
+            bold_path=self._bold_path or None,
+            remove_bold=self._remove_bold,
+        )
+        if not result.ok:
+            PopUpWindow(self, t('popup.error'), result.error)
+            return
+        if self._on_saved:
+            self._on_saved()
+        PopUpWindow(self, t('common.success'), t('config.fonts_updated', name=result.message))
         self.destroy()
 
 

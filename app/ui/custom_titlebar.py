@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import sys
-from ctypes import byref, windll, wintypes
+from ctypes import Structure, byref, sizeof, wintypes
 from typing import Optional
 
 import customtkinter as ctk
+
+if sys.platform == 'win32':
+    from ctypes import windll
+else:
+    windll = None  # type: ignore[assignment]
 
 from app.ui.constants import (
     FONT,
@@ -23,22 +28,56 @@ ICON_RESTORE = '\uE923'
 ICON_CLOSE = '\uE8BB'
 
 
+class _MONITORINFO(Structure):
+    _fields_ = [
+        ('cbSize', wintypes.DWORD),
+        ('rcMonitor', wintypes.RECT),
+        ('rcWork', wintypes.RECT),
+        ('dwFlags', wintypes.DWORD),
+    ]
+
+
 def _is_windows() -> bool:
     return sys.platform == 'win32'
 
 
-def _work_area() -> tuple[int, int, int, int]:
-    """Return (x, y, width, height) of the monitor work area (excludes taskbar)."""
-    if not _is_windows():
+def format_geometry(width: int, height: int, x: int, y: int) -> str:
+    return f'{int(width)}x{int(height)}+{int(x)}+{int(y)}'
+
+
+def _primary_work_area() -> tuple[int, int, int, int]:
+    """Return (x, y, width, height) of the primary monitor work area."""
+    if not _is_windows() or windll is None:
         return 0, 0, 1920, 1080
     rect = wintypes.RECT()
     windll.user32.SystemParametersInfoW(0x0030, 0, byref(rect), 0)
     return rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top
 
 
+def _monitor_work_area(window: ctk.CTk) -> tuple[int, int, int, int]:
+    """Return work area for the monitor nearest to the window."""
+    if not _is_windows() or windll is None:
+        return 0, 0, 1920, 1080
+    try:
+        hwnd = _window_hwnd(window)
+        monitor = windll.user32.MonitorFromWindow(hwnd, 2)  # MONITOR_DEFAULTTONEAREST
+        if not monitor:
+            return _primary_work_area()
+        info = _MONITORINFO()
+        info.cbSize = sizeof(_MONITORINFO)
+        if not windll.user32.GetMonitorInfoW(monitor, byref(info)):
+            return _primary_work_area()
+        work = info.rcWork
+        return work.left, work.top, work.right - work.left, work.bottom - work.top
+    except Exception:
+        return _primary_work_area()
+
+
 def _window_hwnd(window: ctk.CTk) -> int:
     window.update_idletasks()
     hwnd = window.winfo_id()
+    if windll is None:
+        return hwnd
     parent = windll.user32.GetParent(hwnd)
     return parent or hwnd
 
@@ -174,8 +213,8 @@ class CustomTitleBar:
         if not self._enabled or self._maximized:
             return
         self._restore_geometry = self.window.geometry()
-        x, y, w, h = _work_area()
-        self.window.geometry(f'{w}x{h}+{x}+{y}')
+        x, y, w, h = _monitor_work_area(self.window)
+        self.window.geometry(format_geometry(w, h, x, y))
         self._maximized = True
         self.btn_max.configure(text=ICON_RESTORE)
 

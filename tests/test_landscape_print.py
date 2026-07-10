@@ -38,6 +38,22 @@ def test_resolve_print_orientation_custom_portrait():
     assert resolve_print_orientation('4', _layout_json(210, 297)) == ORIENTATION_PORTRAIT
 
 
+def test_resolve_print_orientation_zebra_label_portrait():
+    """Etiquetas largas (ex. 93×35 mm) não devem forçar paisagem na impressora."""
+    layout = SheetLayout(
+        page_width_mm=93.0,
+        page_height_mm=35.0,
+        label_width_mm=93.0,
+        label_height_mm=35.0,
+        columns=1,
+        rows=1,
+        margin_left_mm=0.0,
+        margin_top_mm=0.0,
+        page_preset='Personalizado',
+    )
+    assert resolve_print_orientation('4', layout.to_json()) == ORIENTATION_PORTRAIT
+
+
 def test_resolve_print_orientation_standard_modes_are_portrait():
     for orientation in ('0', '1', '2', '3'):
         assert resolve_print_orientation(orientation, None) == ORIENTATION_PORTRAIT

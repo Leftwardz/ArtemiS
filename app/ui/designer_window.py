@@ -95,7 +95,7 @@ from app.utils.barcode_generator import (
 )
 from app.utils.file_parser import FileUtils
 from app.utils.text_utils import break_line
-from app.utils.window_geometry import calculate_center_screen_with_monitor, get_monitor
+from app.utils.window_geometry import calculate_center_screen_with_monitor, get_monitor, maximize_window_on_widget
 from app.services.pdf_service import _apply_sheet_page_placeholders, generate_test_pdf
 from app.services.font_service import get_canvas_font
 from app.services.sheet_grouping import build_sheet_pages
@@ -552,20 +552,13 @@ class EditWindow(ctk.CTkToplevel):
         self._highlight_tool(tool)
 
     def _try_maximize(self):
-        """Abre o editor maximizado (Windows: zoomed)."""
+        """Abre o editor maximizado no monitor onde o app principal está."""
         try:
-            self.state('zoomed')
-            return
+            maximize_window_on_widget(self, self.master)
         except Exception:
-            pass
-        try:
-            self.attributes('-zoomed', True)
-            return
-        except Exception:
-            pass
-        sw = self.winfo_screenwidth()
-        sh = self.winfo_screenheight()
-        self.geometry(f'{sw}x{sh}+0+0')
+            sw = self.winfo_screenwidth()
+            sh = self.winfo_screenheight()
+            self.geometry(f'{sw}x{sh}+0+0')
 
     _CUSTOM_SPIN_WIDTH = 64
 

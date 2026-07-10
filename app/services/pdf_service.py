@@ -21,7 +21,7 @@ from app.utils.barcode_generator import (
 from app.utils.cepnet import CepNetValidationError, validate_cepnet_batch, validate_cepnet_placeholders
 from app.utils.text_utils import break_line
 from app.models.sheet_layout import CUSTOM_ORIENTATION_INDEX, SCOPE_SHEET, SheetLayout
-from app.services.layout_service import batch_print_orientation, resolve_layout_for_orientation
+from app.services.layout_service import batch_print_orientation, batch_print_job_dimensions_mm, batch_print_job_paper_size, resolve_layout_for_orientation
 from app.services.sheet_grouping import build_sheet_pages, parse_column_indices
 from app.services.sheet_page_placeholders import apply_sheet_page_placeholders as _apply_sheet_page_placeholders
 from app.services.font_service import resolve_reportlab_font
@@ -348,11 +348,13 @@ def write_text_to_pdf(items, files_lines, orientation_list, path=None, is_remake
         product_requires_duplex(items[i]) for i in range(len(files_lines))
     )
     print_orientation = batch_print_orientation(orientation_list, layout_config_list)
+    paper_size = batch_print_job_paper_size(orientation_list, layout_config_list)
+    paper_dimensions_mm = batch_print_job_dimensions_mm(orientation_list, layout_config_list)
 
     if on_complete:
         on_complete(
             joined_pdf_bytes, files_to_move, is_remake, printer,
-            requires_duplex, print_orientation,
+            requires_duplex, print_orientation, paper_size, paper_dimensions_mm,
         )
 
 
