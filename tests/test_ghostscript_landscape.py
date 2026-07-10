@@ -28,3 +28,11 @@ def test_portrait_a4_uses_named_papersize():
 def test_landscape_job_routes_to_devmode_gdi():
     assert uses_devmode_gdi_for_job(_job(orientation=ORIENTATION_LANDSCAPE))
     assert not uses_devmode_gdi_for_job(_job(orientation=ORIENTATION_PORTRAIT))
+
+
+def test_custom_label_job_routes_to_devmode_gdi():
+    assert uses_devmode_gdi_for_job(_job(
+        paper_size='0',
+        paper_width_mm=95.0,
+        paper_height_mm=30.0,
+    ))

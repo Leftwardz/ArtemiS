@@ -182,3 +182,49 @@ def get_product_paper_size(product) -> str:
         return LEGACY_ORIENTATION_PAPER_SIZE
     orient = int(product.orientation) if str(product.orientation).isdigit() else 0
     return resolve_product_paper_size(orient, getattr(product, 'layout_config', None))
+
+
+def resolve_job_paper_dimensions_mm(
+    orientation,
+    layout_config_json: Optional[str] = None,
+) -> Optional[tuple[float, float]]:
+    """Physical page size in mm for custom stock (e.g. Zebra 95×30), or None for DMPAPER presets."""
+    if not is_custom_orientation(orientation):
+        return None
+    if resolve_product_paper_size(CUSTOM_ORIENTATION_INDEX, layout_config_json) != '0':
+        return None
+    layout = resolve_layout_for_orientation(orientation, layout_config_json)
+    if layout is None:
+        return None
+    return float(layout.page_width_mm), float(layout.page_height_mm)
+
+
+def batch_print_job_dimensions_mm(
+    orientation_list,
+    layout_config_list: Optional[list] = None,
+) -> Optional[tuple[float, float]]:
+    """Single (width_mm, height_mm) for the batch, or None when not all custom stock."""
+    configs = layout_config_list or []
+    dims = []
+    for i, orientation in enumerate(orientation_list):
+        layout_json = configs[i] if i < len(configs) else None
+        dims.append(resolve_job_paper_dimensions_mm(orientation, layout_json))
+    if not dims or any(d is None for d in dims):
+        return None
+    if len({d for d in dims}) != 1:
+        return None
+    return dims[0]
+
+
+def batch_print_job_paper_size(
+    orientation_list,
+    layout_config_list: Optional[list] = None,
+) -> str:
+    """Single DMPAPER code for the batch (first item if mixed — queue validation should prevent that)."""
+    configs = layout_config_list or []
+    sizes = []
+    for i, orientation in enumerate(orientation_list):
+        orient_idx = int(orientation) if str(orientation).isdigit() else 0
+        layout_json = configs[i] if i < len(configs) else None
+        sizes.append(resolve_product_paper_size(orient_idx, layout_json))
+    return sizes[0] if sizes else LEGACY_ORIENTATION_PAPER_SIZE

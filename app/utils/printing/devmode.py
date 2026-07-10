@@ -10,8 +10,43 @@ import win32print
 
 from app.utils.printing.base import (
     DUPLEX_TO_DMDUP,
+    ORIENTATION_LANDSCAPE,
     ORIENTATION_TO_DMORIENT,
 )
+
+
+def _custom_paper_tenths_mm(job):
+    """Width/length in 0.1 mm for DMPAPER_USER jobs, or None."""
+    try:
+        width_mm = float(job.paper_width_mm)
+        height_mm = float(job.paper_height_mm)
+    except (TypeError, ValueError):
+        return None
+    if width_mm <= 0 or height_mm <= 0:
+        return None
+    if job.orientation == ORIENTATION_LANDSCAPE:
+        width_mm, height_mm = height_mm, width_mm
+    return int(round(width_mm * 10)), int(round(height_mm * 10))
+
+
+def _apply_paper_fields(dm, fields, job, applied):
+    custom = _custom_paper_tenths_mm(job)
+    if custom is not None:
+        width_tenths, length_tenths = custom
+        dm.PaperSize = 0
+        dm.PaperWidth = width_tenths
+        dm.PaperLength = length_tenths
+        fields |= win32con.DM_PAPERWIDTH | win32con.DM_PAPERLENGTH
+        applied['PaperWidth'] = width_tenths
+        applied['PaperLength'] = length_tenths
+        return fields
+
+    paper = (str(job.paper_size).strip() if job.paper_size is not None else '')
+    if paper and paper != '0':
+        dm.PaperSize = int(paper)
+        fields |= win32con.DM_PAPERSIZE
+        applied['PaperSize'] = int(paper)
+    return fields
 
 
 def _open_use(printer_name):
@@ -46,11 +81,7 @@ def build_job_devmode(printer_name, job):
         applied = {}
         fields = dm.Fields
 
-        paper = (str(job.paper_size).strip() if job.paper_size is not None else '')
-        if paper and paper != '0':
-            dm.PaperSize = int(paper)
-            fields |= win32con.DM_PAPERSIZE
-            applied['PaperSize'] = int(paper)
+        fields = _apply_paper_fields(dm, fields, job, applied)
 
         if job.copies and int(job.copies) >= 1:
             dm.Copies = int(job.copies)
@@ -149,6 +180,8 @@ def describe_devmode(dm):
     try:
         return {
             'PaperSize': getattr(dm, 'PaperSize', None),
+            'PaperWidth': getattr(dm, 'PaperWidth', None),
+            'PaperLength': getattr(dm, 'PaperLength', None),
             'Copies': getattr(dm, 'Copies', None),
             'Duplex': getattr(dm, 'Duplex', None),
             'Orientation': getattr(dm, 'Orientation', None),

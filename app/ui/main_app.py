@@ -695,10 +695,11 @@ class App(ctk.CTk):
             self.after(0, lambda: self.loading_frame.show_error(progress_slot, error_traceback))
 
         def on_complete(pdf_bytes, files_to_move, is_remake_flag, _printer_name,
-                        requires_duplex=False, print_orientation=ORIENTATION_PORTRAIT):
+                        requires_duplex=False, print_orientation=ORIENTATION_PORTRAIT,
+                        paper_size='9', paper_dimensions_mm=None):
             self.after(0, lambda: self.open_or_print_pdf(
                 pdf_bytes, files_to_move, is_remake_flag, printer, progress_slot,
-                requires_duplex, print_orientation))
+                requires_duplex, print_orientation, paper_size, paper_dimensions_mm))
 
         return on_progress, on_error, on_complete
 
@@ -861,7 +862,8 @@ class App(ctk.CTk):
             self.withdraw()
 
     def open_or_print_pdf(self, pdf_data, file_to_move=[], is_remake=None, printer=None, progress_slot=None,
-                          requires_duplex=False, print_orientation=ORIENTATION_PORTRAIT):
+                          requires_duplex=False, print_orientation=ORIENTATION_PORTRAIT,
+                          paper_size=None, paper_dimensions_mm=None):
         slot = progress_slot if progress_slot is not None else printer
         progress_text = t('main.printing')
         if printer and printer != PDF_MODE_SENTINEL and is_interactive_virtual_printer(printer):
@@ -872,14 +874,20 @@ class App(ctk.CTk):
         if printer != PDF_MODE_SENTINEL:
             exe_index = self.loading_frame.get_exe_index(slot)
 
-        paper_size = self.defined_paper_size or '9'
+        resolved_paper_size = paper_size or self.defined_paper_size or '9'
         orientation = print_orientation or ORIENTATION_PORTRAIT
+        paper_width_mm = None
+        paper_height_mm = None
+        if paper_dimensions_mm:
+            paper_width_mm, paper_height_mm = paper_dimensions_mm
 
         def _print_worker():
             try:
                 finish_print_job(
                     pdf_data, file_to_move, is_remake, printer, exe_index,
-                    paper_size=paper_size,
+                    paper_size=resolved_paper_size,
+                    paper_width_mm=paper_width_mm,
+                    paper_height_mm=paper_height_mm,
                     requires_duplex=requires_duplex,
                     orientation=orientation,
                 )
